@@ -6,6 +6,39 @@
 
 ---
 
+## 快速安装与终端管理
+
+### 1. 一键全自动部署 (推荐)
+
+使用 `root` 用户在受支持的 Linux VPS (Ubuntu / Debian / CentOS / Rocky / AlmaLinux / Alpine) 上执行：
+
+```bash
+curl -sSL https://raw.githubusercontent.com/xiumuzidiao0/aimili-vpngate-go/main/install.sh | bash
+```
+
+安装完成后，脚本将：
+- 自动检测并安装所有系统网络依赖与 OpenVPN；
+- 部署 `aimilivpn` 守护进程并注册 `systemd` 服务开机自启；
+- 创建终端管理快捷命令 `ml`。
+
+### 2. 终端交互式管理中心
+
+在终端输入以下命令，即可随时打开可视化管理菜单：
+
+```bash
+ml
+```
+
+控制中心支持：
+- 实时查看服务运行状态、Web 入口与管理凭据；
+- 一键启动、停止、重启服务；
+- 实时追踪运行日志（`journalctl` 流式显示）；
+- 智能一键切换最优节点 / 浏览候选节点；
+- 动态修改管理员账号、密码、Web 端口与代理端口；
+- 一键检查并在线更新最新版本。
+
+---
+
 ## 核心特性与架构升级
 
 | 特性 | 原 Python 版本 | Go 重构版本 |
