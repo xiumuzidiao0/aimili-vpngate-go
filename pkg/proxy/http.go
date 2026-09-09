@@ -19,7 +19,7 @@ const (
 	connectionEstablishedResponse = "HTTP/1.1 200 Connection Established\r\n\r\n"
 )
 
-func handleHTTP(client net.Conn, br *bufio.Reader, auth *Authenticator) error {
+func handleHTTP(client net.Conn, br *bufio.Reader, auth *Authenticator, devName string) error {
 	req, err := http.ReadRequest(br)
 	if err != nil {
 		return fmt.Errorf("failed to read http request: %w", err)
@@ -31,19 +31,19 @@ func handleHTTP(client net.Conn, br *bufio.Reader, auth *Authenticator) error {
 	}
 
 	if req.Method == http.MethodConnect {
-		return handleConnect(client, req)
+		return handleConnect(client, req, devName)
 	}
 
-	return handlePlainHTTP(client, req)
+	return handlePlainHTTP(client, req, devName)
 }
 
-func handleConnect(client net.Conn, req *http.Request) error {
+func handleConnect(client net.Conn, req *http.Request, devName string) error {
 	targetAddr := req.RequestURI
 	if !strings.Contains(targetAddr, ":") {
 		targetAddr = net.JoinHostPort(targetAddr, "443")
 	}
 
-	upstream, err := dialUpstream(targetAddr, 10*time.Second)
+	upstream, err := dialUpstream(targetAddr, devName, 10*time.Second)
 	if err != nil {
 		resp := fmt.Sprintf("HTTP/1.1 502 Bad Gateway\r\nContent-Length: %d\r\n\r\nFailed to connect to %s\n", len(targetAddr)+23, targetAddr)
 		_, _ = client.Write([]byte(resp))
@@ -59,7 +59,7 @@ func handleConnect(client net.Conn, req *http.Request) error {
 	return nil
 }
 
-func handlePlainHTTP(client net.Conn, req *http.Request) error {
+func handlePlainHTTP(client net.Conn, req *http.Request, devName string) error {
 	host := req.URL.Host
 	if host == "" {
 		host = req.Host
@@ -68,7 +68,7 @@ func handlePlainHTTP(client net.Conn, req *http.Request) error {
 		host = net.JoinHostPort(host, "80")
 	}
 
-	upstream, err := dialUpstream(host, 10*time.Second)
+	upstream, err := dialUpstream(host, devName, 10*time.Second)
 	if err != nil {
 		resp := fmt.Sprintf("HTTP/1.1 502 Bad Gateway\r\nContent-Length: %d\r\n\r\nFailed to connect to %s\n", len(host)+23, host)
 		_, _ = client.Write([]byte(resp))

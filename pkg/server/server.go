@@ -11,7 +11,9 @@ import (
 
 	"aimili-vpngate-go/pkg/config"
 	"aimili-vpngate-go/pkg/nodes"
+	"aimili-vpngate-go/pkg/proxy"
 	"aimili-vpngate-go/pkg/stats"
+	"aimili-vpngate-go/pkg/tunnel"
 	"aimili-vpngate-go/pkg/vpn"
 	"aimili-vpngate-go/web"
 )
@@ -20,17 +22,21 @@ type Server struct {
 	cfg        *config.Config
 	pool       *nodes.NodePool
 	vpn        *vpn.Manager
+	tunnelPool *tunnel.Pool
+	portMgr    *proxy.MultiPortManager
 	httpServer *http.Server
 	sseHub     *SSEHub
 	mu         sync.Mutex
 	listener   net.Listener
 }
 
-func NewServer(cfg *config.Config, pool *nodes.NodePool, vpnMgr *vpn.Manager) *Server {
+func NewServer(cfg *config.Config, pool *nodes.NodePool, vpnMgr *vpn.Manager, tp *tunnel.Pool, pm *proxy.MultiPortManager) *Server {
 	s := &Server{
-		cfg:  cfg,
-		pool: pool,
-		vpn:  vpnMgr,
+		cfg:        cfg,
+		pool:       pool,
+		vpn:        vpnMgr,
+		tunnelPool: tp,
+		portMgr:    pm,
 	}
 	s.sseHub = NewSSEHub(s)
 	return s
@@ -53,6 +59,13 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/settings", s.handleUpdateSettings)
 	mux.HandleFunc("GET /api/events", s.sseHub.HandleEvents)
 	mux.HandleFunc("GET /metrics", s.handleMetrics)
+
+	// Multi-Tunnel & Multi-Port Matrix APIs
+	mux.HandleFunc("GET /api/tunnels", s.handleListTunnels)
+	mux.HandleFunc("POST /api/tunnels/start", s.handleStartTunnel)
+	mux.HandleFunc("POST /api/tunnels/stop", s.handleStopTunnel)
+	mux.HandleFunc("GET /api/proxy/ports", s.handleGetPortRules)
+	mux.HandleFunc("POST /api/proxy/ports", s.handleSetPortRules)
 
 	// Static UI file server
 	fileServer := http.FileServer(web.GetFileSystem())

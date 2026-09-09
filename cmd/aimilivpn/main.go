@@ -15,6 +15,7 @@ import (
 	"aimili-vpngate-go/pkg/proxy"
 	"aimili-vpngate-go/pkg/server"
 	"aimili-vpngate-go/pkg/stats"
+	"aimili-vpngate-go/pkg/tunnel"
 	"aimili-vpngate-go/pkg/vpn"
 )
 
@@ -46,18 +47,15 @@ func main() {
 	// Initialize components
 	nodePool := nodes.NewNodePool(cfg)
 	vpnMgr := vpn.NewManager(cfg, nodePool)
-	gateway := proxy.NewGateway(cfg)
-	webServer := server.NewServer(cfg, nodePool, vpnMgr)
+	tunnelPool := tunnel.NewPool(cfg, nodePool)
+	portMgr := proxy.NewMultiPortManager(cfg, tunnelPool)
+	webServer := server.NewServer(cfg, nodePool, vpnMgr, tunnelPool, portMgr)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// 1. Start Proxy Gateway
-	go func() {
-		if err := gateway.Start(ctx); err != nil {
-			stats.LogError("Gateway", "代理网关异常退出: %v", err)
-		}
-	}()
+	// 1. Start Multi-Port Proxy Manager
+	portMgr.StartAll()
 
 	// 2. Start Web Server
 	go func() {
@@ -122,7 +120,8 @@ func main() {
 
 	// Graceful cleanup
 	vpnMgr.Disconnect("程序收到终止信号退出")
-	gateway.Close()
+	tunnelPool.CloseAll()
+	portMgr.StopAll()
 
 	// Wait brief moment for processes and sockets to release
 	time.Sleep(500 * time.Millisecond)

@@ -9,7 +9,9 @@ import (
 
 	"aimili-vpngate-go/pkg/config"
 	"aimili-vpngate-go/pkg/nodes"
+	"aimili-vpngate-go/pkg/proxy"
 	"aimili-vpngate-go/pkg/stats"
+	"aimili-vpngate-go/pkg/tunnel"
 )
 
 type StatusResponse struct {
@@ -20,6 +22,8 @@ type StatusResponse struct {
 	NodeSource     string                `json:"node_source"`
 	BlacklistCount int                   `json:"blacklist_count"`
 	AdminPath      string                `json:"admin_path"`
+	Tunnels        []*tunnel.Tunnel      `json:"tunnels"`
+	PortRules      []proxy.PortRule      `json:"port_rules"`
 }
 
 func (s *Server) buildStatusResponse() StatusResponse {
@@ -33,6 +37,15 @@ func (s *Server) buildStatusResponse() StatusResponse {
 		proxyHost = "[" + proxyHost + "]"
 	}
 
+	var tunnels []*tunnel.Tunnel
+	if s.tunnelPool != nil {
+		tunnels = s.tunnelPool.ListTunnels()
+	}
+	var portRules []proxy.PortRule
+	if s.portMgr != nil {
+		portRules = s.portMgr.GetRules()
+	}
+
 	return StatusResponse{
 		VPN:            vpnState,
 		Traffic:        traffic,
@@ -41,6 +54,8 @@ func (s *Server) buildStatusResponse() StatusResponse {
 		NodeSource:     source,
 		BlacklistCount: blCount,
 		AdminPath:      s.cfg.UIPath,
+		Tunnels:        tunnels,
+		PortRules:      portRules,
 	}
 }
 
@@ -188,6 +203,109 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, map[string]any{
 		"message":  "配置修改成功并已持久化保存！",
 		"settings": current,
+	})
+}
+
+func (s *Server) handleListTunnels(w http.ResponseWriter, r *http.Request) {
+	if s.tunnelPool == nil {
+		s.writeJSON(w, http.StatusOK, []*tunnel.Tunnel{})
+		return
+	}
+	s.writeJSON(w, http.StatusOK, s.tunnelPool.ListTunnels())
+}
+
+type StartTunnelRequest struct {
+	NodeID string `json:"node_id"`
+}
+
+func (s *Server) handleStartTunnel(w http.ResponseWriter, r *http.Request) {
+	var req StartTunnelRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.NodeID == "" {
+		s.writeError(w, http.StatusBadRequest, "缺少 node_id 参数")
+		return
+	}
+
+	node := s.pool.GetNodeByID(req.NodeID)
+	if node == nil {
+		s.writeError(w, http.StatusBadRequest, "节点不存在或已被过滤")
+		return
+	}
+
+	if s.tunnelPool == nil {
+		s.writeError(w, http.StatusInternalServerError, "隧道池未初始化")
+		return
+	}
+
+	tun, err := s.tunnelPool.StartTunnel(node)
+	if err != nil {
+		s.writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	s.writeJSON(w, http.StatusOK, map[string]any{
+		"message": "隧道正在发起连接...",
+		"tunnel":  tun.Snapshot(),
+	})
+}
+
+type StopTunnelRequest struct {
+	TunnelID string `json:"tunnel_id"`
+}
+
+func (s *Server) handleStopTunnel(w http.ResponseWriter, r *http.Request) {
+	var req StopTunnelRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TunnelID == "" {
+		s.writeError(w, http.StatusBadRequest, "缺少 tunnel_id 参数")
+		return
+	}
+
+	if s.tunnelPool == nil {
+		s.writeError(w, http.StatusInternalServerError, "隧道池未初始化")
+		return
+	}
+
+	if err := s.tunnelPool.StopTunnel(req.TunnelID); err != nil {
+		s.writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	s.writeJSON(w, http.StatusOK, map[string]string{
+		"message": "指定隧道已成功断开并释放",
+	})
+}
+
+func (s *Server) handleGetPortRules(w http.ResponseWriter, r *http.Request) {
+	if s.portMgr == nil {
+		s.writeJSON(w, http.StatusOK, []proxy.PortRule{})
+		return
+	}
+	s.writeJSON(w, http.StatusOK, s.portMgr.GetRules())
+}
+
+type SetPortRulesRequest struct {
+	Rules []proxy.PortRule `json:"rules"`
+}
+
+func (s *Server) handleSetPortRules(w http.ResponseWriter, r *http.Request) {
+	var req SetPortRulesRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.writeError(w, http.StatusBadRequest, "请求格式解析失败")
+		return
+	}
+
+	if s.portMgr == nil {
+		s.writeError(w, http.StatusInternalServerError, "代理端口管理器未初始化")
+		return
+	}
+
+	if err := s.portMgr.ApplyRules(req.Rules); err != nil {
+		s.writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	s.writeJSON(w, http.StatusOK, map[string]any{
+		"message": "端口分流规则已更新生效！",
+		"rules":   s.portMgr.GetRules(),
 	})
 }
 

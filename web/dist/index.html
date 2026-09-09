@@ -266,6 +266,10 @@
                     <svg viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
                     断开连接
                 </button>
+                <button class="btn btn-outline" onclick="openPortMatrixModal()">
+                    <svg viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+                    多端口与分流矩阵
+                </button>
                 <button class="btn btn-outline" onclick="openSettingsModal()">
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                     系统与安全设置
@@ -340,6 +344,15 @@
                 <div class="info-row">
                     <span class="info-label">最新状态信息</span>
                     <span id="vpn-last-msg" style="font-size: 12px; color: var(--text-muted);">-</span>
+                </div>
+                <div id="active-tunnels-box" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-color);">
+                    <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                        <span>并发在线隧道池 (<span id="tunnels-count">0</span>)</span>
+                        <button class="btn btn-outline" style="padding: 2px 8px; font-size: 11px;" onclick="openPortMatrixModal()">端口分流绑定 ➔</button>
+                    </div>
+                    <div id="active-tunnels-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 140px; overflow-y: auto;">
+                        <div style="font-size: 12px; color: var(--text-muted);">暂无独立并发隧道 (点击节点列表"+并发启动"添加)</div>
+                    </div>
                 </div>
             </div>
 
@@ -503,6 +516,97 @@
         </div>
     </div>
 
+    <!-- 代理端口与出口分流矩阵管理弹窗 -->
+    <div id="port-matrix-modal" class="modal-overlay">
+        <div class="modal-card" style="max-width: 680px;">
+            <div class="card-header" style="margin-bottom: 16px;">
+                <div class="card-title">
+                    <svg viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+                    多代理端口与分流矩阵管理
+                </div>
+                <button class="btn btn-outline" style="padding: 4px 8px;" onclick="closePortMatrixModal()">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+
+            <!-- 当前端口列表 -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div style="font-size: 13px; font-weight: 600; color: var(--text-muted);">已配置的代理端口列表</div>
+                <button class="btn" style="padding: 5px 12px; font-size: 12px;" onclick="showAddPortForm()">+ 新增代理端口</button>
+            </div>
+
+            <div class="table-wrap" style="max-height: 240px; margin-bottom: 20px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>监听端口</th>
+                            <th>绑定出口隧道</th>
+                            <th>调度策略</th>
+                            <th>鉴权模式</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="port-rules-tbody">
+                        <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 规则编辑抽屉 -->
+            <div id="port-edit-card" style="background: var(--bg-base); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; display: none;">
+                <div style="font-size: 13px; font-weight: 600; margin-bottom: 14px; color: var(--primary);" id="port-edit-title">新增/编辑端口规则</div>
+                <div class="form-group">
+                    <label class="form-label">监听端口号 [1-65535]</label>
+                    <input id="rule-port" class="input-field" style="width: 100%;" type="number" placeholder="例如: 7928, 7929" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">分流调度策略</label>
+                    <select id="rule-policy" class="input-field" style="width: 100%;" onchange="onPolicyChange()">
+                        <option value="round_robin">轮询 (Round-Robin: 每个连接交替切换不同出口)</option>
+                        <option value="random">随机 (Random: 每次连接随机挑选出口)</option>
+                        <option value="interval">间隔固定时间轮询 (Interval: 在固定时间内锁定一个出口)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="rule-interval-group" style="display: none;">
+                    <label class="form-label">固定轮询时间间隔 (秒)</label>
+                    <input id="rule-interval" class="input-field" style="width: 100%;" type="number" value="300">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">代理鉴权模式</label>
+                    <select id="rule-auth-mode" class="input-field" style="width: 100%;" onchange="onAuthModeChange()">
+                        <option value="default_web">默认规则: 自动跟随 Web 控制台管理员账密</option>
+                        <option value="none">免密直接连接 (关闭代理认证)</option>
+                        <option value="custom">自定义此端口独立账号密码</option>
+                    </select>
+                </div>
+                <div id="rule-custom-auth-group" style="display: none; gap: 8px; margin-bottom: 16px;">
+                    <div style="flex: 1;">
+                        <label class="form-label">代理用户名</label>
+                        <input id="rule-auth-user" class="input-field" style="width: 100%;" type="text" placeholder="代理账号">
+                    </div>
+                    <div style="flex: 1;">
+                        <label class="form-label">代理密码 (留空视为免密)</label>
+                        <input id="rule-auth-pass" class="input-field" style="width: 100%;" type="text" placeholder="留空关闭密码">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">绑定出口隧道 (可勾选多个出口，实现多代理绑定)</label>
+                    <div id="rule-tunnels-checkboxes" style="display: flex; flex-direction: column; gap: 6px; max-height: 120px; overflow-y: auto; background: var(--bg-card); padding: 10px; border-radius: 8px; border: 1px solid var(--border-color);">
+                        <!-- Dynamic checkboxes -->
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+                    <button type="button" class="btn btn-outline" onclick="hideEditPortForm()">取消</button>
+                    <button type="button" class="btn" onclick="savePortRule()">确认保存规则</button>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+                <button type="button" class="btn btn-outline" onclick="closePortMatrixModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let allNodes = [];
         let currentState = null;
@@ -641,6 +745,34 @@
 
                 document.getElementById('stat-nodes-count').innerText = `${data.node_count || 0} / ${data.blacklist_count || 0}`;
                 document.getElementById('stat-node-source').innerText = `数据源: ${data.node_source || '未知'}`;
+
+                // Render concurrent online tunnels
+                const tunnels = data.tunnels || [];
+                document.getElementById('tunnels-count').innerText = tunnels.length;
+                const tunListEl = document.getElementById('active-tunnels-list');
+                if (tunListEl) {
+                    if (tunnels.length === 0) {
+                        tunListEl.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); padding: 4px 0;">暂无独立并发隧道 (可在下方列表点击"+并发"启动)</div>';
+                    } else {
+                        tunListEl.innerHTML = tunnels.map(t => {
+                            const cCode = t.node ? t.node.country_short : '';
+                            const flag = cCode ? getCountryFlagSVG(cCode) : '';
+                            const ip = t.node ? `${t.node.ip}:${t.node.port}` : '';
+                            const isUp = t.status === 'connected';
+                            const badgeClass = isUp ? 'connected' : (t.status === 'connecting' ? 'connecting' : 'disconnected');
+                            return `
+                                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 12px;">
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <strong style="font-family: monospace; color: var(--primary);">${t.dev_name}</strong>
+                                        <span class="badge ${badgeClass}" style="padding: 1px 5px; font-size: 10px;"><span class="status-dot"></span> ${t.status === 'connected' ? '在线' : t.status}</span>
+                                        <span class="flag-box" style="font-size: 11px;">${flag} ${ip}</span>
+                                    </div>
+                                    <button class="btn btn-danger" style="padding: 2px 7px; font-size: 10px;" onclick="stopTunnel('${t.id}')">断开</button>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+                }
 
             } catch (err) {
                 console.error("fetch status error:", err);
@@ -811,8 +943,11 @@
                         <td>${speedMbps}</td>
                         <td>
                             ${isCurrent ?
-                                '<span class="badge connected"><span class="status-dot"></span> 当前连接</span>' :
-                                `<button class="btn" style="padding: 4px 10px; font-size: 11px;" onclick="connectToNode('${n.id}')">连接</button>`
+                                '<span class="badge connected"><span class="status-dot"></span> 当前主连</span>' :
+                                `<div style="display:flex; gap:4px;">
+                                    <button class="btn" style="padding: 3px 8px; font-size: 11px;" onclick="connectToNode('${n.id}')">主连</button>
+                                    <button class="btn btn-outline" style="padding: 3px 7px; font-size: 11px;" onclick="startNewTunnel('${n.id}')" title="作为新并发独立出口启动">+并发</button>
+                                </div>`
                             }
                         </td>
                     </tr>
@@ -1016,6 +1151,273 @@
             es.onerror = () => {
                 // Fallback will poll
             };
+        }
+
+        let currentPortRules = [];
+        let editingPort = null;
+
+        async function startNewTunnel(nodeId) {
+            appendLog({ level: 'INFO', module: 'Tunnel', message: `正在启动并发独立出口隧道: ${nodeId}...` });
+            try {
+                const res = await fetch('/api/tunnels/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ node_id: nodeId })
+                });
+                const ret = await res.json();
+                if (!res.ok) {
+                    alert('启动并发隧道失败: ' + (ret.error || '未知错误'));
+                } else {
+                    appendLog({ level: 'INFO', module: 'Tunnel', message: `新隧道启动成功: ${ret.tunnel.id} (${ret.tunnel.dev_name})` });
+                    fetchStatus();
+                }
+            } catch (err) {
+                alert('请求失败: ' + err);
+            }
+        }
+
+        async function stopTunnel(tunnelId) {
+            if (!confirm('确认断开并释放该并发隧道吗？')) return;
+            try {
+                await fetch('/api/tunnels/stop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tunnel_id: tunnelId })
+                });
+                fetchStatus();
+            } catch (err) {
+                alert('断开失败: ' + err);
+            }
+        }
+
+        async function openPortMatrixModal() {
+            document.getElementById('port-matrix-modal').style.display = 'flex';
+            hideEditPortForm();
+            await fetchPortRules();
+        }
+
+        function closePortMatrixModal() {
+            document.getElementById('port-matrix-modal').style.display = 'none';
+        }
+
+        async function fetchPortRules() {
+            try {
+                const res = await fetch('/api/proxy/ports');
+                if (!res.ok) return;
+                currentPortRules = await res.json();
+                renderPortRules();
+            } catch (err) {
+                console.error("fetch port rules error:", err);
+            }
+        }
+
+        function renderPortRules() {
+            const tbody = document.getElementById('port-rules-tbody');
+            if (!currentPortRules || currentPortRules.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 16px;">暂未配置自定义端口</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = currentPortRules.map(r => {
+                let policyText = '轮询 (单连接交替)';
+                if (r.policy === 'random') policyText = '随机分发';
+                if (r.policy === 'interval') policyText = `间隔轮换 (${r.interval_seconds || 300}秒)`;
+
+                let authText = '跟随 Web 管理员账密';
+                if (r.auth_mode === 'none') authText = '<span style="color:#f87171;">免密直连 (关闭认证)</span>';
+                if (r.auth_mode === 'custom') authText = `独立账号: ${r.auth_user || '-'}`;
+
+                let boundText = '全部在线可用隧道';
+                if (r.bound_tunnel_ids && r.bound_tunnel_ids.length > 0) {
+                    boundText = r.bound_tunnel_ids.join(', ');
+                }
+
+                return `
+                    <tr>
+                        <td style="font-family: monospace; font-weight: 600; color: var(--primary);">${r.port}</td>
+                        <td style="font-size: 12px;">${boundText}</td>
+                        <td style="font-size: 12px;">${policyText}</td>
+                        <td style="font-size: 12px;">${authText}</td>
+                        <td>
+                            <button class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="editPortRule(${r.port})">编辑</button>
+                            <button class="btn btn-danger" style="padding: 3px 8px; font-size: 11px; margin-left: 4px;" onclick="deletePortRule(${r.port})">删除</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function showAddPortForm() {
+            editingPort = null;
+            document.getElementById('port-edit-title').innerText = '新增代理监听端口与分流绑定';
+            document.getElementById('rule-port').value = '';
+            document.getElementById('rule-port').disabled = false;
+            document.getElementById('rule-policy').value = 'round_robin';
+            document.getElementById('rule-interval').value = '300';
+            document.getElementById('rule-auth-mode').value = 'default_web';
+            document.getElementById('rule-auth-user').value = '';
+            document.getElementById('rule-auth-pass').value = '';
+            onPolicyChange();
+            onAuthModeChange();
+            renderTunnelCheckboxes([]);
+            document.getElementById('port-edit-card').style.display = 'block';
+        }
+
+        function editPortRule(port) {
+            const rule = currentPortRules.find(r => r.port === port);
+            if (!rule) return;
+            editingPort = port;
+            document.getElementById('port-edit-title').innerText = `编辑端口 [${port}] 绑定与调度规则`;
+            document.getElementById('rule-port').value = rule.port;
+            document.getElementById('rule-port').disabled = true;
+            document.getElementById('rule-policy').value = rule.policy || 'round_robin';
+            document.getElementById('rule-interval').value = rule.interval_seconds || 300;
+            document.getElementById('rule-auth-mode').value = rule.auth_mode || 'default_web';
+            document.getElementById('rule-auth-user').value = rule.auth_user || '';
+            document.getElementById('rule-auth-pass').value = rule.auth_pass || '';
+            onPolicyChange();
+            onAuthModeChange();
+            renderTunnelCheckboxes(rule.bound_tunnel_ids || []);
+            document.getElementById('port-edit-card').style.display = 'block';
+        }
+
+        function hideEditPortForm() {
+            document.getElementById('port-edit-card').style.display = 'none';
+        }
+
+        function onPolicyChange() {
+            const pol = document.getElementById('rule-policy').value;
+            document.getElementById('rule-interval-group').style.display = pol === 'interval' ? 'block' : 'none';
+        }
+
+        function onAuthModeChange() {
+            const mode = document.getElementById('rule-auth-mode').value;
+            document.getElementById('rule-custom-auth-group').style.display = mode === 'custom' ? 'flex' : 'none';
+        }
+
+        function renderTunnelCheckboxes(selectedIds) {
+            const container = document.getElementById('rule-tunnels-checkboxes');
+            const tunnels = (currentState && currentState.tunnels) ? currentState.tunnels : [];
+            const selMap = {};
+            selectedIds.forEach(id => selMap[id] = true);
+
+            let html = `
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer;">
+                    <input type="checkbox" id="chk-tunnel-all" ${selectedIds.length === 0 ? 'checked' : ''} onchange="onAllTunnelsCheckChanged(this)">
+                    <span><strong>全部在线隧道</strong> (自动随上线隧道动态负载均衡)</span>
+                </label>
+            `;
+
+            tunnels.forEach(t => {
+                const ip = t.node ? t.node.ip : '';
+                const cName = t.node ? getCountryName(t.node.country_short) : '';
+                const isChecked = selectedIds.length > 0 && selMap[t.id];
+                html += `
+                    <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; padding-left: 18px;">
+                        <input type="checkbox" class="chk-single-tunnel" value="${t.id}" ${isChecked ? 'checked' : ''} onchange="onSingleTunnelCheckChanged()">
+                        <span>${t.dev_name}: ${cName} (${ip})</span>
+                    </label>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function onAllTunnelsCheckChanged(el) {
+            if (el.checked) {
+                document.querySelectorAll('.chk-single-tunnel').forEach(c => c.checked = false);
+            }
+        }
+
+        function onSingleTunnelCheckChanged() {
+            const anyChecked = Array.from(document.querySelectorAll('.chk-single-tunnel')).some(c => c.checked);
+            const allChk = document.getElementById('chk-tunnel-all');
+            if (anyChecked) {
+                allChk.checked = false;
+            } else {
+                allChk.checked = true;
+            }
+        }
+
+        async function savePortRule() {
+            const port = parseInt(document.getElementById('rule-port').value);
+            if (!port || port < 1 || port > 65535) {
+                alert('请输入有效的端口号 (1-65535)');
+                return;
+            }
+
+            const policy = document.getElementById('rule-policy').value;
+            const interval = parseInt(document.getElementById('rule-interval').value) || 300;
+            const authMode = document.getElementById('rule-auth-mode').value;
+            const authUser = document.getElementById('rule-auth-user').value.trim();
+            const authPass = document.getElementById('rule-auth-pass').value.trim();
+
+            let boundTunnels = [];
+            const allChk = document.getElementById('chk-tunnel-all');
+            if (!allChk || !allChk.checked) {
+                document.querySelectorAll('.chk-single-tunnel:checked').forEach(c => boundTunnels.push(c.value));
+            }
+
+            const newRule = {
+                port: port,
+                enabled: true,
+                bound_tunnel_ids: boundTunnels,
+                policy: policy,
+                interval_seconds: interval,
+                auth_mode: authMode,
+                auth_user: authUser,
+                auth_pass: authPass
+            };
+
+            let updatedRules = currentPortRules ? [...currentPortRules] : [];
+            const idx = updatedRules.findIndex(r => r.port === port);
+            if (idx >= 0) {
+                updatedRules[idx] = newRule;
+            } else {
+                updatedRules.push(newRule);
+            }
+
+            try {
+                const res = await fetch('/api/proxy/ports', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rules: updatedRules })
+                });
+                const ret = await res.json();
+                if (!res.ok) {
+                    alert('保存端口规则失败: ' + (ret.error || '未知错误'));
+                    return;
+                }
+                currentPortRules = ret.rules || updatedRules;
+                renderPortRules();
+                hideEditPortForm();
+                alert(`端口 [${port}] 规则已保存并实时生效！`);
+                fetchStatus();
+            } catch (err) {
+                alert('请求异常: ' + err);
+            }
+        }
+
+        async function deletePortRule(port) {
+            if (!confirm(`确认删除并停止代理端口 [${port}] 吗？`)) return;
+            const updatedRules = currentPortRules.filter(r => r.port !== port);
+            try {
+                const res = await fetch('/api/proxy/ports', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rules: updatedRules })
+                });
+                const ret = await res.json();
+                if (!res.ok) {
+                    alert('删除失败: ' + (ret.error || '未知错误'));
+                    return;
+                }
+                currentPortRules = ret.rules || updatedRules;
+                renderPortRules();
+                fetchStatus();
+            } catch (err) {
+                alert('请求异常: ' + err);
+            }
         }
 
         window.onload = () => {

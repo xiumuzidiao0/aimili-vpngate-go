@@ -33,7 +33,7 @@ const (
 	repAtypNotSupport    = 0x08
 )
 
-func handleSocks5(client net.Conn, auth *Authenticator) error {
+func handleSocks5(client net.Conn, auth *Authenticator, devName string) error {
 	// 1. Negotiation
 	// Client sends: VER (1 byte) | NMETHODS (1 byte) | METHODS (1-255 bytes)
 	verBuf := make([]byte, 1)
@@ -169,8 +169,8 @@ func handleSocks5(client net.Conn, auth *Authenticator) error {
 	targetPort := binary.BigEndian.Uint16(portBuf)
 	targetAddr := net.JoinHostPort(targetHost, strconv.Itoa(int(targetPort)))
 
-	// 3. Connect to upstream
-	upstream, err := dialUpstream(targetAddr, 10*time.Second)
+	// 3. Connect to upstream via selected tunnel devName
+	upstream, err := dialUpstream(targetAddr, devName, 10*time.Second)
 	if err != nil {
 		_, _ = client.Write([]byte{socks5Version, repGeneralFailure, 0x00, atypIPv4, 0, 0, 0, 0, 0, 0})
 		return fmt.Errorf("dial upstream %s failed: %w", targetAddr, err)

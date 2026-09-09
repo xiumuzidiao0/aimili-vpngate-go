@@ -9,6 +9,8 @@ import (
 
 	"aimili-vpngate-go/pkg/config"
 	"aimili-vpngate-go/pkg/nodes"
+	"aimili-vpngate-go/pkg/proxy"
+	"aimili-vpngate-go/pkg/tunnel"
 	"aimili-vpngate-go/pkg/vpn"
 )
 
@@ -22,7 +24,9 @@ func TestServerAPI(t *testing.T) {
 
 	pool := nodes.NewNodePool(cfg)
 	vpnMgr := vpn.NewManager(cfg, pool)
-	srv := NewServer(cfg, pool, vpnMgr)
+	tunnelPool := tunnel.NewPool(cfg, pool)
+	portMgr := proxy.NewMultiPortManager(cfg, tunnelPool)
+	srv := NewServer(cfg, pool, vpnMgr, tunnelPool, portMgr)
 
 	// Test Status endpoint handler directly
 	req := httptest.NewRequest("GET", "/api/status", nil)
