@@ -274,10 +274,27 @@ build_and_deploy() {
     fi
 
     chmod +x "${BIN_PATH}"
-    ln -sf "${BIN_PATH}" /usr/local/bin/aimilivpn
-    cp -f "${BASH_SOURCE[0]}" "${INSTALL_DIR}/install.sh" 2>/dev/null || true
-    chmod +x "${INSTALL_DIR}/install.sh" 2>/dev/null || true
-    ln -sf "${INSTALL_DIR}/install.sh" /usr/local/bin/ml 2>/dev/null || true
+
+    # 确保完整的管理脚本安装到 /opt/aimilivpn/install.sh
+    if [ -f "${BASH_SOURCE[0]}" ] && [ -s "${BASH_SOURCE[0]}" ]; then
+        cp -f "${BASH_SOURCE[0]}" "${INSTALL_DIR}/install.sh"
+    else
+        echo -e "  -> 正在下载本地管理脚本至 ${INSTALL_DIR}/install.sh ..."
+        curl -sSL "https://raw.githubusercontent.com/xiumuzidiao0/aimili-vpngate-go/main/install.sh" -o "${INSTALL_DIR}/install.sh"
+    fi
+    chmod +x "${INSTALL_DIR}/install.sh"
+
+    # 创建全局快捷命令 ml 和 aimili 到 /usr/bin 与 /usr/local/bin
+    cat > /usr/bin/ml <<'EOF'
+#!/usr/bin/env bash
+exec bash /opt/aimilivpn/install.sh menu "$@"
+EOF
+    chmod +x /usr/bin/ml
+    cp -f /usr/bin/ml /usr/local/bin/ml 2>/dev/null || true
+    cp -f /usr/bin/ml /usr/bin/aimili 2>/dev/null || true
+
+    ln -sf "${BIN_PATH}" /usr/bin/aimilivpn 2>/dev/null || true
+    ln -sf "${BIN_PATH}" /usr/local/bin/aimilivpn 2>/dev/null || true
 }
 
 # 8. 安装 systemd 服务
@@ -562,7 +579,7 @@ menu_uninstall() {
         systemctl disable aimilivpn 2>/dev/null || true
         rm -f "${SERVICE_FILE}"
         systemctl daemon-reload
-        rm -f /usr/local/bin/aimilivpn /usr/local/bin/ml
+        rm -f /usr/local/bin/aimilivpn /usr/bin/aimilivpn /usr/local/bin/ml /usr/bin/ml /usr/bin/aimili
         rm -rf "${INSTALL_DIR}"
         echo -e "${GREEN}AimiliVPN 已完全卸载干净。${PLAIN}"
         exit 0
