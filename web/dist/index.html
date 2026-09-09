@@ -6,10 +6,10 @@
     <title>AimiliVPN 网关控制台</title>
     <style>
         :root {
-            --bg-base: #0f172a;
-            --bg-card: #1e293b;
-            --bg-hover: #334155;
-            --border-color: #334155;
+            --bg-base: #090d16;
+            --bg-card: #131b2e;
+            --bg-hover: #1e293b;
+            --border-color: #243048;
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
             --primary: #3b82f6;
@@ -17,7 +17,7 @@
             --success: #10b981;
             --warning: #f59e0b;
             --danger: #ef4444;
-            --code-bg: #090d16;
+            --code-bg: #060910;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -25,9 +25,9 @@
             background: var(--bg-base);
             color: var(--text-main);
             min-height: 100vh;
-            padding: 20px;
+            padding: 24px 20px;
         }
-        .container { max-width: 1250px; margin: 0 auto; }
+        .container { max-width: 1280px; margin: 0 auto; }
         header {
             display: flex;
             justify-content: space-between;
@@ -36,31 +36,38 @@
             border-bottom: 1px solid var(--border-color);
             margin-bottom: 24px;
             flex-wrap: wrap;
-            gap: 12px;
+            gap: 16px;
         }
-        .logo-group { display: flex; align-items: center; gap: 12px; }
+        .logo-group { display: flex; align-items: center; gap: 14px; }
         .logo-icon {
-            width: 36px; height: 36px; border-radius: 8px;
-            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            width: 40px; height: 40px; border-radius: 10px;
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
             display: flex; align-items: center; justify-content: center;
-            font-size: 20px; font-weight: bold;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
         }
-        h1 { font-size: 20px; font-weight: 700; }
-        .badge {
-            font-size: 11px; padding: 3px 8px; border-radius: 9999px; font-weight: 600;
-            display: inline-flex; align-items: center; gap: 4px;
-        }
-        .badge.connected { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
-        .badge.connecting { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
-        .badge.disconnected { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+        .logo-icon svg { width: 22px; height: 22px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
 
-        .badge-residential { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
-        .badge-hosting { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
-        .badge-mobile { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+        .badge {
+            font-size: 11.5px; padding: 3px 9px; border-radius: 6px; font-weight: 600;
+            display: inline-flex; align-items: center; gap: 5px;
+        }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+        .badge.connected { background: rgba(16, 185, 129, 0.12); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+        .badge.connected .status-dot { background: #10b981; box-shadow: 0 0 8px #10b981; }
+        .badge.connecting { background: rgba(245, 158, 11, 0.12); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+        .badge.connecting .status-dot { background: #f59e0b; box-shadow: 0 0 8px #f59e0b; }
+        .badge.disconnected { background: rgba(239, 68, 68, 0.12); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .badge.disconnected .status-dot { background: #ef4444; }
+
+        .badge-residential { background: rgba(16, 185, 129, 0.12); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25); }
+        .badge-hosting { background: rgba(245, 158, 11, 0.12); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.25); }
+        .badge-mobile { background: rgba(59, 130, 246, 0.12); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.25); }
+        .badge-proto { background: rgba(148, 163, 184, 0.12); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.2); font-family: monospace; font-size: 11px; }
 
         .stat-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
             gap: 16px;
             margin-bottom: 24px;
         }
@@ -68,11 +75,15 @@
             background: var(--bg-card);
             border: 1px solid var(--border-color);
             border-radius: 12px;
-            padding: 16px;
+            padding: 18px;
+            position: relative;
+            overflow: hidden;
         }
-        .stat-title { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
-        .stat-val { font-size: 24px; font-weight: 700; color: #fff; }
-        .stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+        .stat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .stat-title { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+        .stat-icon { width: 18px; height: 18px; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .stat-val { font-size: 26px; font-weight: 700; color: #fff; letter-spacing: -0.02em; font-family: ui-monospace, SFMono-Regular, monospace; }
+        .stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
 
         .dashboard-grid {
             display: grid;
@@ -80,7 +91,7 @@
             gap: 24px;
             margin-bottom: 24px;
         }
-        @media (min-width: 900px) {
+        @media (min-width: 960px) {
             .dashboard-grid { grid-template-columns: 1fr 1fr; }
         }
 
@@ -98,28 +109,31 @@
             padding-bottom: 12px;
             border-bottom: 1px solid var(--border-color);
         }
-        .card-title { font-size: 16px; font-weight: 600; }
+        .card-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .card-title svg { width: 18px; height: 18px; stroke: var(--primary); fill: none; stroke-width: 2; }
 
         .btn {
             background: var(--primary);
             color: #fff;
             border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
+            padding: 8px 15px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 13px;
             font-weight: 500;
-            transition: all 0.2s;
+            transition: all 0.15s ease-in-out;
             display: inline-flex; align-items: center; gap: 6px;
+            line-height: 1;
         }
-        .btn:hover { background: var(--primary-hover); }
+        .btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .btn:hover { background: var(--primary-hover); transform: translateY(-1px); }
         .btn-danger { background: var(--danger); }
         .btn-danger:hover { background: #dc2626; }
         .btn-outline { background: transparent; border: 1px solid var(--border-color); color: var(--text-main); }
-        .btn-outline:hover { background: var(--bg-hover); }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-outline:hover { background: var(--bg-hover); border-color: #3b82f6; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-        .info-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 13px; }
+        .info-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 13px; }
         .info-label { color: var(--text-muted); }
         .info-val { font-weight: 600; font-family: monospace; }
 
@@ -127,15 +141,15 @@
             background: var(--code-bg);
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            height: 220px;
+            height: 230px;
             overflow-y: auto;
-            padding: 12px;
+            padding: 12px 14px;
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
             font-size: 12px;
-            line-height: 1.5;
+            line-height: 1.6;
             color: #e2e8f0;
         }
-        .log-line { margin-bottom: 4px; word-break: break-all; }
+        .log-line { margin-bottom: 3px; word-break: break-all; }
         .log-time { color: #64748b; margin-right: 6px; }
         .log-level-INFO { color: #38bdf8; }
         .log-level-WARNING { color: #fbbf24; }
@@ -154,8 +168,9 @@
         th, td {
             padding: 12px 14px;
             border-bottom: 1px solid var(--border-color);
+            vertical-align: middle;
         }
-        th { color: var(--text-muted); font-weight: 600; background: var(--bg-card); position: sticky; top: 0; }
+        th { color: var(--text-muted); font-weight: 600; background: var(--bg-card); position: sticky; top: 0; z-index: 1; }
         tr:hover { background: var(--bg-hover); }
 
         .filter-bar {
@@ -170,30 +185,48 @@
             border: 1px solid var(--border-color);
             color: var(--text-main);
             padding: 8px 12px;
-            border-radius: 6px;
+            border-radius: 8px;
             font-size: 13px;
             outline: none;
+            transition: border-color 0.15s;
         }
         .input-field:focus { border-color: var(--primary); }
+
+        /* Country Flag Graphics */
+        .flag-box {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+        }
+        .flag-img {
+            width: 20px;
+            height: 14px;
+            border-radius: 2px;
+            object-fit: cover;
+            display: inline-block;
+            box-shadow: 0 0 1px rgba(255,255,255,0.4);
+            flex-shrink: 0;
+        }
 
         /* Modal Settings */
         .modal-overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(4, 7, 13, 0.75);
             display: none; justify-content: center; align-items: center;
             z-index: 1000;
-            backdrop-filter: blur(4px);
+            backdrop-filter: blur(6px);
         }
         .modal-card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
-            border-radius: 12px;
+            border-radius: 14px;
             width: 90%; max-width: 500px;
             padding: 24px;
-            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
         }
         .form-group { margin-bottom: 16px; }
-        .form-label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
+        .form-label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; font-weight: 500; }
         .input-addon { display: flex; gap: 8px; }
         .input-addon input { flex: 1; }
     </style>
@@ -202,38 +235,61 @@
     <div class="container">
         <header>
             <div class="logo-group">
-                <div class="logo-icon">⚡</div>
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polygon points="12 8 9 13 13 13 11 17 15 12 11 12 12 8"/></svg>
+                </div>
                 <div>
                     <h1>AimiliVPN 网关 (Go 高性能版)</h1>
                     <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">单端口自适应 HTTP / HTTPS / SOCKS5 代理网关</div>
                 </div>
             </div>
             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                <span id="conn-badge" class="badge disconnected">● 检查中</span>
-                <button id="btn-quick-connect" class="btn" onclick="quickConnect()">⚡ 智能连接最优节点</button>
-                <button id="btn-disconnect" class="btn btn-danger" onclick="disconnectVPN()" style="display: none;">断开连接</button>
-                <button class="btn btn-outline" onclick="openSettingsModal()">⚙️ 系统与安全设置</button>
+                <span id="conn-badge" class="badge disconnected"><span class="status-dot"></span> 检查中</span>
+                <button id="btn-quick-connect" class="btn" onclick="quickConnect()">
+                    <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    智能连接最优节点
+                </button>
+                <button id="btn-disconnect" class="btn btn-danger" onclick="disconnectVPN()" style="display: none;">
+                    <svg viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+                    断开连接
+                </button>
+                <button class="btn btn-outline" onclick="openSettingsModal()">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    系统与安全设置
+                </button>
             </div>
         </header>
 
         <div class="stat-grid">
             <div class="stat-card">
-                <div class="stat-title">实时下载速率</div>
+                <div class="stat-header">
+                    <span class="stat-title">实时下载速率</span>
+                    <svg class="stat-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </div>
                 <div id="stat-down-speed" class="stat-val">0 B/s</div>
                 <div id="stat-total-down" class="stat-sub">总计下载: 0 B</div>
             </div>
             <div class="stat-card">
-                <div class="stat-title">实时上传速率</div>
+                <div class="stat-header">
+                    <span class="stat-title">实时上传速率</span>
+                    <svg class="stat-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </div>
                 <div id="stat-up-speed" class="stat-val">0 B/s</div>
                 <div id="stat-total-up" class="stat-sub">总计上传: 0 B</div>
             </div>
             <div class="stat-card">
-                <div class="stat-title">活跃代理连接</div>
+                <div class="stat-header">
+                    <span class="stat-title">活跃代理连接</span>
+                    <svg class="stat-icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
                 <div id="stat-active-conns" class="stat-val">0</div>
                 <div id="stat-proxy-port" class="stat-sub">端口: 7928</div>
             </div>
             <div class="stat-card">
-                <div class="stat-title">候选节点 / 黑名单</div>
+                <div class="stat-header">
+                    <span class="stat-title">候选节点 / 黑名单</span>
+                    <svg class="stat-icon" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                </div>
                 <div id="stat-nodes-count" class="stat-val">0 / 0</div>
                 <div id="stat-node-source" class="stat-sub">数据源: 载入中</div>
             </div>
@@ -242,7 +298,10 @@
         <div class="dashboard-grid">
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">当前 VPN 状态</div>
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                        当前 VPN 隧道
+                    </div>
                     <span id="vpn-uptime" style="font-size: 12px; color: var(--text-muted);">运行时间: -</span>
                 </div>
                 <div class="info-row">
@@ -273,8 +332,14 @@
 
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">实时运行日志</div>
-                    <button class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="clearLogs()">清屏</button>
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                        实时运行日志
+                    </div>
+                    <button class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="clearLogs()">
+                        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        清屏
+                    </button>
                 </div>
                 <div id="terminal" class="terminal-box">
                     <div class="log-line"><span class="log-time">[系统]</span> 正在建立 SSE 实时推流通道...</div>
@@ -284,8 +349,14 @@
 
         <div class="card">
             <div class="card-header">
-                <div class="card-title">优质 VPN 节点列表</div>
-                <button class="btn btn-outline" onclick="refreshNodes()">🔄 刷新节点源</button>
+                <div class="card-title">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    优质 VPN 节点列表
+                </div>
+                <button class="btn btn-outline" onclick="refreshNodes()">
+                    <svg viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                    刷新节点源
+                </button>
             </div>
             <div class="filter-bar">
                 <input id="search-filter" class="input-field" type="text" placeholder="按国家/IP/ISP/城市搜索..." style="min-width: 220px;" oninput="renderNodes()">
@@ -294,9 +365,9 @@
                 </select>
                 <select id="ip-type-filter" class="input-field" onchange="renderNodes()">
                     <option value="">全部网络类型</option>
-                    <option value="residential">🏠 住宅宽带 IP (家宽)</option>
-                    <option value="hosting">🏢 机房/数据中心 IP</option>
-                    <option value="mobile">📱 移动蜂窝网络 IP</option>
+                    <option value="residential">住宅宽带 IP (家宽)</option>
+                    <option value="hosting">机房/数据中心 IP</option>
+                    <option value="mobile">移动蜂窝网络 IP</option>
                 </select>
                 <span id="filtered-count" style="font-size: 12px; color: var(--text-muted); margin-left: auto;">共加载 0 个节点</span>
             </div>
@@ -326,8 +397,13 @@
     <div id="settings-modal" class="modal-overlay">
         <div class="modal-card">
             <div class="card-header" style="margin-bottom: 20px;">
-                <div class="card-title">⚙️ 系统与安全参数设置</div>
-                <button class="btn btn-outline" style="padding: 4px 8px;" onclick="closeSettingsModal()">✕</button>
+                <div class="card-title">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    系统与安全参数设置
+                </div>
+                <button class="btn btn-outline" style="padding: 4px 8px;" onclick="closeSettingsModal()">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
             </div>
             <form id="settings-form" onsubmit="saveSettings(event)">
                 <div class="form-group">
@@ -338,7 +414,10 @@
                     <label class="form-label">后台安全访问路径 (无需斜杠)</label>
                     <div class="input-addon">
                         <input id="cfg-web-path" class="input-field" type="text" required>
-                        <button type="button" class="btn btn-outline" onclick="randomPath()">🎲 随机</button>
+                        <button type="button" class="btn btn-outline" onclick="randomPath()">
+                            <svg viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                            随机
+                        </button>
                     </div>
                 </div>
                 <div class="form-group">
@@ -346,10 +425,13 @@
                     <input id="cfg-username" class="input-field" style="width: 100%;" type="text" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Web 管理员密码 (修改请输入，留空保持不变)</label>
+                    <label class="form-label">Web 管理员密码 (留空保持原密码不变)</label>
                     <div class="input-addon">
                         <input id="cfg-password" class="input-field" type="text" placeholder="留空保持原密码">
-                        <button type="button" class="btn btn-outline" onclick="randomPassword()">🎲 随机密码</button>
+                        <button type="button" class="btn btn-outline" onclick="randomPassword()">
+                            <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                            随机密码
+                        </button>
                     </div>
                 </div>
                 <div class="form-group">
@@ -358,7 +440,10 @@
                 </div>
                 <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
                     <button type="button" class="btn btn-outline" onclick="closeSettingsModal()">取消</button>
-                    <button type="submit" class="btn">💾 保存并立即生效</button>
+                    <button type="submit" class="btn">
+                        <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                        保存并生效
+                    </button>
                 </div>
             </form>
         </div>
@@ -367,6 +452,40 @@
     <script>
         let allNodes = [];
         let currentState = null;
+
+        const countryNames = {
+            JP: '日本', US: '美国', KR: '韩国', TW: '台湾', HK: '香港',
+            SG: '新加坡', GB: '英国', DE: '德国', FR: '法国', CA: '加拿大',
+            AU: '澳大利亚', VN: '越南', TH: '泰国', MY: '马来西亚', IN: '印度',
+            RU: '俄罗斯', NL: '荷兰', BR: '巴西', PH: '菲律宾', ID: '印尼'
+        };
+
+        // Vector SVG flags map for top countries
+        const flagSVGs = {
+            JP: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#fff" width="900" height="600"/><circle fill="#bc002d" cx="450" cy="300" r="180"/></svg>',
+            US: '<svg class="flag-img" viewBox="0 0 7410 3900"><rect fill="#b22234" width="7410" height="3900"/><path stroke="#fff" stroke-width="300" d="M0,450H7410M0,1050H7410M0,1650H7410M0,2250H7410M0,2850H7410M0,3450H7410"/><rect fill="#3c3b6e" width="2964" height="2100"/></svg>',
+            KR: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#fff" width="900" height="600"/><path fill="#cd2e3a" d="M450,150a150,150 0 0,1 0,300a75,75 0 0,1 0,-150z"/><path fill="#0047a0" d="M450,450a150,150 0 0,1 0,-300a75,75 0 0,1 0,150z"/></svg>',
+            TW: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#fe0000" width="900" height="600"/><rect fill="#000095" width="450" height="300"/><circle fill="#fff" cx="225" cy="150" r="75"/></svg>',
+            HK: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#c8102e" width="900" height="600"/><circle fill="#fff" cx="450" cy="300" r="110" opacity="0.9"/></svg>',
+            SG: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#ed2939" width="900" height="300"/><rect fill="#fff" y="300" width="900" height="300"/><circle fill="#fff" cx="225" cy="150" r="100"/><circle fill="#ed2939" cx="265" cy="150" r="100"/></svg>',
+            DE: '<svg class="flag-img" viewBox="0 0 5 3"><rect width="5" height="1" y="0" fill="#000"/><rect width="5" height="1" y="1" fill="#D00"/><rect width="5" height="1" y="2" fill="#FFCE00"/></svg>',
+            FR: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#002395" width="300" height="600"/><rect fill="#fff" x="300" width="300" height="600"/><rect fill="#ed2939" x="600" width="300" height="600"/></svg>',
+            GB: '<svg class="flag-img" viewBox="0 0 60 30"><rect fill="#012169" width="60" height="30"/><path d="M0,0 L60,30 M60,0 L0,30" stroke="#fff" stroke-width="6"/><path d="M0,0 L60,30 M60,0 L0,30" stroke="#C8102E" stroke-width="4"/><path d="M30,0 v30 M0,15 h60" stroke="#fff" stroke-width="10"/><path d="M30,0 v30 M0,15 h60" stroke="#C8102E" stroke-width="6"/></svg>',
+            CA: '<svg class="flag-img" viewBox="0 0 900 450"><rect fill="#f00" width="225" height="450"/><rect fill="#fff" x="225" width="450" height="450"/><rect fill="#f00" x="675" width="225" height="450"/><polygon fill="#f00" points="450,112 470,170 515,160 480,200 500,240 450,225 400,240 420,200 385,160 430,170"/></svg>',
+            VN: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#da251d" width="900" height="600"/><polygon fill="#ffff00" points="450,140 487,254 607,254 510,324 547,438 450,368 353,438 390,324 293,254 413,254"/></svg>',
+            TH: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#a51931" width="900" height="600"/><rect fill="#f4f5f8" y="100" width="900" height="400"/><rect fill="#2d2a4a" y="200" width="900" height="200"/></svg>'
+        };
+
+        function getCountryFlagSVG(code) {
+            code = (code || '').toUpperCase();
+            if (flagSVGs[code]) return flagSVGs[code];
+            // Fallback generic globe SVG
+            return `<svg class="flag-img" viewBox="0 0 24 24" style="background:#1e293b; padding:2px;"><circle cx="12" cy="12" r="10" stroke="#64748b" fill="none"/><line x1="2" y1="12" x2="22" y2="12" stroke="#64748b"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" stroke="#64748b" fill="none"/></svg>`;
+        }
+
+        function getCountryName(code) {
+            return countryNames[code] || code;
+        }
 
         function formatBytes(bytes) {
             if (!bytes || bytes === 0) return '0 B';
@@ -401,7 +520,6 @@
                 const data = await res.json();
                 currentState = data;
 
-                // Update UI state
                 const vpn = data.vpn || {};
                 const traffic = data.traffic || {};
 
@@ -420,15 +538,15 @@
 
                 badge.className = 'badge ' + (vpn.status || 'disconnected');
                 if (vpn.status === 'connected') {
-                    badge.innerHTML = '● 已连通就绪';
+                    badge.innerHTML = '<span class="status-dot"></span> 已连通就绪';
                     btnConnect.style.display = 'none';
                     btnDisconnect.style.display = 'inline-flex';
                 } else if (vpn.status === 'connecting' || vpn.status === 'reconnecting') {
-                    badge.innerHTML = '● 正在连接中...';
+                    badge.innerHTML = '<span class="status-dot"></span> 正在连接中...';
                     btnConnect.disabled = true;
                     btnDisconnect.style.display = 'inline-flex';
                 } else {
-                    badge.innerHTML = '● 未连接';
+                    badge.innerHTML = '<span class="status-dot"></span> 未连接';
                     btnConnect.style.display = 'inline-flex';
                     btnConnect.disabled = false;
                     btnDisconnect.style.display = 'none';
@@ -440,15 +558,17 @@
 
                 // Node Type & Country
                 if (vpn.active_node) {
-                    let typeBadge = '<span class="badge badge-residential">🏠 住宅宽带</span>';
+                    let typeBadge = '<span class="badge badge-residential">住宅宽带</span>';
                     if (vpn.active_node.ip_type === 'hosting') {
-                        typeBadge = '<span class="badge badge-hosting">🏢 机房/数据中心</span>';
+                        typeBadge = '<span class="badge badge-hosting">机房网络</span>';
                     } else if (vpn.active_node.ip_type === 'mobile') {
-                        typeBadge = '<span class="badge badge-mobile">📱 移动网络</span>';
+                        typeBadge = '<span class="badge badge-mobile">移动网络</span>';
                     }
                     document.getElementById('vpn-node-type').innerHTML = `${typeBadge} ${vpn.active_node.isp || ''}`;
-                    const loc = [vpn.active_node.country_long, vpn.active_node.region, vpn.active_node.city].filter(Boolean).join(' · ');
-                    document.getElementById('vpn-node-country').innerText = `${loc} (${vpn.active_node.country_short})`;
+                    const loc = [getCountryName(vpn.active_node.country_short), vpn.active_node.region, vpn.active_node.city].filter(Boolean).join(' · ');
+                    document.getElementById('vpn-node-country').innerHTML = `
+                        <span class="flag-box">${getCountryFlagSVG(vpn.active_node.country_short)} ${loc} (${vpn.active_node.country_short})</span>
+                    `;
                 } else {
                     document.getElementById('vpn-node-type').innerText = '-';
                     document.getElementById('vpn-node-country').innerText = '-';
@@ -489,8 +609,9 @@
             const select = document.getElementById('country-filter');
             const curr = select.value;
             const countries = [...new Set(allNodes.map(n => n.country_short))].filter(Boolean).sort();
+
             select.innerHTML = '<option value="">全部国家/地区</option>' +
-                countries.map(c => `<option value="${c}">${c}</option>`).join('');
+                countries.map(c => `<option value="${c}">${getCountryName(c)} (${c})</option>`).join('');
             select.value = curr;
         }
 
@@ -504,13 +625,14 @@
                 if (country && n.country_short !== country) return false;
                 if (ipType && n.ip_type !== ipType) return false;
                 if (search) {
-                    const str = `${n.ip} ${n.country_long} ${n.country_short} ${n.hostname} ${n.isp || ''} ${n.city || ''} ${n.region || ''}`.toLowerCase();
+                    const cName = getCountryName(n.country_short).toLowerCase();
+                    const str = `${n.ip} ${n.country_long} ${n.country_short} ${cName} ${n.hostname} ${n.isp || ''} ${n.city || ''} ${n.region || ''}`.toLowerCase();
                     if (!str.includes(search)) return false;
                 }
                 return true;
             });
 
-            document.getElementById('filtered-count').innerText = `筛选出 ${filtered.length} / ${allNodes.length} 个节点`;
+            document.getElementById('filtered-count').innerText = `已筛选出 ${filtered.length} / ${allNodes.length} 个节点`;
 
             if (filtered.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 30px;">未找到匹配条件的节点</td></tr>';
@@ -522,28 +644,34 @@
                 const latency = n.latency_ms > 0 ? `<span style="color: #34d399; font-weight: 600;">${n.latency_ms} ms</span>` : '<span style="color: var(--text-muted);">-</span>';
                 const speedMbps = (n.speed / 1000000).toFixed(1) + ' Mbps';
 
-                let typeTag = '<span class="badge badge-residential">🏠 住宅宽带</span>';
+                let typeTag = '<span class="badge badge-residential">住宅宽带</span>';
                 if (n.ip_type === 'hosting') {
-                    typeTag = '<span class="badge badge-hosting">🏢 机房IP</span>';
+                    typeTag = '<span class="badge badge-hosting">机房网络</span>';
                 } else if (n.ip_type === 'mobile') {
-                    typeTag = '<span class="badge badge-mobile">📱 移动网络</span>';
+                    typeTag = '<span class="badge badge-mobile">移动网络</span>';
                 }
 
-                const ispInfo = n.isp ? `<div style="font-size: 11px; color: var(--text-muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${n.isp}</div>` : '';
-                const cityInfo = n.city ? `<span style="color: var(--text-muted); font-size: 11px;"> · ${n.city}</span>` : '';
+                const ispInfo = n.isp ? `<div style="font-size: 11px; color: var(--text-muted); max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${n.isp}">${n.isp}</div>` : '';
+                const cityInfo = n.city ? `<span style="color: var(--text-muted); font-size: 11.5px;"> · ${n.city}</span>` : '';
 
                 return `
-                    <tr style="${isCurrent ? 'background: rgba(59, 130, 246, 0.15);' : ''}">
-                        <td><strong>${n.country_short}</strong> ${n.country_long}${cityInfo}</td>
+                    <tr style="${isCurrent ? 'background: rgba(59, 130, 246, 0.12);' : ''}">
+                        <td>
+                            <div class="flag-box">
+                                ${getCountryFlagSVG(n.country_short)}
+                                <span>${getCountryName(n.country_short)}</span>
+                                ${cityInfo}
+                            </div>
+                        </td>
                         <td style="font-family: monospace;">${n.ip}:${n.port}</td>
                         <td>${typeTag}${ispInfo}</td>
-                        <td><span class="badge" style="background: rgba(148, 163, 184, 0.2);">${n.proto.toUpperCase()}</span></td>
+                        <td><span class="badge badge-proto">${n.proto.toUpperCase()}</span></td>
                         <td>${latency}</td>
                         <td>${n.score}</td>
                         <td>${speedMbps}</td>
                         <td>
                             ${isCurrent ?
-                                '<span class="badge connected">当前连通</span>' :
+                                '<span class="badge connected"><span class="status-dot"></span> 当前连接</span>' :
                                 `<button class="btn" style="padding: 4px 10px; font-size: 11px;" onclick="connectToNode('${n.id}')">连接</button>`
                             }
                         </td>
@@ -651,7 +779,7 @@
                     return;
                 }
 
-                alert('配置修改成功！配置已持久化至 config.env。');
+                alert('配置修改成功并已生效！');
                 closeSettingsModal();
 
                 // If port or path changed, redirect to new location
@@ -697,7 +825,7 @@
             fetchNodes();
             setupSSE();
             setInterval(fetchStatus, 2000);
-            setInterval(fetchNodes, 15000); // Auto refresh enriched nodes
+            setInterval(fetchNodes, 15000);
         };
     </script>
 </body>
