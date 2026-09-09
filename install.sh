@@ -254,23 +254,36 @@ EOF
 build_and_deploy() {
     echo -e "\n${YELLOW}[2/4] 正在准备 AimiliVPN 可执行程序...${PLAIN}"
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local dl_ok=0
 
-    if [ -f "${SCRIPT_DIR}/bin/aimilivpn" ]; then
-        echo -e "  -> 发现本地已预编译二进制文件，直接安装部署..."
-        cp -f "${SCRIPT_DIR}/bin/aimilivpn" "${BIN_PATH}"
-    elif [ -f "${SCRIPT_DIR}/cmd/aimilivpn/main.go" ]; then
-        echo -e "  -> 正在从当前源码编译目标二进制程序..."
-        ensure_go
-        cd "${SCRIPT_DIR}"
-        CGO_ENABLED=0 go build -ldflags="-s -w" -o "${BIN_PATH}" ./cmd/aimilivpn
-    else
-        echo -e "  -> 正在从 GitHub 官方仓库拉取最新源码并构建..."
-        ensure_go
-        TMP_DIR=$(mktemp -d)
-        git clone --depth 1 "${GITHUB_REPO}" "${TMP_DIR}"
-        cd "${TMP_DIR}"
-        CGO_ENABLED=0 go build -ldflags="-s -w" -o "${BIN_PATH}" ./cmd/aimilivpn
-        rm -rf "${TMP_DIR}"
+    # 1. 优先尝试极速下载已发布的官方跨平台静态二进制文件 (约 5.8MB, 无需等待编译)
+    local release_url="https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/download/v2.0.0/aimilivpn_linux_${GO_ARCH}"
+    echo -e "  -> 正在检测并极速下载已发布的官方静态二进制包 (${GO_ARCH})..."
+    if curl -sSL -f -m 30 "${release_url}" -o "${BIN_PATH}" && [ -s "${BIN_PATH}" ]; then
+        echo -e "${GREEN}  -> 二进制预编译包下载完成！${PLAIN}"
+        dl_ok=1
+    fi
+
+    # 2. 若无法下载发行包，自动降级至就地编译
+    if [ "$dl_ok" = "0" ]; then
+        if [ -f "${SCRIPT_DIR}/bin/aimilivpn" ]; then
+            echo -e "  -> 发现本地已预编译二进制文件，直接安装部署..."
+            cp -f "${SCRIPT_DIR}/bin/aimilivpn" "${BIN_PATH}"
+        elif [ -f "${SCRIPT_DIR}/cmd/aimilivpn/main.go" ]; then
+            echo -e "  -> 正在从本地源码就地编译目标程序 (约需 10-30 秒)..."
+            ensure_go
+            cd "${SCRIPT_DIR}"
+            CGO_ENABLED=0 go build -ldflags="-s -w" -o "${BIN_PATH}" ./cmd/aimilivpn
+        else
+            echo -e "  -> 正在从 GitHub 官方仓库拉取最新源码并构建..."
+            ensure_go
+            TMP_DIR=$(mktemp -d)
+            git clone --depth 1 "${GITHUB_REPO}" "${TMP_DIR}"
+            cd "${TMP_DIR}"
+            echo -e "  -> 正在就地编译二进制程序 (低配 VPS 首次编译约需 20~40 秒，请耐心稍候)..."
+            CGO_ENABLED=0 go build -ldflags="-s -w" -o "${BIN_PATH}" ./cmd/aimilivpn
+            rm -rf "${TMP_DIR}"
+        fi
     fi
 
     chmod +x "${BIN_PATH}"
@@ -568,12 +581,26 @@ menu_list_nodes() {
 }
 
 menu_update() {
-    echo -e "\n${YELLOW}正在从 GitHub 检测并构建最新版本...${PLAIN}"
+    echo -e "\n${YELLOW}正在检测最新发行版本...${PLAIN}"
+    local release_url="https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/download/v2.0.0/aimilivpn_linux_${GO_ARCH}"
+    if curl -sSL -f -m 30 "${release_url}" -o "${BIN_PATH}.tmp" && [ -s "${BIN_PATH}.tmp" ]; then
+        mv -f "${BIN_PATH}.tmp" "${BIN_PATH}"
+        chmod +x "${BIN_PATH}"
+        curl -sSL "https://raw.githubusercontent.com/xiumuzidiao0/aimili-vpngate-go/main/install.sh" -o "${INSTALL_DIR}/install.sh" 2>/dev/null || true
+        chmod +x "${INSTALL_DIR}/install.sh" 2>/dev/null || true
+        systemctl restart aimilivpn
+        echo -e "${GREEN}AimiliVPN 已成功极速更新至最新构建并重启！${PLAIN}"
+        sleep 2
+        return
+    fi
+
+    echo -e "  -> 正在从 GitHub 拉取源码就地重新编译..."
     cd "${INSTALL_DIR}" 2>/dev/null || cd /tmp
     TMP_DIR=$(mktemp -d)
     git clone --depth 1 "${GITHUB_REPO}" "${TMP_DIR}"
     cd "${TMP_DIR}"
     ensure_go
+    echo -e "  -> 正在就地编译 (约需 20-30 秒)..."
     CGO_ENABLED=0 go build -ldflags="-s -w" -o "${BIN_PATH}" ./cmd/aimilivpn
     cp -f "${TMP_DIR}/install.sh" "${INSTALL_DIR}/install.sh" 2>/dev/null || true
     chmod +x "${INSTALL_DIR}/install.sh" 2>/dev/null || true
