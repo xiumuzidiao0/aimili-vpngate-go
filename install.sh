@@ -101,7 +101,7 @@ install_dependencies() {
     fi
 }
 
-# 5. 安装或确保 Go 编译器
+# 5. 安装或确保 Go 编译环境
 ensure_go() {
     if command -v go >/dev/null 2>&1; then
         echo -e "${GREEN}检测到系统中已安装 Go: $(go version)${PLAIN}"
@@ -125,33 +125,129 @@ ensure_go() {
     echo 'export PATH="/usr/local/go/bin:$PATH"' >> /etc/profile
 }
 
-# 6. 生成默认配置文件
-generate_default_config() {
+# 辅助生成随机字符串与密码
+rand_str() {
+    local len="${1:-8}"
+    head -c 32 /dev/urandom | tr -dc 'A-Za-z0-9' | head -c "$len" || echo "aimili"
+}
+
+rand_pass() {
+    local len="${1:-12}"
+    head -c 32 /dev/urandom | tr -dc 'A-Za-z0-9' | head -c "$len" || echo "aimilivpn123"
+}
+
+# 兼容管道执行与终端直接执行的用户输入函数
+prompt_input() {
+    local prompt_msg="$1"
+    local default_val="$2"
+    local result_var="$3"
+    local input_val=""
+
+    if [ -t 0 ]; then
+        read -p "$prompt_msg" input_val
+    elif [ -c /dev/tty ]; then
+        read -p "$prompt_msg" input_val </dev/tty
+    fi
+
+    if [ -z "$input_val" ]; then
+        eval "$result_var=\"$default_val\""
+    else
+        eval "$result_var=\"$input_val\""
+    fi
+}
+
+# 6. 交互式自定义配置与保存
+configure_install_params() {
     mkdir -p "${INSTALL_DIR}"
     mkdir -p "${INSTALL_DIR}/data"
 
-    if [ ! -f "${CONFIG_FILE}" ]; then
-        RAND_PATH=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 8 || echo "aimili")
-        RAND_PASS=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 12 || echo "aimilivpn")
+    local def_web_port="8787"
+    local def_path=$(rand_str 8)
+    local def_user="admin"
+    local def_pass=$(rand_pass 12)
+    local def_proxy_port="7928"
 
-        cat > "${CONFIG_FILE}" <<EOF
+    # 如果已有配置文件，优先以已有值作为默认
+    if [ -f "${CONFIG_FILE}" ]; then
+        local exist_web=$(get_config_val "UI_PORT")
+        local exist_path=$(get_config_val "UI_PATH")
+        local exist_user=$(get_config_val "UI_USERNAME")
+        local exist_pass=$(get_config_val "UI_PASSWORD")
+        local exist_proxy=$(get_config_val "LOCAL_PROXY_PORT")
+
+        [ -n "$exist_web" ] && def_web_port="$exist_web"
+        [ -n "$exist_path" ] && def_path="$exist_path"
+        [ -n "$exist_user" ] && def_user="$exist_user"
+        [ -n "$exist_pass" ] && def_pass="$exist_pass"
+        [ -n "$exist_proxy" ] && def_proxy_port="$exist_proxy"
+    fi
+
+    echo -e "\n${BLUE}==================================================================${PLAIN}"
+    echo -e "${BLUE}             AimiliVPN 初始部署参数自定义配置                     ${PLAIN}"
+    echo -e "${BLUE}  (直接按回车可全部采用括号内的推荐默认值或安全随机值)             ${PLAIN}"
+    echo -e "${BLUE}==================================================================${PLAIN}"
+
+    # 1. Web 端口
+    while true; do
+        prompt_input "1. 请输入 Web 管理控制台端口 [1-65535] (默认: ${def_web_port}): " "${def_web_port}" custom_web_port
+        if [[ "$custom_web_port" =~ ^[0-9]+$ ]] && [ "$custom_web_port" -ge 1 ] && [ "$custom_web_port" -le 65535 ]; then
+            break
+        else
+            echo -e "${RED}错误: 端口必须是 1 至 65535 之间的纯数字！${PLAIN}"
+        fi
+    done
+
+    # 2. 安全访问路径
+    prompt_input "2. 请输入 Web 后台安全访问路径 (默认: ${def_path}): " "${def_path}" custom_path
+    custom_path=$(echo "${custom_path}" | tr -d '/' | tr -d ' ')
+    [ -z "$custom_path" ] && custom_path="${def_path}"
+
+    # 3. 管理员账号
+    prompt_input "3. 请输入 Web 管理员账号 (默认: ${def_user}): " "${def_user}" custom_user
+    [ -z "$custom_user" ] && custom_user="${def_user}"
+
+    # 4. 管理员密码
+    prompt_input "4. 请输入 Web 管理员密码 (默认随机密码: ${def_pass}): " "${def_pass}" custom_pass
+    [ -z "$custom_pass" ] && custom_pass="${def_pass}"
+
+    # 5. 代理出站端口
+    while true; do
+        prompt_input "5. 请输入 本地统一代理监听端口 [1-65535] (默认: ${def_proxy_port}): " "${def_proxy_port}" custom_proxy_port
+        if [[ "$custom_proxy_port" =~ ^[0-9]+$ ]] && [ "$custom_proxy_port" -ge 1 ] && [ "$custom_proxy_port" -le 65535 ]; then
+            if [ "$custom_proxy_port" = "$custom_web_port" ]; then
+                echo -e "${RED}错误: 代理端口不能与 Web 管理端口 ($custom_web_port) 相同！${PLAIN}"
+            else
+                break
+            fi
+        else
+            echo -e "${RED}错误: 端口必须是 1 至 65535 之间的纯数字！${PLAIN}"
+        fi
+    done
+
+    echo -e "\n${GREEN}------------------- 您配置的参数确认 -------------------${PLAIN}"
+    echo -e " Web 管理端口   : ${CYAN}${custom_web_port}${PLAIN}"
+    echo -e " 安全访问路径   : ${CYAN}/${custom_path}${PLAIN}"
+    echo -e " 管理员账号     : ${YELLOW}${custom_user}${PLAIN}"
+    echo -e " 管理员密码     : ${YELLOW}${custom_pass}${PLAIN}"
+    echo -e " 本地代理端口   : ${CYAN}${custom_proxy_port}${PLAIN}"
+    echo -e "${GREEN}-------------------------------------------------------${PLAIN}"
+
+    cat > "${CONFIG_FILE}" <<EOF
 # AimiliVPN 运行环境变量配置
 DATA_DIR=${INSTALL_DIR}/data
 UI_HOST=::
-UI_PORT=8787
-UI_PATH=${RAND_PATH}
-UI_USERNAME=admin
-UI_PASSWORD=${RAND_PASS}
+UI_PORT=${custom_web_port}
+UI_PATH=${custom_path}
+UI_USERNAME=${custom_user}
+UI_PASSWORD=${custom_pass}
 LOCAL_PROXY_HOST=127.0.0.1
-LOCAL_PROXY_PORT=7928
+LOCAL_PROXY_PORT=${custom_proxy_port}
 LOCAL_PROXY_MAX_CONNECTIONS=512
 CHECK_INTERVAL_SECONDS=20
 FETCH_INTERVAL_SECONDS=900
 TARGET_VALID_NODES=5
 EOF
-        chmod 600 "${CONFIG_FILE}"
-        echo -e "${GREEN}已生成安全初始配置 (管理密码: ${RAND_PASS}, 入口路径: /${RAND_PATH})${PLAIN}"
-    fi
+    chmod 600 "${CONFIG_FILE}"
 }
 
 # 7. 编译并部署二进制文件
@@ -179,9 +275,9 @@ build_and_deploy() {
 
     chmod +x "${BIN_PATH}"
     ln -sf "${BIN_PATH}" /usr/local/bin/aimilivpn
-    ln -sf "${SCRIPT_DIR}/install.sh" /usr/local/bin/ml 2>/dev/null || ln -sf "${INSTALL_DIR}/install.sh" /usr/local/bin/ml 2>/dev/null || true
     cp -f "${BASH_SOURCE[0]}" "${INSTALL_DIR}/install.sh" 2>/dev/null || true
     chmod +x "${INSTALL_DIR}/install.sh" 2>/dev/null || true
+    ln -sf "${INSTALL_DIR}/install.sh" /usr/local/bin/ml 2>/dev/null || true
 }
 
 # 8. 安装 systemd 服务
@@ -256,7 +352,7 @@ print_install_success() {
     echo -e " ${BOLD}管理账号${PLAIN}       : ${YELLOW}${user}${PLAIN}"
     echo -e " ${BOLD}管理密码${PLAIN}       : ${YELLOW}${pass}${PLAIN}"
     echo -e " ${BOLD}本地自适应代理${PLAIN} : ${GREEN}127.0.0.1:${proxy_port}${PLAIN} (HTTP/HTTPS/SOCKS5 单端口)"
-    echo -e " ${BOLD}终端管理命令${PLAIN}   : 在终端随时输入 ${CYAN}ml${PLAIN} 或 ${CYAN}aimilivpn${PLAIN} 唤出管理菜单"
+    echo -e " ${BOLD}终端管理命令${PLAIN}   : 在终端随时输入 ${CYAN}ml${PLAIN} 唤出管理控制中心"
     echo -e "${GREEN}==================================================================${PLAIN}\n"
 }
 
@@ -265,23 +361,11 @@ print_install_success() {
 # ==============================================================================
 
 show_service_status() {
-    if systemctl is-active --quiet aimilivpn; then
+    if systemctl is-active --quiet aimilivpn 2>/dev/null; then
         echo -e "${GREEN}● 运行中 (Active)${PLAIN}"
     else
         echo -e "${RED}● 已停止 (Inactive)${PLAIN}"
     fi
-}
-
-get_live_info() {
-    local port=$(get_config_val "UI_PORT")
-    local path=$(get_config_val "UI_PATH")
-    local user=$(get_config_val "UI_USERNAME")
-    local pass=$(get_config_val "UI_PASSWORD")
-
-    # Call local API to get real-time state
-    local api_res
-    api_res=$(curl -s -u "${user}:${pass}" "http://127.0.0.1:${port}/api/status" 2>/dev/null || echo "")
-    echo "$api_res"
 }
 
 menu_start() {
@@ -308,61 +392,127 @@ menu_logs() {
 }
 
 menu_modify_credentials() {
-    echo -e "\n${YELLOW}=== 修改管理后台账号与密码 ===${PLAIN}"
-    local curr_user=$(get_config_val "UI_USERNAME")
-    local curr_pass=$(get_config_val "UI_PASSWORD")
-    echo -e "当前管理账号: ${CYAN}${curr_user}${PLAIN}"
-    echo -e "当前管理密码: ${CYAN}${curr_pass}${PLAIN}"
-    echo ""
-    read -p "请输入新的管理账号 (直接回车保持不变): " new_user
-    read -p "请输入新的管理密码 (直接回车保持不变): " new_pass
+    while true; do
+        clear
+        local curr_user=$(get_config_val "UI_USERNAME")
+        local curr_pass=$(get_config_val "UI_PASSWORD")
+        echo -e "${BLUE}=======================================================${PLAIN}"
+        echo -e "${BLUE}                 管理账号与密码管理                    ${PLAIN}"
+        echo -e "${BLUE}=======================================================${PLAIN}"
+        echo -e "  当前管理账号: ${YELLOW}${curr_user}${PLAIN}"
+        echo -e "  当前管理密码: ${YELLOW}${curr_pass}${PLAIN}"
+        echo -e "-------------------------------------------------------"
+        echo -e "  [1] 自定义修改账号与密码"
+        echo -e "  [2] 一键随机重置 12 位安全强密码"
+        echo -e "  [0] 返回主菜单"
+        echo -e "${BLUE}=======================================================${PLAIN}"
+        read -p "请选择操作 [0-2]: " cred_choice
 
-    local changed=0
-    if [ -n "$new_user" ]; then
-        set_config_val "UI_USERNAME" "$new_user"
-        changed=1
-    fi
-    if [ -n "$new_pass" ]; then
-        set_config_val "UI_PASSWORD" "$new_pass"
-        changed=1
-    fi
-
-    if [ "$changed" = "1" ]; then
-        systemctl restart aimilivpn
-        echo -e "${GREEN}管理凭据已更新并重启服务生效！${PLAIN}"
-    else
-        echo -e "未作任何修改。"
-    fi
-    read -p "按回车键返回主菜单..."
+        case "$cred_choice" in
+            1)
+                echo ""
+                read -p "请输入新管理账号 (回车保持不变): " new_u
+                read -p "请输入新管理密码 (不能为空, 回车保持不变): " new_p
+                [ -n "$new_u" ] && set_config_val "UI_USERNAME" "$new_u"
+                [ -n "$new_p" ] && set_config_val "UI_PASSWORD" "$new_p"
+                systemctl restart aimilivpn
+                echo -e "${GREEN}账号密码已更新并重启服务！${PLAIN}"
+                sleep 1.5
+                ;;
+            2)
+                local rand_p=$(rand_pass 12)
+                set_config_val "UI_PASSWORD" "$rand_p"
+                systemctl restart aimilivpn
+                echo -e "${GREEN}密码已成功重置为: ${YELLOW}${rand_p}${PLAIN}"
+                read -p "按回车键继续..."
+                ;;
+            0)
+                break
+                ;;
+            *)
+                echo -e "${RED}输入无效${PLAIN}"; sleep 1
+                ;;
+        esac
+    done
 }
 
-menu_modify_ports() {
-    echo -e "\n${YELLOW}=== 修改管理端口与代理端口 ===${PLAIN}"
-    local curr_web_port=$(get_config_val "UI_PORT")
-    local curr_proxy_port=$(get_config_val "LOCAL_PROXY_PORT")
-    echo -e "当前 Web 控制台端口: ${CYAN}${curr_web_port}${PLAIN}"
-    echo -e "当前 本地代理端口   : ${CYAN}${curr_proxy_port}${PLAIN}"
-    echo ""
-    read -p "请输入新的 Web 管理端口 (1-65535, 回车保持不变): " new_web
-    read -p "请输入新的 本地代理端口 (1-65535, 回车保持不变): " new_proxy
+menu_modify_ports_and_path() {
+    while true; do
+        clear
+        local curr_web=$(get_config_val "UI_PORT")
+        local curr_proxy=$(get_config_val "LOCAL_PROXY_PORT")
+        local curr_path=$(get_config_val "UI_PATH")
+        local ip=$(get_public_ip)
 
-    local changed=0
-    if [ -n "$new_web" ]; then
-        set_config_val "UI_PORT" "$new_web"
-        changed=1
-    fi
-    if [ -n "$new_proxy" ]; then
-        set_config_val "LOCAL_PROXY_PORT" "$new_proxy"
-        changed=1
-    fi
+        echo -e "${BLUE}=======================================================${PLAIN}"
+        echo -e "${BLUE}               端口与后台安全路径管理                  ${PLAIN}"
+        echo -e "${BLUE}=======================================================${PLAIN}"
+        echo -e "  当前 Web 管理端口 : ${CYAN}${curr_web}${PLAIN}"
+        echo -e "  当前 本地代理端口 : ${CYAN}${curr_proxy}${PLAIN}"
+        echo -e "  当前 安全访问路径 : ${CYAN}/${curr_path}${PLAIN}"
+        echo -e "  当前完整访问入口  : ${YELLOW}http://${ip}:${curr_web}/${curr_path}${PLAIN}"
+        echo -e "-------------------------------------------------------"
+        echo -e "  [1] 修改 Web 管理后台端口"
+        echo -e "  [2] 修改 本地自适应代理端口"
+        echo -e "  [3] 修改 后台安全访问路径"
+        echo -e "  [4] 一键随机重新生成安全路径 (防扫描防爆破)"
+        echo -e "  [0] 返回主菜单"
+        echo -e "${BLUE}=======================================================${PLAIN}"
+        read -p "请选择操作 [0-4]: " p_choice
 
-    if [ "$changed" = "1" ]; then
-        systemctl restart aimilivpn
-        echo -e "${GREEN}端口已更新并重启服务生效！${PLAIN}"
-    else
-        echo -e "未作任何修改。"
-    fi
-    read -p "按回车键返回主菜单..."
+        case "$p_choice" in
+            1)
+                read -p "请输入新的 Web 管理端口 [1-65535]: " n_web
+                if [[ "$n_web" =~ ^[0-9]+$ ]] && [ "$n_web" -ge 1 ] && [ "$n_web" -le 65535 ]; then
+                    if [ "$n_web" = "$curr_proxy" ]; then
+                        echo -e "${RED}错误: Web 端口不能与代理端口相同！${PLAIN}"; sleep 1.5
+                    else
+                        set_config_val "UI_PORT" "$n_web"
+                        systemctl restart aimilivpn
+                        echo -e "${GREEN}Web 管理端口已更新为 $n_web 并重启生效！${PLAIN}"; sleep 1.5
+                    fi
+                else
+                    echo -e "${RED}端口必须为 1-65535 的数字！${PLAIN}"; sleep 1.5
+                fi
+                ;;
+            2)
+                read -p "请输入新的 本地代理端口 [1-65535]: " n_proxy
+                if [[ "$n_proxy" =~ ^[0-9]+$ ]] && [ "$n_proxy" -ge 1 ] && [ "$n_proxy" -le 65535 ]; then
+                    if [ "$n_proxy" = "$curr_web" ]; then
+                        echo -e "${RED}错误: 代理端口不能与 Web 端口相同！${PLAIN}"; sleep 1.5
+                    else
+                        set_config_val "LOCAL_PROXY_PORT" "$n_proxy"
+                        systemctl restart aimilivpn
+                        echo -e "${GREEN}本地代理端口已更新为 $n_proxy 并重启生效！${PLAIN}"; sleep 1.5
+                    fi
+                else
+                    echo -e "${RED}端口必须为 1-65535 的数字！${PLAIN}"; sleep 1.5
+                fi
+                ;;
+            3)
+                read -p "请输入新的安全访问路径 (无需斜杠，例如 admin 或 myvpn): " n_path
+                n_path=$(echo "${n_path}" | tr -d '/' | tr -d ' ')
+                if [ -n "$n_path" ]; then
+                    set_config_val "UI_PATH" "$n_path"
+                    systemctl restart aimilivpn
+                    echo -e "${GREEN}安全路径已更新为 /${n_path} 并重启生效！${PLAIN}"; sleep 1.5
+                fi
+                ;;
+            4)
+                local rand_p=$(rand_str 8)
+                set_config_val "UI_PATH" "$rand_p"
+                systemctl restart aimilivpn
+                echo -e "${GREEN}安全访问路径已随机更新为: ${YELLOW}/${rand_p}${PLAIN}"
+                read -p "按回车键继续..."
+                ;;
+            0)
+                break
+                ;;
+            *)
+                echo -e "${RED}输入无效${PLAIN}"; sleep 1
+                ;;
+        esac
+    done
 }
 
 menu_switch_node() {
@@ -443,7 +593,7 @@ main_menu() {
         echo -e "  ${GREEN}[1]${PLAIN} 启动服务               ${GREEN}[2]${PLAIN} 停止服务"
         echo -e "  ${GREEN}[3]${PLAIN} 重启服务               ${GREEN}[4]${PLAIN} 查看实时运行日志"
         echo -e "  ${GREEN}[5]${PLAIN} 智能切换最优节点       ${GREEN}[6]${PLAIN} 查看当前候选节点列表"
-        echo -e "  ${GREEN}[7]${PLAIN} 修改管理账号/密码      ${GREEN}[8]${PLAIN} 修改 Web 与代理端口"
+        echo -e "  ${GREEN}[7]${PLAIN} 修改管理账号/密码      ${GREEN}[8]${PLAIN} 修改 Web/代理端口与安全路径"
         echo -e "  ${GREEN}[9]${PLAIN} 检查并在线更新版本     ${RED}[10]${PLAIN} 卸载 AimiliVPN"
         echo -e "  ${YELLOW}[0]${PLAIN} 退出终端管理"
         echo -e "${BLUE}==================================================================${PLAIN}"
@@ -457,7 +607,7 @@ main_menu() {
             5) menu_switch_node ;;
             6) menu_list_nodes ;;
             7) menu_modify_credentials ;;
-            8) menu_modify_ports ;;
+            8) menu_modify_ports_and_path ;;
             9) menu_update ;;
             10) menu_uninstall ;;
             0) exit 0 ;;
@@ -482,11 +632,11 @@ if [ -f "${BIN_PATH}" ] && [ -f "${SERVICE_FILE}" ] && [ -z "$1" ]; then
     exit 0
 fi
 
-# 否则执行全流程自动化安装
+# 首次执行或指定全新安装：进入交互式参数配置与全流程安装
 detect_os
 detect_arch
 install_dependencies
-generate_default_config
+configure_install_params
 build_and_deploy
 install_service
 print_install_success
