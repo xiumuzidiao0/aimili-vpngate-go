@@ -17,6 +17,7 @@ type NodePool struct {
 	fetcher   *Fetcher
 	snapshot  *SnapshotManager
 	blacklist *BlacklistManager
+	enricher  *IPEnricher
 
 	mu          sync.RWMutex
 	candidates  []*Node
@@ -29,12 +30,14 @@ func NewNodePool(cfg *config.Config) *NodePool {
 	sm := NewSnapshotManager(cfg.DataDir)
 	fetcher := NewFetcher(cfg.ApiURL, cfg.MirrorURL, sm)
 	bm := NewBlacklistManager(cfg.DataDir)
+	enricher := NewIPEnricher(cfg.DataDir)
 
 	return &NodePool{
 		cfg:        cfg,
 		fetcher:    fetcher,
 		snapshot:   sm,
 		blacklist:  bm,
+		enricher:   enricher,
 		lastStatus: "初始化中",
 	}
 }
@@ -99,6 +102,9 @@ func (np *NodePool) Refresh(ctx context.Context) error {
 
 	// Async ping probe for top nodes in background
 	go np.probeTopNodes(filtered, 15)
+
+	// Async IP type classification (residential vs hosting) in background
+	go np.enricher.EnrichNodes(context.Background(), filtered)
 
 	return nil
 }

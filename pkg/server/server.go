@@ -47,6 +47,8 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/refresh", s.handleRefresh)
 	mux.HandleFunc("GET /api/blacklist", s.handleBlacklist)
 	mux.HandleFunc("GET /api/logs", s.handleLogs)
+	mux.HandleFunc("GET /api/settings", s.handleGetSettings)
+	mux.HandleFunc("POST /api/settings", s.handleUpdateSettings)
 	mux.HandleFunc("GET /api/events", s.sseHub.HandleEvents)
 	mux.HandleFunc("GET /metrics", s.handleMetrics)
 

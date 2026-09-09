@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"aimili-vpngate-go/pkg/config"
 	"aimili-vpngate-go/pkg/nodes"
 	"aimili-vpngate-go/pkg/stats"
 )
@@ -113,6 +114,46 @@ func (s *Server) handleBlacklist(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 	recent := stats.GetRingLog().Recent(100)
 	s.writeJSON(w, http.StatusOK, recent)
+}
+
+func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
+	settings := s.cfg.GetSettings()
+	s.writeJSON(w, http.StatusOK, settings)
+}
+
+func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
+	var req config.SettingsDTO
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.writeError(w, http.StatusBadRequest, "请求参数解析失败")
+		return
+	}
+
+	if req.UIPort > 0 && (req.UIPort < 1 || req.UIPort > 65535) {
+		s.writeError(w, http.StatusBadRequest, "Web 端口必须在 1 至 65535 之间")
+		return
+	}
+	if req.ProxyPort > 0 && (req.ProxyPort < 1 || req.ProxyPort > 65535) {
+		s.writeError(w, http.StatusBadRequest, "代理端口必须在 1 至 65535 之间")
+		return
+	}
+	if req.UIPort > 0 && req.ProxyPort > 0 && req.UIPort == req.ProxyPort {
+		s.writeError(w, http.StatusBadRequest, "Web 端口不能与代理端口相同")
+		return
+	}
+
+	if err := s.cfg.UpdateSettings(req); err != nil {
+		s.writeError(w, http.StatusInternalServerError, fmt.Sprintf("更新配置失败: %v", err))
+		return
+	}
+
+	current := s.cfg.GetSettings()
+	stats.LogInfo("Server", "管理员通过 Web 控制台更新了系统配置: 账号=%s, 路径=/%s, Web端口=%d, 代理端口=%d",
+		current.UIUsername, current.UIPath, current.UIPort, current.ProxyPort)
+
+	s.writeJSON(w, http.StatusOK, map[string]any{
+		"message":  "配置修改成功并已持久化保存！",
+		"settings": current,
+	})
 }
 
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {

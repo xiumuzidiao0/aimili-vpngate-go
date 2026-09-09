@@ -27,7 +27,7 @@
             min-height: 100vh;
             padding: 20px;
         }
-        .container { max-width: 1200px; margin: 0 auto; }
+        .container { max-width: 1250px; margin: 0 auto; }
         header {
             display: flex;
             justify-content: space-between;
@@ -47,12 +47,16 @@
         }
         h1 { font-size: 20px; font-weight: 700; }
         .badge {
-            font-size: 12px; padding: 4px 10px; border-radius: 9999px; font-weight: 600;
-            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 11px; padding: 3px 8px; border-radius: 9999px; font-weight: 600;
+            display: inline-flex; align-items: center; gap: 4px;
         }
         .badge.connected { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
         .badge.connecting { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
         .badge.disconnected { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+
+        .badge-residential { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+        .badge-hosting { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+        .badge-mobile { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
 
         .stat-grid {
             display: grid;
@@ -139,7 +143,7 @@
 
         .table-wrap {
             overflow-x: auto;
-            max-height: 480px;
+            max-height: 520px;
         }
         table {
             width: 100%;
@@ -159,6 +163,7 @@
             gap: 12px;
             margin-bottom: 16px;
             flex-wrap: wrap;
+            align-items: center;
         }
         .input-field {
             background: var(--bg-base);
@@ -170,6 +175,27 @@
             outline: none;
         }
         .input-field:focus { border-color: var(--primary); }
+
+        /* Modal Settings */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none; justify-content: center; align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+        }
+        .modal-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            width: 90%; max-width: 500px;
+            padding: 24px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
+        }
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
+        .input-addon { display: flex; gap: 8px; }
+        .input-addon input { flex: 1; }
     </style>
 </head>
 <body>
@@ -182,10 +208,11 @@
                     <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">单端口自适应 HTTP / HTTPS / SOCKS5 代理网关</div>
                 </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                 <span id="conn-badge" class="badge disconnected">● 检查中</span>
                 <button id="btn-quick-connect" class="btn" onclick="quickConnect()">⚡ 智能连接最优节点</button>
                 <button id="btn-disconnect" class="btn btn-danger" onclick="disconnectVPN()" style="display: none;">断开连接</button>
+                <button class="btn btn-outline" onclick="openSettingsModal()">⚙️ 系统与安全设置</button>
             </div>
         </header>
 
@@ -227,7 +254,11 @@
                     <span id="vpn-node-ip" class="info-val">-</span>
                 </div>
                 <div class="info-row">
-                    <span class="info-label">节点国家 / 地区</span>
+                    <span class="info-label">IP 类型 / 归属 ISP</span>
+                    <span id="vpn-node-type" class="info-val">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">国家 / 城市地区</span>
                     <span id="vpn-node-country" class="info-val">-</span>
                 </div>
                 <div class="info-row">
@@ -246,7 +277,7 @@
                     <button class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="clearLogs()">清屏</button>
                 </div>
                 <div id="terminal" class="terminal-box">
-                    <div class="log-line"><span class="log-time">[系统]</span> 正在建立 SSE 实时日志推流通道...</div>
+                    <div class="log-line"><span class="log-time">[系统]</span> 正在建立 SSE 实时推流通道...</div>
                 </div>
             </div>
         </div>
@@ -257,10 +288,17 @@
                 <button class="btn btn-outline" onclick="refreshNodes()">🔄 刷新节点源</button>
             </div>
             <div class="filter-bar">
-                <input id="search-filter" class="input-field" type="text" placeholder="按国家/IP搜索..." oninput="renderNodes()">
+                <input id="search-filter" class="input-field" type="text" placeholder="按国家/IP/ISP/城市搜索..." style="min-width: 220px;" oninput="renderNodes()">
                 <select id="country-filter" class="input-field" onchange="renderNodes()">
-                    <option value="">全部国家</option>
+                    <option value="">全部国家/地区</option>
                 </select>
+                <select id="ip-type-filter" class="input-field" onchange="renderNodes()">
+                    <option value="">全部网络类型</option>
+                    <option value="residential">🏠 住宅宽带 IP (家宽)</option>
+                    <option value="hosting">🏢 机房/数据中心 IP</option>
+                    <option value="mobile">📱 移动蜂窝网络 IP</option>
+                </select>
+                <span id="filtered-count" style="font-size: 12px; color: var(--text-muted); margin-left: auto;">共加载 0 个节点</span>
             </div>
             <div class="table-wrap">
                 <table>
@@ -268,6 +306,7 @@
                         <tr>
                             <th>国家 / 地区</th>
                             <th>IP : 端口</th>
+                            <th>网络类型 / ISP</th>
                             <th>协议</th>
                             <th>测速延迟</th>
                             <th>VPNGate 评分</th>
@@ -276,10 +315,52 @@
                         </tr>
                     </thead>
                     <tbody id="nodes-tbody">
-                        <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">正在加载节点数据...</td></tr>
+                        <tr><td colspan="8" style="text-align: center; color: var(--text-muted);">正在加载节点数据...</td></tr>
                     </tbody>
                 </table>
             </div>
+        </div>
+    </div>
+
+    <!-- 系统与安全设置模态弹窗 -->
+    <div id="settings-modal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="card-header" style="margin-bottom: 20px;">
+                <div class="card-title">⚙️ 系统与安全参数设置</div>
+                <button class="btn btn-outline" style="padding: 4px 8px;" onclick="closeSettingsModal()">✕</button>
+            </div>
+            <form id="settings-form" onsubmit="saveSettings(event)">
+                <div class="form-group">
+                    <label class="form-label">Web 管理控制台端口 [1-65535]</label>
+                    <input id="cfg-web-port" class="input-field" style="width: 100%;" type="number" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">后台安全访问路径 (无需斜杠)</label>
+                    <div class="input-addon">
+                        <input id="cfg-web-path" class="input-field" type="text" required>
+                        <button type="button" class="btn btn-outline" onclick="randomPath()">🎲 随机</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Web 管理员账号</label>
+                    <input id="cfg-username" class="input-field" style="width: 100%;" type="text" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Web 管理员密码 (修改请输入，留空保持不变)</label>
+                    <div class="input-addon">
+                        <input id="cfg-password" class="input-field" type="text" placeholder="留空保持原密码">
+                        <button type="button" class="btn btn-outline" onclick="randomPassword()">🎲 随机密码</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">本地自适应代理端口 [1-65535]</label>
+                    <input id="cfg-proxy-port" class="input-field" style="width: 100%;" type="number" required>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+                    <button type="button" class="btn btn-outline" onclick="closeSettingsModal()">取消</button>
+                    <button type="submit" class="btn">💾 保存并立即生效</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -288,7 +369,7 @@
         let currentState = null;
 
         function formatBytes(bytes) {
-            if (bytes === 0) return '0 B';
+            if (!bytes || bytes === 0) return '0 B';
             const k = 1024;
             const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -356,7 +437,23 @@
                 // Info card
                 document.getElementById('vpn-status-text').innerText = vpn.status_text || vpn.status || '未连接';
                 document.getElementById('vpn-node-ip').innerText = vpn.active_node ? `${vpn.active_node.ip}:${vpn.active_node.port}` : '-';
-                document.getElementById('vpn-node-country').innerText = vpn.active_node ? `${vpn.active_node.country_long} (${vpn.active_node.country_short})` : '-';
+
+                // Node Type & Country
+                if (vpn.active_node) {
+                    let typeBadge = '<span class="badge badge-residential">🏠 住宅宽带</span>';
+                    if (vpn.active_node.ip_type === 'hosting') {
+                        typeBadge = '<span class="badge badge-hosting">🏢 机房/数据中心</span>';
+                    } else if (vpn.active_node.ip_type === 'mobile') {
+                        typeBadge = '<span class="badge badge-mobile">📱 移动网络</span>';
+                    }
+                    document.getElementById('vpn-node-type').innerHTML = `${typeBadge} ${vpn.active_node.isp || ''}`;
+                    const loc = [vpn.active_node.country_long, vpn.active_node.region, vpn.active_node.city].filter(Boolean).join(' · ');
+                    document.getElementById('vpn-node-country').innerText = `${loc} (${vpn.active_node.country_short})`;
+                } else {
+                    document.getElementById('vpn-node-type').innerText = '-';
+                    document.getElementById('vpn-node-country').innerText = '-';
+                }
+
                 document.getElementById('vpn-proxy-addr').innerText = data.proxy_addr ? `${data.proxy_addr} (HTTP/SOCKS5)` : '-';
                 document.getElementById('vpn-last-msg').innerText = vpn.last_message || '-';
 
@@ -392,7 +489,7 @@
             const select = document.getElementById('country-filter');
             const curr = select.value;
             const countries = [...new Set(allNodes.map(n => n.country_short))].filter(Boolean).sort();
-            select.innerHTML = '<option value="">全部国家</option>' +
+            select.innerHTML = '<option value="">全部国家/地区</option>' +
                 countries.map(c => `<option value="${c}">${c}</option>`).join('');
             select.value = curr;
         }
@@ -401,34 +498,52 @@
             const tbody = document.getElementById('nodes-tbody');
             const search = document.getElementById('search-filter').value.toLowerCase();
             const country = document.getElementById('country-filter').value;
+            const ipType = document.getElementById('ip-type-filter').value;
 
             const filtered = allNodes.filter(n => {
                 if (country && n.country_short !== country) return false;
-                if (search && !n.ip.includes(search) && !n.country_long.toLowerCase().includes(search) && !n.hostname.toLowerCase().includes(search)) return false;
+                if (ipType && n.ip_type !== ipType) return false;
+                if (search) {
+                    const str = `${n.ip} ${n.country_long} ${n.country_short} ${n.hostname} ${n.isp || ''} ${n.city || ''} ${n.region || ''}`.toLowerCase();
+                    if (!str.includes(search)) return false;
+                }
                 return true;
             });
 
+            document.getElementById('filtered-count').innerText = `筛选出 ${filtered.length} / ${allNodes.length} 个节点`;
+
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">未找到匹配节点</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 30px;">未找到匹配条件的节点</td></tr>';
                 return;
             }
 
             tbody.innerHTML = filtered.map(n => {
                 const isCurrent = currentState && currentState.vpn && currentState.vpn.active_node_id === n.id;
-                const latency = n.latency_ms > 0 ? `<span style="color: #34d399;">${n.latency_ms} ms</span>` : '<span style="color: var(--text-muted);">-</span>';
+                const latency = n.latency_ms > 0 ? `<span style="color: #34d399; font-weight: 600;">${n.latency_ms} ms</span>` : '<span style="color: var(--text-muted);">-</span>';
                 const speedMbps = (n.speed / 1000000).toFixed(1) + ' Mbps';
+
+                let typeTag = '<span class="badge badge-residential">🏠 住宅宽带</span>';
+                if (n.ip_type === 'hosting') {
+                    typeTag = '<span class="badge badge-hosting">🏢 机房IP</span>';
+                } else if (n.ip_type === 'mobile') {
+                    typeTag = '<span class="badge badge-mobile">📱 移动网络</span>';
+                }
+
+                const ispInfo = n.isp ? `<div style="font-size: 11px; color: var(--text-muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${n.isp}</div>` : '';
+                const cityInfo = n.city ? `<span style="color: var(--text-muted); font-size: 11px;"> · ${n.city}</span>` : '';
 
                 return `
                     <tr style="${isCurrent ? 'background: rgba(59, 130, 246, 0.15);' : ''}">
-                        <td><strong>${n.country_short}</strong> ${n.country_long}</td>
+                        <td><strong>${n.country_short}</strong> ${n.country_long}${cityInfo}</td>
                         <td style="font-family: monospace;">${n.ip}:${n.port}</td>
+                        <td>${typeTag}${ispInfo}</td>
                         <td><span class="badge" style="background: rgba(148, 163, 184, 0.2);">${n.proto.toUpperCase()}</span></td>
                         <td>${latency}</td>
                         <td>${n.score}</td>
                         <td>${speedMbps}</td>
                         <td>
                             ${isCurrent ?
-                                '<span class="badge connected">当前已连接</span>' :
+                                '<span class="badge connected">当前连通</span>' :
                                 `<button class="btn" style="padding: 4px 10px; font-size: 11px;" onclick="connectToNode('${n.id}')">连接</button>`
                             }
                         </td>
@@ -462,8 +577,95 @@
         async function refreshNodes() {
             appendLog({ level: 'INFO', module: 'Action', message: '正在刷新远端节点列表...' });
             await fetch('/api/refresh', { method: 'POST' });
-            fetchNodes();
+            setTimeout(fetchNodes, 1500);
             fetchStatus();
+        }
+
+        // Settings Modal
+        async function openSettingsModal() {
+            try {
+                const res = await fetch('/api/settings');
+                if (!res.ok) return;
+                const data = await res.json();
+                document.getElementById('cfg-web-port').value = data.ui_port || 8787;
+                document.getElementById('cfg-web-path').value = data.ui_path || 'aimili';
+                document.getElementById('cfg-username').value = data.ui_username || 'admin';
+                document.getElementById('cfg-password').value = '';
+                document.getElementById('cfg-proxy-port').value = data.proxy_port || 7928;
+                document.getElementById('settings-modal').style.display = 'flex';
+            } catch (err) {
+                alert('获取系统配置失败: ' + err);
+            }
+        }
+
+        function closeSettingsModal() {
+            document.getElementById('settings-modal').style.display = 'none';
+        }
+
+        function randomPath() {
+            const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let res = '';
+            for (let i = 0; i < 8; i++) res += chars.charAt(Math.floor(Math.random() * chars.length));
+            document.getElementById('cfg-web-path').value = res;
+        }
+
+        function randomPassword() {
+            const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+            let res = '';
+            for (let i = 0; i < 14; i++) res += chars.charAt(Math.floor(Math.random() * chars.length));
+            document.getElementById('cfg-password').value = res;
+        }
+
+        async function saveSettings(e) {
+            e.preventDefault();
+            const webPort = parseInt(document.getElementById('cfg-web-port').value);
+            const webPath = document.getElementById('cfg-web-path').value.trim().replace(/^\/+|\/+$/g, '');
+            const user = document.getElementById('cfg-username').value.trim();
+            const pass = document.getElementById('cfg-password').value.trim();
+            const proxyPort = parseInt(document.getElementById('cfg-proxy-port').value);
+
+            if (webPort === proxyPort) {
+                alert('错误: Web 管理端口不能与本地代理端口相同！');
+                return;
+            }
+
+            const payload = {
+                ui_port: webPort,
+                ui_path: webPath,
+                ui_username: user,
+                proxy_port: proxyPort
+            };
+            if (pass) {
+                payload.ui_password = pass;
+            }
+
+            try {
+                const res = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const ret = await res.json();
+                if (!res.ok) {
+                    alert('保存失败: ' + (ret.error || '未知错误'));
+                    return;
+                }
+
+                alert('配置修改成功！配置已持久化至 config.env。');
+                closeSettingsModal();
+
+                // If port or path changed, redirect to new location
+                const curPort = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+                if (webPort.toString() !== curPort || !window.location.pathname.includes(webPath)) {
+                    const newUrl = `${window.location.protocol}//${window.location.hostname}:${webPort}/${webPath}`;
+                    alert(`Web 访问入口已变更，即将跳转至新地址:\n${newUrl}`);
+                    window.location.href = newUrl;
+                } else {
+                    fetchStatus();
+                }
+            } catch (err) {
+                alert('网络请求失败: ' + err);
+            }
         }
 
         // Setup SSE connection for real-time live events
@@ -495,6 +697,7 @@
             fetchNodes();
             setupSSE();
             setInterval(fetchStatus, 2000);
+            setInterval(fetchNodes, 15000); // Auto refresh enriched nodes
         };
     </script>
 </body>

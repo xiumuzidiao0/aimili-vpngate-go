@@ -53,6 +53,26 @@ func TestServerAPI(t *testing.T) {
 	if !strings.Contains(metricsBody, "aimili_traffic_upload_bytes_total") {
 		t.Fatalf("metrics body missing upload counter: %s", metricsBody)
 	}
+
+	// Test Get Settings
+	reqSettings := httptest.NewRequest("GET", "/api/settings", nil)
+	wSettings := httptest.NewRecorder()
+	srv.handleGetSettings(wSettings, reqSettings)
+	if wSettings.Code != http.StatusOK {
+		t.Fatalf("expected settings 200, got %d", wSettings.Code)
+	}
+
+	// Test Update Settings
+	updateBody := `{"ui_username":"newadmin","ui_path":"newsecret","ui_port":8888,"proxy_port":7999}`
+	reqUpdate := httptest.NewRequest("POST", "/api/settings", strings.NewReader(updateBody))
+	wUpdate := httptest.NewRecorder()
+	srv.handleUpdateSettings(wUpdate, reqUpdate)
+	if wUpdate.Code != http.StatusOK {
+		t.Fatalf("expected update settings 200, got %d", wUpdate.Code)
+	}
+	if srv.cfg.GetSettings().UIUsername != "newadmin" {
+		t.Fatalf("expected newadmin, got %s", srv.cfg.GetSettings().UIUsername)
+	}
 }
 
 func TestBasicAuthMiddleware(t *testing.T) {

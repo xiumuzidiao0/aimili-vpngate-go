@@ -3,14 +3,18 @@ package config
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 type Config struct {
+	mu sync.RWMutex
+
 	// API & Mirror sources
 	ApiURL        string
 	MirrorURL     string
@@ -31,20 +35,30 @@ type Config struct {
 	ProxyMaxConnections int
 
 	// Intervals & Limits
-	FetchInterval       time.Duration
-	CheckInterval       time.Duration
-	TargetValidNodes    int
-	MaxScanRows         int
-	InvalidBackoff      time.Duration
-	DiscoveryCountries  []string
+	FetchInterval      time.Duration
+	CheckInterval      time.Duration
+	TargetValidNodes   int
+	MaxScanRows        int
+	InvalidBackoff     time.Duration
+	DiscoveryCountries []string
 
 	// OpenVPN parameters
-	OpenVPNCommand      string
-	OpenVPNAuthUser     string
-	OpenVPNAuthPass     string
+	OpenVPNCommand  string
+	OpenVPNAuthUser string
+	OpenVPNAuthPass string
 
 	// Data directory
 	DataDir string
+}
+
+type SettingsDTO struct {
+	UIPort     int    `json:"ui_port"`
+	UIPath     string `json:"ui_path"`
+	UIUsername string `json:"ui_username"`
+	UIPassword string `json:"ui_password,omitempty"`
+	ProxyPort  int    `json:"proxy_port"`
+	ProxyUser  string `json:"proxy_user"`
+	ProxyPass  string `json:"proxy_pass,omitempty"`
 }
 
 func getEnv(key, defaultVal string) string {
@@ -144,4 +158,92 @@ func LoadConfig() *Config {
 
 		DataDir: dataDir,
 	}
+}
+
+func (c *Config) GetSettings() SettingsDTO {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return SettingsDTO{
+		UIPort:     c.UIPort,
+		UIPath:     c.UIPath,
+		UIUsername: c.UIUsername,
+		ProxyPort:  c.ProxyPort,
+		ProxyUser:  c.ProxyUser,
+	}
+}
+
+func (c *Config) UpdateSettings(dto SettingsDTO) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if dto.UIPort > 0 && dto.UIPort < 65536 {
+		c.UIPort = dto.UIPort
+	}
+	if dto.ProxyPort > 0 && dto.ProxyPort < 65536 {
+		c.ProxyPort = dto.ProxyPort
+	}
+	if strings.TrimSpace(dto.UIPath) != "" {
+		c.UIPath = strings.Trim(strings.TrimSpace(dto.UIPath), "/")
+	}
+	if strings.TrimSpace(dto.UIUsername) != "" {
+		c.UIUsername = strings.TrimSpace(dto.UIUsername)
+	}
+	if strings.TrimSpace(dto.UIPassword) != "" {
+		c.UIPassword = strings.TrimSpace(dto.UIPassword)
+	}
+	if dto.ProxyUser != "" {
+		c.ProxyUser = strings.TrimSpace(dto.ProxyUser)
+	}
+	if dto.ProxyPass != "" {
+		c.ProxyPass = strings.TrimSpace(dto.ProxyPass)
+	}
+
+	// Persist to config.env
+	targetEnvPaths := []string{
+		"/opt/aimilivpn/config.env",
+		filepath.Join(c.DataDir, "../config.env"),
+		"config.env",
+	}
+
+	for _, p := range targetEnvPaths {
+		dir := filepath.Dir(p)
+		if _, err := os.Stat(dir); err == nil {
+			content := fmt.Sprintf(`# AimiliVPN 运行环境变量配置
+DATA_DIR=%s
+UI_HOST=%s
+UI_PORT=%d
+UI_PATH=%s
+UI_USERNAME=%s
+UI_PASSWORD=%s
+LOCAL_PROXY_HOST=%s
+LOCAL_PROXY_PORT=%d
+LOCAL_PROXY_USER=%s
+LOCAL_PROXY_PASS=%s
+LOCAL_PROXY_MAX_CONNECTIONS=%d
+CHECK_INTERVAL_SECONDS=%d
+FETCH_INTERVAL_SECONDS=%d
+TARGET_VALID_NODES=%d
+`,
+				c.DataDir,
+				c.UIHost,
+				c.UIPort,
+				c.UIPath,
+				c.UIUsername,
+				c.UIPassword,
+				c.ProxyHost,
+				c.ProxyPort,
+				c.ProxyUser,
+				c.ProxyPass,
+				c.ProxyMaxConnections,
+				int(c.CheckInterval.Seconds()),
+				int(c.FetchInterval.Seconds()),
+				c.TargetValidNodes,
+			)
+			_ = os.WriteFile(p, []byte(content), 0600)
+			break
+		}
+	}
+
+	return nil
 }

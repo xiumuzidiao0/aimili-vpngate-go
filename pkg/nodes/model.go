@@ -26,6 +26,13 @@ type Node struct {
 	Port           int       `json:"port"`
 	LatencyMs      int       `json:"latency_ms"` // Real-time measured TCP ping in ms (-1 if unreachable)
 	LastChecked    time.Time `json:"last_checked"`
+
+	// IP 归属地与网络类型探测
+	IPType    string `json:"ip_type"` // residential (住宅) / hosting (机房) / mobile (移动) / unknown
+	ISP       string `json:"isp"`
+	City      string `json:"city"`
+	Region    string `json:"region"`
+	IsHosting bool   `json:"is_hosting"`
 }
 
 func (n *Node) String() string {
