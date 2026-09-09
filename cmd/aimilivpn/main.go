@@ -46,8 +46,8 @@ func main() {
 
 	// Initialize components
 	nodePool := nodes.NewNodePool(cfg)
-	vpnMgr := vpn.NewManager(cfg, nodePool)
 	tunnelPool := tunnel.NewPool(cfg, nodePool)
+	vpnMgr := vpn.NewManager(cfg, nodePool, tunnelPool)
 	portMgr := proxy.NewMultiPortManager(cfg, tunnelPool)
 	webServer := server.NewServer(cfg, nodePool, vpnMgr, tunnelPool, portMgr)
 

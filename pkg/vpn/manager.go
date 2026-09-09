@@ -9,29 +9,30 @@ import (
 	"aimili-vpngate-go/pkg/config"
 	"aimili-vpngate-go/pkg/nodes"
 	"aimili-vpngate-go/pkg/stats"
+	"aimili-vpngate-go/pkg/tunnel"
 )
 
 type Manager struct {
-	cfg      *config.Config
-	pool     *nodes.NodePool
-	runner   *OpenVPNRunner
+	cfg        *config.Config
+	pool       *nodes.NodePool
+	tunnelPool *tunnel.Pool
 
-	mu            sync.RWMutex
-	epoch         uint64
-	cancelFunc    context.CancelFunc
-	status        ConnectionStatus
-	activeNode    *nodes.Node
-	connectedAt   time.Time
-	lastMessage   string
-	reconnects    int
-	isConnecting  bool
+	mu           sync.RWMutex
+	epoch        uint64
+	primaryID    string
+	status       ConnectionStatus
+	activeNode   *nodes.Node
+	connectedAt  time.Time
+	lastMessage  string
+	reconnects   int
+	isConnecting bool
 }
 
-func NewManager(cfg *config.Config, pool *nodes.NodePool) *Manager {
+func NewManager(cfg *config.Config, pool *nodes.NodePool, tp *tunnel.Pool) *Manager {
 	return &Manager{
 		cfg:         cfg,
 		pool:        pool,
-		runner:      NewOpenVPNRunner(cfg),
+		tunnelPool:  tp,
 		status:      StatusDisconnected,
 		lastMessage: "VPN 服务已就绪，未连接",
 	}
@@ -41,26 +42,48 @@ func (m *Manager) Snapshot() StateSnapshot {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
+	status := m.status
+	lastMsg := m.lastMessage
+	activeNode := m.activeNode
+	connectedAt := m.connectedAt
+
+	if m.primaryID != "" && m.tunnelPool != nil {
+		if t := m.tunnelPool.GetTunnel(m.primaryID); t != nil {
+			if t.Status == tunnel.StatusConnected {
+				status = StatusConnected
+			} else if t.Status == tunnel.StatusConnecting {
+				status = StatusConnecting
+			} else if t.Status == tunnel.StatusFailed {
+				status = StatusFailed
+			}
+			activeNode = t.Node
+			connectedAt = t.ConnectedAt
+			if t.Message != "" {
+				lastMsg = t.Message
+			}
+		}
+	}
+
 	var uptime int64
-	if m.status == StatusConnected && !m.connectedAt.IsZero() {
-		uptime = int64(time.Since(m.connectedAt).Seconds())
+	if status == StatusConnected && !connectedAt.IsZero() {
+		uptime = int64(time.Since(connectedAt).Seconds())
 	}
 
 	var activeID string
-	if m.activeNode != nil {
-		activeID = m.activeNode.ID
+	if activeNode != nil {
+		activeID = activeNode.ID
 	}
 
 	return StateSnapshot{
-		Status:         m.status,
-		StatusText:     string(m.status),
+		Status:         status,
+		StatusText:     string(status),
 		ActiveNodeID:   activeID,
-		ActiveNode:     m.activeNode,
-		TunnelReady:    m.status == StatusConnected,
+		ActiveNode:     activeNode,
+		TunnelReady:    status == StatusConnected,
 		ProxyReady:     true,
-		ConnectedAt:    m.connectedAt,
+		ConnectedAt:    connectedAt,
 		UptimeSeconds:  uptime,
-		LastMessage:    m.lastMessage,
+		LastMessage:    lastMsg,
 		ReconnectCount: m.reconnects,
 	}
 }
@@ -70,84 +93,105 @@ func (m *Manager) Connect(target *nodes.Node) error {
 	m.epoch++
 	currentEpoch := m.epoch
 
-	// Cancel prior attempt if any
-	if m.cancelFunc != nil {
-		m.cancelFunc()
+	// Stop previous primary tunnel if running
+	if m.primaryID != "" && m.tunnelPool != nil {
+		_ = m.tunnelPool.StopTunnel(m.primaryID)
+		m.primaryID = ""
 	}
-	m.runner.Stop()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	m.cancelFunc = cancel
 	m.activeNode = target
 	m.status = StatusConnecting
 	m.isConnecting = true
 	m.lastMessage = fmt.Sprintf("正在发起对节点 %s (%s) 的连接...", target.ID, target.CountryShort)
 	m.mu.Unlock()
 
-	stats.LogInfo("VPN", "开始连接节点: %s (%s %s)", target.ID, target.CountryShort, target.HostName)
+	stats.LogInfo("VPN", "开始连接主节点: %s (%s %s)", target.ID, target.CountryShort, target.HostName)
 
-	// Prepare config & credentials
-	if err := m.runner.PrepareFiles(target); err != nil {
+	if m.tunnelPool == nil {
+		m.mu.Lock()
+		m.status = StatusFailed
+		m.isConnecting = false
+		m.lastMessage = "隧道池未初始化"
+		m.mu.Unlock()
+		return fmt.Errorf("tunnel pool is nil")
+	}
+
+	tun, err := m.tunnelPool.StartTunnel(target)
+	if err != nil {
 		m.mu.Lock()
 		if m.epoch == currentEpoch {
 			m.status = StatusFailed
 			m.isConnecting = false
-			m.lastMessage = fmt.Sprintf("配置文件准备失败: %v", err)
+			m.lastMessage = fmt.Sprintf("启动主隧道失败: %v", err)
 		}
 		m.mu.Unlock()
-		stats.LogError("VPN", "配置准备失败: %v", err)
 		return err
 	}
 
-	listener := func(evt ProcessEvent, msg string) {
-		m.mu.Lock()
-		defer m.mu.Unlock()
+	m.mu.Lock()
+	if m.epoch == currentEpoch {
+		m.primaryID = tun.ID
+	}
+	m.mu.Unlock()
 
-		if m.epoch != currentEpoch {
-			return // Stale event
-		}
+	// Monitor until ready or failed
+	go func() {
+		ticker := time.NewTicker(300 * time.Millisecond)
+		defer ticker.Stop()
 
-		switch evt {
-		case EventConnected:
-			m.status = StatusConnected
-			m.isConnecting = false
-			m.connectedAt = time.Now()
-			m.lastMessage = "VPN 隧道已成功连通并就绪"
-			stats.LogInfo("VPN", "节点 [%s] 连通就绪！", target.ID)
+		timeout := time.After(20 * time.Second)
 
-		case EventAuthFail:
-			m.status = StatusFailed
-			m.isConnecting = false
-			m.lastMessage = "认证失败，将节点列入黑名单"
-			m.pool.Blacklist().Mark(target, "认证失败", m.cfg.InvalidBackoff)
-			stats.LogWarn("VPN", "节点 [%s] 认证失败，已列入黑名单", target.ID)
-			go m.TriggerAutoFailover()
+		for {
+			select {
+			case <-timeout:
+				m.mu.Lock()
+				if m.epoch == currentEpoch && m.status == StatusConnecting {
+					m.status = StatusFailed
+					m.isConnecting = false
+					m.lastMessage = "连接超时"
+				}
+				m.mu.Unlock()
+				return
+			case <-ticker.C:
+				m.mu.RLock()
+				curEpoch := m.epoch
+				pID := m.primaryID
+				m.mu.RUnlock()
 
-		case EventError:
-			stats.LogWarn("VPN", "节点 [%s] 出现异常: %s", target.ID, msg)
+				if curEpoch != currentEpoch {
+					return
+				}
 
-		case EventExited:
-			if m.status == StatusConnected || m.status == StatusConnecting {
-				m.status = StatusFailed
-				m.isConnecting = false
-				m.lastMessage = "OpenVPN 进程异常退出"
-				m.pool.Blacklist().Mark(target, "进程异常断开", m.cfg.InvalidBackoff)
-				stats.LogWarn("VPN", "节点 [%s] 意外中断，准备自动故障转移", target.ID)
-				go m.TriggerAutoFailover()
+				t := m.tunnelPool.GetTunnel(pID)
+				if t == nil {
+					return
+				}
+
+				status := t.GetStatus()
+				if status == tunnel.StatusConnected {
+					m.mu.Lock()
+					if m.epoch == currentEpoch {
+						m.status = StatusConnected
+						m.isConnecting = false
+						m.connectedAt = time.Now()
+						m.lastMessage = "VPN 隧道已成功连通并就绪"
+					}
+					m.mu.Unlock()
+					return
+				} else if status == tunnel.StatusFailed {
+					m.mu.Lock()
+					if m.epoch == currentEpoch {
+						m.status = StatusFailed
+						m.isConnecting = false
+						m.lastMessage = t.Message
+					}
+					m.mu.Unlock()
+					go m.TriggerAutoFailover()
+					return
+				}
 			}
 		}
-	}
-
-	if err := m.runner.Start(ctx, listener); err != nil {
-		m.mu.Lock()
-		if m.epoch == currentEpoch {
-			m.status = StatusFailed
-			m.isConnecting = false
-			m.lastMessage = fmt.Sprintf("启动 OpenVPN 失败: %v", err)
-		}
-		m.mu.Unlock()
-		return err
-	}
+	}()
 
 	return nil
 }
@@ -155,11 +199,10 @@ func (m *Manager) Connect(target *nodes.Node) error {
 func (m *Manager) Disconnect(reason string) {
 	m.mu.Lock()
 	m.epoch++
-	if m.cancelFunc != nil {
-		m.cancelFunc()
-		m.cancelFunc = nil
+	if m.primaryID != "" && m.tunnelPool != nil {
+		_ = m.tunnelPool.StopTunnel(m.primaryID)
+		m.primaryID = ""
 	}
-	m.runner.Stop()
 	m.status = StatusDisconnected
 	m.activeNode = nil
 	m.isConnecting = false
@@ -190,7 +233,7 @@ func (m *Manager) TriggerAutoFailover() {
 	}
 
 	if best != nil {
-		stats.LogInfo("VPN", "自动切换至新节点: %s (%s)", best.ID, best.CountryShort)
+		stats.LogInfo("VPN", "自动切换至新主节点: %s (%s)", best.ID, best.CountryShort)
 		_ = m.Connect(best)
 	} else {
 		stats.LogError("VPN", "自动故障转移失败: 无任何候选节点可用")
@@ -215,7 +258,6 @@ func (m *Manager) StartHealthChecker(ctx context.Context) {
 					continue
 				}
 
-				// Check external connectivity
 				if !CheckExternalConnectivity(5 * time.Second) {
 					stats.LogWarn("Health", "心跳检测未通过：外部网络连通性中断，触发重试...")
 					time.Sleep(2 * time.Second)

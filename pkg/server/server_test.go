@@ -23,8 +23,8 @@ func TestServerAPI(t *testing.T) {
 	}
 
 	pool := nodes.NewNodePool(cfg)
-	vpnMgr := vpn.NewManager(cfg, pool)
 	tunnelPool := tunnel.NewPool(cfg, pool)
+	vpnMgr := vpn.NewManager(cfg, pool, tunnelPool)
 	portMgr := proxy.NewMultiPortManager(cfg, tunnelPool)
 	srv := NewServer(cfg, pool, vpnMgr, tunnelPool, portMgr)
 

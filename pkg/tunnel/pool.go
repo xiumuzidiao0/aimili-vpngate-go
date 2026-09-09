@@ -202,14 +202,11 @@ func (p *Pool) StopTunnel(tunnelID string) error {
 		p.mu.Unlock()
 		return fmt.Errorf("隧道 %s 不存在", tunnelID)
 	}
-
-	p.freeDevIndexLocked(t.DevIndex)
 	delete(p.tunnels, tunnelID)
+	devIdx := t.DevIndex
 	p.mu.Unlock()
 
 	t.mu.Lock()
-	defer t.mu.Unlock()
-
 	t.Status = StatusStopped
 	t.Message = "已手动停止"
 
@@ -231,6 +228,12 @@ func (p *Pool) StopTunnel(tunnelID string) error {
 	if t.confPath != "" {
 		_ = os.Remove(t.confPath)
 	}
+	t.mu.Unlock()
+
+	// Free dev index only after the process has completely terminated
+	p.mu.Lock()
+	p.freeDevIndexLocked(devIdx)
+	p.mu.Unlock()
 
 	stats.LogInfo("TunnelPool", "隧道 [%s] (%s) 已关闭释放", tunnelID, t.DevName)
 	return nil
