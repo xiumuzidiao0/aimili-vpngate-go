@@ -103,6 +103,7 @@ install_dependencies() {
 
 # 5. 安装或确保 Go 编译环境
 ensure_go() {
+    detect_arch
     if command -v go >/dev/null 2>&1; then
         echo -e "${GREEN}检测到系统中已安装 Go: $(go version)${PLAIN}"
         return 0
@@ -118,9 +119,12 @@ ensure_go() {
         return 0
     fi
 
-    echo -e "${YELLOW}正在安装 Go 1.22 编译环境 (用于极速单二进制编译)...${PLAIN}"
+    echo -e "${YELLOW}正在安装 Go 1.22 编译环境 (架构: ${GO_ARCH})...${PLAIN}"
     GO_TAR="go1.22.6.linux-${GO_ARCH}.tar.gz"
-    curl -sSL "https://go.dev/dl/${GO_TAR}" | tar -xz -C /usr/local
+    if ! curl -sSL -f "https://go.dev/dl/${GO_TAR}" | tar -xz -C /usr/local; then
+        echo -e "${YELLOW}正在尝试从国内与高可用镜像源下载 Go 1.22...${PLAIN}"
+        curl -sSL -f "https://golang.google.cn/dl/${GO_TAR}" | tar -xz -C /usr/local || true
+    fi
     export PATH="/usr/local/go/bin:$PATH"
     echo 'export PATH="/usr/local/go/bin:$PATH"' >> /etc/profile
 }
@@ -678,6 +682,8 @@ main_menu() {
 # 脚本主执行入口
 # ==============================================================================
 check_root
+detect_os
+detect_arch
 
 # 如果直接带参数 menu，或已安装且未指定任何参数，则进入交互式菜单
 if [ "$1" = "menu" ]; then
@@ -691,8 +697,6 @@ if [ -f "${BIN_PATH}" ] && [ -f "${SERVICE_FILE}" ] && [ -z "$1" ]; then
 fi
 
 # 首次执行或指定全新安装：进入交互式参数配置与全流程安装
-detect_os
-detect_arch
 install_dependencies
 configure_install_params
 build_and_deploy

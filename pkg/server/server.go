@@ -42,6 +42,7 @@ func (s *Server) Start(ctx context.Context) error {
 	// API routes
 	mux.HandleFunc("GET /api/status", s.handleStatus)
 	mux.HandleFunc("GET /api/nodes", s.handleNodes)
+	mux.HandleFunc("POST /api/nodes/probe", s.handleProbeNodes)
 	mux.HandleFunc("POST /api/connect", s.handleConnect)
 	mux.HandleFunc("POST /api/disconnect", s.handleDisconnect)
 	mux.HandleFunc("POST /api/refresh", s.handleRefresh)

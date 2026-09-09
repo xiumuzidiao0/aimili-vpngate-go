@@ -100,8 +100,8 @@ func (np *NodePool) Refresh(ctx context.Context) error {
 
 	stats.LogInfo("Nodes", "节点池刷新完成，当前优质候选节点: %d 个 (来自: %s)", len(filtered), result.Source)
 
-	// Async ping probe for top nodes in background
-	go np.probeTopNodes(filtered, 15)
+	// 后台并发测试全部候选节点的 TCP 连通性与真实延迟
+	go np.ProbeNodes(context.Background(), filtered)
 
 	// Async IP type classification (residential vs hosting) in background
 	go np.enricher.EnrichNodes(context.Background(), filtered)
@@ -109,28 +109,37 @@ func (np *NodePool) Refresh(ctx context.Context) error {
 	return nil
 }
 
-func (np *NodePool) probeTopNodes(nodeList []*Node, limit int) {
-	if limit > len(nodeList) {
-		limit = len(nodeList)
+func (np *NodePool) ProbeNodes(ctx context.Context, nodeList []*Node) {
+	if len(nodeList) == 0 {
+		return
 	}
-	top := nodeList[:limit]
+
+	stats.LogInfo("Probe", "开始对 %d 个候选节点执行全量连通性与延迟测速...", len(nodeList))
 
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, 8) // Limit concurrent ping dials
+	concurrency := 24
+	sem := make(chan struct{}, concurrency)
 
-	for _, n := range top {
+	for _, n := range nodeList {
 		wg.Add(1)
 		go func(target *Node) {
 			defer wg.Done()
-			sem <- struct{}{}
+			select {
+			case <-ctx.Done():
+				return
+			case sem <- struct{}{}:
+			}
 			defer func() { <-sem }()
 
 			start := time.Now()
 			addr := fmt.Sprintf("%s:%d", target.IP, target.Port)
-			conn, err := net.DialTimeout("tcp", addr, 3*time.Second)
+			conn, err := net.DialTimeout("tcp", addr, 2500*time.Millisecond)
 			if err == nil {
 				_ = conn.Close()
 				latency := int(time.Since(start).Milliseconds())
+				if latency <= 0 {
+					latency = 1
+				}
 				np.mu.Lock()
 				target.LatencyMs = latency
 				target.LastChecked = time.Now()
@@ -144,6 +153,28 @@ func (np *NodePool) probeTopNodes(nodeList []*Node, limit int) {
 		}(n)
 	}
 	wg.Wait()
+	stats.LogInfo("Probe", "全量节点测速完成！")
+}
+
+func (np *NodePool) ProbeSpecificNodes(ctx context.Context, ids []string) {
+	np.mu.RLock()
+	var targets []*Node
+	if len(ids) == 0 {
+		targets = append(targets, np.candidates...)
+	} else {
+		idMap := make(map[string]bool)
+		for _, id := range ids {
+			idMap[id] = true
+		}
+		for _, n := range np.candidates {
+			if idMap[n.ID] || idMap[n.IP] {
+				targets = append(targets, n)
+			}
+		}
+	}
+	np.mu.RUnlock()
+
+	np.ProbeNodes(ctx, targets)
 }
 
 func (np *NodePool) GetCandidates() []*Node {

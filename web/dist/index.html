@@ -353,10 +353,16 @@
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                     优质 VPN 节点列表
                 </div>
-                <button class="btn btn-outline" onclick="refreshNodes()">
-                    <svg viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-                    刷新节点源
-                </button>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button id="btn-probe-nodes" class="btn" style="background:#2563eb;" onclick="probeCurrentNodes()">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        一键测速当前节点
+                    </button>
+                    <button class="btn btn-outline" onclick="refreshNodes()">
+                        <svg viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                        刷新节点源
+                    </button>
+                </div>
             </div>
             <div class="filter-bar">
                 <input id="search-filter" class="input-field" type="text" placeholder="按国家/IP/ISP/城市搜索..." style="min-width: 220px;" oninput="renderNodes()">
@@ -369,6 +375,12 @@
                     <option value="hosting">机房/数据中心 IP</option>
                     <option value="mobile">移动蜂窝网络 IP</option>
                 </select>
+                <select id="sort-filter" class="input-field" onchange="renderNodes()">
+                    <option value="latency_asc">排序: 按测速延迟 (低 ➔ 高)</option>
+                    <option value="speed_desc">排序: 按节点带宽 (大 ➔ 小)</option>
+                    <option value="score_desc">排序: 按综合评分 (高 ➔ 低)</option>
+                    <option value="ping_asc">排序: 按原始 Ping (快 ➔ 慢)</option>
+                </select>
                 <span id="filtered-count" style="font-size: 12px; color: var(--text-muted); margin-left: auto;">共加载 0 个节点</span>
             </div>
             <div class="table-wrap">
@@ -379,9 +391,9 @@
                             <th>IP : 端口</th>
                             <th>网络类型 / ISP</th>
                             <th>协议</th>
-                            <th>测速延迟</th>
-                            <th>VPNGate 评分</th>
-                            <th>带宽</th>
+                            <th onclick="toggleSort('latency')" style="cursor: pointer; user-select: none;" title="点击按测速延迟排序">测速延迟 / 状态 <span id="sort-icon-latency">⇅</span></th>
+                            <th onclick="toggleSort('score')" style="cursor: pointer; user-select: none;" title="点击按评分排序">VPNGate 评分 <span id="sort-icon-score">⇅</span></th>
+                            <th onclick="toggleSort('speed')" style="cursor: pointer; user-select: none;" title="点击按带宽排序">带宽 <span id="sort-icon-speed">⇅</span></th>
                             <th>操作</th>
                         </tr>
                     </thead>
@@ -615,11 +627,26 @@
             select.value = curr;
         }
 
+        let currentSort = 'latency_asc';
+
+        function toggleSort(field) {
+            if (field === 'latency') {
+                currentSort = currentSort === 'latency_asc' ? 'score_desc' : 'latency_asc';
+            } else if (field === 'speed') {
+                currentSort = currentSort === 'speed_desc' ? 'latency_asc' : 'speed_desc';
+            } else if (field === 'score') {
+                currentSort = currentSort === 'score_desc' ? 'latency_asc' : 'score_desc';
+            }
+            document.getElementById('sort-filter').value = currentSort;
+            renderNodes();
+        }
+
         function renderNodes() {
             const tbody = document.getElementById('nodes-tbody');
             const search = document.getElementById('search-filter').value.toLowerCase();
             const country = document.getElementById('country-filter').value;
             const ipType = document.getElementById('ip-type-filter').value;
+            const sortMode = document.getElementById('sort-filter').value;
 
             const filtered = allNodes.filter(n => {
                 if (country && n.country_short !== country) return false;
@@ -632,6 +659,23 @@
                 return true;
             });
 
+            filtered.sort((a, b) => {
+                if (sortMode === 'latency_asc') {
+                    const aAvail = a.latency_ms > 0 ? 1 : (a.latency_ms === -1 ? -1 : 0);
+                    const bAvail = b.latency_ms > 0 ? 1 : (b.latency_ms === -1 ? -1 : 0);
+                    if (aAvail !== bAvail) return bAvail - aAvail;
+                    if (a.latency_ms > 0 && b.latency_ms > 0) return a.latency_ms - b.latency_ms;
+                    return b.score - a.score;
+                } else if (sortMode === 'speed_desc') {
+                    return b.speed - a.speed;
+                } else if (sortMode === 'score_desc') {
+                    return b.score - a.score;
+                } else if (sortMode === 'ping_asc') {
+                    return a.ping - b.ping;
+                }
+                return 0;
+            });
+
             document.getElementById('filtered-count').innerText = `已筛选出 ${filtered.length} / ${allNodes.length} 个节点`;
 
             if (filtered.length === 0) {
@@ -641,7 +685,16 @@
 
             tbody.innerHTML = filtered.map(n => {
                 const isCurrent = currentState && currentState.vpn && currentState.vpn.active_node_id === n.id;
-                const latency = n.latency_ms > 0 ? `<span style="color: #34d399; font-weight: 600;">${n.latency_ms} ms</span>` : '<span style="color: var(--text-muted);">-</span>';
+
+                let latencyBadge = '';
+                if (n.latency_ms > 0) {
+                    latencyBadge = `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-weight:600;"><span class="status-dot" style="background:#10b981;"></span> 可用 ${n.latency_ms} ms</span>`;
+                } else if (n.latency_ms === -1) {
+                    latencyBadge = `<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #f87171;"><span class="status-dot" style="background:#ef4444;"></span> 超时不可达</span>`;
+                } else {
+                    latencyBadge = `<span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8;"><span class="status-dot" style="background:#64748b;"></span> 未测速</span>`;
+                }
+
                 const speedMbps = (n.speed / 1000000).toFixed(1) + ' Mbps';
 
                 let typeTag = '<span class="badge badge-residential">住宅宽带</span>';
@@ -666,7 +719,7 @@
                         <td style="font-family: monospace;">${n.ip}:${n.port}</td>
                         <td>${typeTag}${ispInfo}</td>
                         <td><span class="badge badge-proto">${n.proto.toUpperCase()}</span></td>
-                        <td>${latency}</td>
+                        <td>${latencyBadge}</td>
                         <td>${n.score}</td>
                         <td>${speedMbps}</td>
                         <td>
@@ -678,6 +731,53 @@
                     </tr>
                 `;
             }).join('');
+        }
+
+        async function probeCurrentNodes() {
+            const search = document.getElementById('search-filter').value.toLowerCase();
+            const country = document.getElementById('country-filter').value;
+            const ipType = document.getElementById('ip-type-filter').value;
+
+            const filtered = allNodes.filter(n => {
+                if (country && n.country_short !== country) return false;
+                if (ipType && n.ip_type !== ipType) return false;
+                if (search) {
+                    const cName = getCountryName(n.country_short).toLowerCase();
+                    const str = `${n.ip} ${n.country_long} ${n.country_short} ${cName} ${n.hostname} ${n.isp || ''} ${n.city || ''} ${n.region || ''}`.toLowerCase();
+                    if (!str.includes(search)) return false;
+                }
+                return true;
+            });
+
+            const ids = filtered.map(n => n.id);
+            if (ids.length === 0) {
+                alert('当前筛选条件下没有节点');
+                return;
+            }
+
+            const btn = document.getElementById('btn-probe-nodes');
+            const oldHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<svg viewBox="0 0 24 24" style="animation: spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> 正在测速 (${ids.length}个)...`;
+            appendLog({ level: 'INFO', module: 'Action', message: `正在对当前筛选出的 ${ids.length} 个节点执行并发可用性与延迟测速...` });
+
+            await fetch('/api/nodes/probe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ node_ids: ids })
+            });
+
+            let count = 0;
+            const timer = setInterval(async () => {
+                count++;
+                await fetchNodes();
+                if (count >= 5) {
+                    clearInterval(timer);
+                    btn.disabled = false;
+                    btn.innerHTML = oldHtml;
+                    appendLog({ level: 'INFO', module: 'Action', message: '当前筛选节点测速完成！' });
+                }
+            }, 700);
         }
 
         async function quickConnect() {

@@ -54,6 +54,23 @@ func (s *Server) handleNodes(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, candidates)
 }
 
+type ProbeNodesRequest struct {
+	NodeIDs []string `json:"node_ids"`
+}
+
+func (s *Server) handleProbeNodes(w http.ResponseWriter, r *http.Request) {
+	var req ProbeNodesRequest
+	_ = json.NewDecoder(r.Body).Decode(&req)
+
+	go func() {
+		s.pool.ProbeSpecificNodes(context.Background(), req.NodeIDs)
+	}()
+
+	s.writeJSON(w, http.StatusOK, map[string]string{
+		"message": "已在后台启动节点可用性探测与测速",
+	})
+}
+
 type ConnectRequest struct {
 	NodeID string `json:"node_id"`
 }
