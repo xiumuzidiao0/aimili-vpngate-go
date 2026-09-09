@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -96,7 +97,7 @@ func (s *Server) handleDisconnect(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	go func() {
-		_ = s.pool.Refresh(r.Context())
+		_ = s.pool.Refresh(context.Background())
 	}()
 
 	s.writeJSON(w, http.StatusOK, map[string]string{

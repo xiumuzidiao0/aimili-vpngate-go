@@ -275,6 +275,16 @@ build_and_deploy() {
 
     chmod +x "${BIN_PATH}"
 
+    # 部署本地兜底镜像
+    mkdir -p "${INSTALL_DIR}/mirror"
+    if [ -f "${SCRIPT_DIR}/mirror/vpngate.csv" ]; then
+        cp -f "${SCRIPT_DIR}/mirror/vpngate.csv" "${INSTALL_DIR}/mirror/" 2>/dev/null || true
+    fi
+    if [ ! -f "${INSTALL_DIR}/mirror/vpngate.csv" ]; then
+        echo -e "  -> 正在下载初始节点快照镜像..."
+        curl -sSL -m 10 "https://cdn.jsdelivr.net/gh/baoweise-bot/aimili-vpngate@main/mirror/vpngate.csv" -o "${INSTALL_DIR}/mirror/vpngate.csv" 2>/dev/null || true
+    fi
+
     # 确保完整的管理脚本安装到 /opt/aimilivpn/install.sh
     if [ -f "${BASH_SOURCE[0]}" ] && [ -s "${BASH_SOURCE[0]}" ]; then
         cp -f "${BASH_SOURCE[0]}" "${INSTALL_DIR}/install.sh"
@@ -565,6 +575,10 @@ menu_update() {
     cd "${TMP_DIR}"
     ensure_go
     CGO_ENABLED=0 go build -ldflags="-s -w" -o "${BIN_PATH}" ./cmd/aimilivpn
+    cp -f "${TMP_DIR}/install.sh" "${INSTALL_DIR}/install.sh" 2>/dev/null || true
+    chmod +x "${INSTALL_DIR}/install.sh" 2>/dev/null || true
+    mkdir -p "${INSTALL_DIR}/mirror"
+    cp -f "${TMP_DIR}/mirror/vpngate.csv" "${INSTALL_DIR}/mirror/" 2>/dev/null || true
     rm -rf "${TMP_DIR}"
     systemctl restart aimilivpn
     echo -e "${GREEN}AimiliVPN 已成功更新至最新构建并重启！${PLAIN}"

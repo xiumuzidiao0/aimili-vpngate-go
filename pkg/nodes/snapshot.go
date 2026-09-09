@@ -66,14 +66,31 @@ func (sm *SnapshotManager) Save(data []byte, source string, rowCount int) error 
 
 func (sm *SnapshotManager) Load() ([]byte, *SnapshotMeta, error) {
 	data, err := os.ReadFile(sm.cachePath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("snapshot cache file not found: %w", err)
+	if err == nil && len(data) > 0 {
+		var meta SnapshotMeta
+		if metaBytes, err := os.ReadFile(sm.metaPath); err == nil {
+			_ = json.Unmarshal(metaBytes, &meta)
+		}
+		return data, &meta, nil
 	}
 
-	var meta SnapshotMeta
-	if metaBytes, err := os.ReadFile(sm.metaPath); err == nil {
-		_ = json.Unmarshal(metaBytes, &meta)
+	// 尝试从程序内置或同目录镜像文件加载
+	fallbackPaths := []string{
+		"mirror/vpngate.csv",
+		"/opt/aimilivpn/mirror/vpngate.csv",
+		"../mirror/vpngate.csv",
+	}
+	for _, p := range fallbackPaths {
+		if fbData, err := os.ReadFile(p); err == nil && len(fbData) > 0 {
+			meta := SnapshotMeta{
+				Source:    fmt.Sprintf("安装包内置镜像 (%s)", p),
+				CachedAt:  time.Now(),
+				RowCount:  0,
+				ByteCount: len(fbData),
+			}
+			return fbData, &meta, nil
+		}
 	}
 
-	return data, &meta, nil
+	return nil, nil, fmt.Errorf("snapshot cache file not found")
 }
