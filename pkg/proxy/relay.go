@@ -5,7 +5,6 @@ import (
 	"io"
 	"net"
 	"sync"
-	"time"
 
 	"aimili-vpngate-go/pkg/stats"
 )
@@ -89,12 +88,4 @@ func relay(client, upstream net.Conn) {
 	wg.Wait()
 	_ = client.Close()
 	_ = upstream.Close()
-}
-
-func dialUpstream(targetAddr string, timeout time.Duration) (net.Conn, error) {
-	d := net.Dialer{
-		Timeout:   timeout,
-		KeepAlive: 30 * time.Second,
-	}
-	return d.Dial("tcp", targetAddr)
 }

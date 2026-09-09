@@ -67,19 +67,28 @@ func (r *OpenVPNRunner) PrepareFiles(node *nodes.Node) error {
 		// Strip lines we want to control
 		if strings.HasPrefix(line, "auth-user-pass") ||
 			strings.HasPrefix(line, "dev ") ||
+			strings.HasPrefix(line, "dev-type") ||
 			strings.HasPrefix(line, "verb ") ||
-			strings.HasPrefix(line, "redirect-gateway") {
+			strings.HasPrefix(line, "redirect-gateway") ||
+			strings.HasPrefix(line, "route-gateway") ||
+			strings.HasPrefix(line, "route ") {
 			continue
 		}
 		modified = append(modified, rawLine)
 	}
 
 	// Append AimiliVPN operational directives
+	// 严禁使用 redirect-gateway! 必须使用 route-nopull 保证 VPS 原本的默认网关与 SSH 22 端口不受任何影响！
+	// 仅代理网关流量通过 SO_BINDTODEVICE 绑定至 tun0 发送。
 	modified = append(modified,
 		"auth-user-pass "+r.authFile,
-		"dev tun",
+		"dev tun0",
+		"dev-type tun",
 		"verb 3",
-		"redirect-gateway def1",
+		"route-nopull",
+		"pull-filter ignore \"redirect-gateway\"",
+		"pull-filter ignore \"route-gateway\"",
+		"pull-filter ignore \"route \"",
 		"nobind",
 		"connect-retry 1 3",
 		"connect-timeout 10",
