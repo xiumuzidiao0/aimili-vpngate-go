@@ -228,3 +228,49 @@ func (m *Manager) StartHealthChecker(ctx context.Context) {
 		}
 	}()
 }
+
+func (m *Manager) StartAutoRotator(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		var lastRotated time.Time
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				settings := m.cfg.GetSettings()
+				if settings.AutoRotateMinutes <= 0 {
+					continue
+				}
+
+				rotateInterval := time.Duration(settings.AutoRotateMinutes) * time.Minute
+				if !lastRotated.IsZero() && time.Since(lastRotated) < rotateInterval {
+					continue
+				}
+
+				m.mu.RLock()
+				status := m.status
+				currID := ""
+				if m.activeNode != nil {
+					currID = m.activeNode.ID
+				}
+				m.mu.RUnlock()
+
+				if status != StatusConnected {
+					continue
+				}
+
+				best := m.pool.SelectBestWithFilter(settings.AutoRotateIPType, settings.DiscoveryCountries, true)
+				if best != nil && best.ID != currID {
+					stats.LogInfo("Rotator", "触发定时自动轮换策略 (周期: %d分钟)，正在平滑切换至新节点: %s (%s)...",
+						settings.AutoRotateMinutes, best.ID, best.CountryShort)
+					_ = m.Connect(best)
+					lastRotated = time.Now()
+				}
+			}
+		}
+	}()
+}

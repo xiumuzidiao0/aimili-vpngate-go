@@ -71,6 +71,24 @@ func (s *Server) handleProbeNodes(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type FavoriteRequest struct {
+	NodeID string `json:"node_id"`
+}
+
+func (s *Server) handleToggleFavorite(w http.ResponseWriter, r *http.Request) {
+	var req FavoriteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.NodeID == "" {
+		s.writeError(w, http.StatusBadRequest, "缺少 node_id 参数")
+		return
+	}
+
+	isFav := s.pool.Favorites().Toggle(req.NodeID)
+	s.writeJSON(w, http.StatusOK, map[string]any{
+		"node_id":     req.NodeID,
+		"is_favorite": isFav,
+	})
+}
+
 type ConnectRequest struct {
 	NodeID string `json:"node_id"`
 }

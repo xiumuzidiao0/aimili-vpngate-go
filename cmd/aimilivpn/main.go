@@ -66,8 +66,9 @@ func main() {
 		}
 	}()
 
-	// 3. Start VPN Health Checker
+	// 3. Start VPN Health Checker and Auto Rotator
 	vpnMgr.StartHealthChecker(ctx)
+	vpnMgr.StartAutoRotator(ctx)
 
 	// 4. Initial fetch of nodes and auto-connect
 	go func() {

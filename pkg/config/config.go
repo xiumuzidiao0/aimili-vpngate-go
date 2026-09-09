@@ -42,6 +42,10 @@ type Config struct {
 	InvalidBackoff     time.Duration
 	DiscoveryCountries []string
 
+	// 自动轮换策略
+	AutoRotateMinutes int    // 0 = 禁用, > 0 轮换周期分钟
+	AutoRotateIPType  string // all / residential / hosting
+
 	// OpenVPN parameters
 	OpenVPNCommand  string
 	OpenVPNAuthUser string
@@ -52,13 +56,16 @@ type Config struct {
 }
 
 type SettingsDTO struct {
-	UIPort     int    `json:"ui_port"`
-	UIPath     string `json:"ui_path"`
-	UIUsername string `json:"ui_username"`
-	UIPassword string `json:"ui_password,omitempty"`
-	ProxyPort  int    `json:"proxy_port"`
-	ProxyUser  string `json:"proxy_user"`
-	ProxyPass  string `json:"proxy_pass,omitempty"`
+	UIPort             int      `json:"ui_port"`
+	UIPath             string   `json:"ui_path"`
+	UIUsername         string   `json:"ui_username"`
+	UIPassword         string   `json:"ui_password,omitempty"`
+	ProxyPort          int      `json:"proxy_port"`
+	ProxyUser          string   `json:"proxy_user"`
+	ProxyPass          string   `json:"proxy_pass,omitempty"`
+	AutoRotateMinutes  int      `json:"auto_rotate_minutes"`
+	AutoRotateIPType   string   `json:"auto_rotate_ip_type"`
+	DiscoveryCountries []string `json:"discovery_countries"`
 }
 
 func getEnv(key, defaultVal string) string {
@@ -152,6 +159,9 @@ func LoadConfig() *Config {
 		InvalidBackoff:     time.Duration(getEnvInt("INVALID_BACKOFF_SECONDS", 1800, 60, 86400)) * time.Second,
 		DiscoveryCountries: countries,
 
+		AutoRotateMinutes: getEnvInt("AUTO_ROTATE_INTERVAL_MINUTES", 0, 0, 1440),
+		AutoRotateIPType:  getEnv("AUTO_ROTATE_IP_TYPE", "all"),
+
 		OpenVPNCommand:  getEnv("OPENVPN_CMD", "openvpn"),
 		OpenVPNAuthUser: getEnv("OPENVPN_AUTH_USER", "vpn"),
 		OpenVPNAuthPass: getEnv("OPENVPN_AUTH_PASS", "vpn"),
@@ -165,11 +175,14 @@ func (c *Config) GetSettings() SettingsDTO {
 	defer c.mu.RUnlock()
 
 	return SettingsDTO{
-		UIPort:     c.UIPort,
-		UIPath:     c.UIPath,
-		UIUsername: c.UIUsername,
-		ProxyPort:  c.ProxyPort,
-		ProxyUser:  c.ProxyUser,
+		UIPort:             c.UIPort,
+		UIPath:             c.UIPath,
+		UIUsername:         c.UIUsername,
+		ProxyPort:          c.ProxyPort,
+		ProxyUser:          c.ProxyUser,
+		AutoRotateMinutes:  c.AutoRotateMinutes,
+		AutoRotateIPType:   c.AutoRotateIPType,
+		DiscoveryCountries: c.DiscoveryCountries,
 	}
 }
 
@@ -194,6 +207,18 @@ func (c *Config) UpdateSettings(dto SettingsDTO) error {
 	}
 	if dto.ProxyUser != "" {
 		c.ProxyUser = strings.TrimSpace(dto.ProxyUser)
+	}
+	if dto.ProxyPass != "" {
+		c.ProxyPass = strings.TrimSpace(dto.ProxyPass)
+	}
+	if dto.AutoRotateMinutes >= 0 {
+		c.AutoRotateMinutes = dto.AutoRotateMinutes
+	}
+	if dto.AutoRotateIPType != "" {
+		c.AutoRotateIPType = dto.AutoRotateIPType
+	}
+	if dto.DiscoveryCountries != nil {
+		c.DiscoveryCountries = dto.DiscoveryCountries
 	}
 	if dto.ProxyPass != "" {
 		c.ProxyPass = strings.TrimSpace(dto.ProxyPass)
@@ -224,6 +249,9 @@ LOCAL_PROXY_MAX_CONNECTIONS=%d
 CHECK_INTERVAL_SECONDS=%d
 FETCH_INTERVAL_SECONDS=%d
 TARGET_VALID_NODES=%d
+AUTO_ROTATE_INTERVAL_MINUTES=%d
+AUTO_ROTATE_IP_TYPE=%s
+DISCOVERY_COUNTRIES=%s
 `,
 				c.DataDir,
 				c.UIHost,
@@ -239,6 +267,9 @@ TARGET_VALID_NODES=%d
 				int(c.CheckInterval.Seconds()),
 				int(c.FetchInterval.Seconds()),
 				c.TargetValidNodes,
+				c.AutoRotateMinutes,
+				c.AutoRotateIPType,
+				strings.Join(c.DiscoveryCountries, ","),
 			)
 			_ = os.WriteFile(p, []byte(content), 0600)
 			break

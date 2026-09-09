@@ -261,7 +261,7 @@ build_and_deploy() {
     local dl_ok=0
 
     # 1. 优先尝试极速下载已发布的官方跨平台静态二进制文件 (约 5.8MB, 无需等待编译)
-    local release_url="https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/download/v2.0.2/aimilivpn_linux_${GO_ARCH}"
+    local release_url="https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/download/v2.0.3/aimilivpn_linux_${GO_ARCH}"
     echo -e "  -> 正在检测并极速下载已发布的官方静态二进制包 (${GO_ARCH})..."
     if curl -sSL -f -m 30 "${release_url}" -o "${BIN_PATH}" && [ -s "${BIN_PATH}" ]; then
         echo -e "${GREEN}  -> 二进制预编译包下载完成！${PLAIN}"
@@ -586,7 +586,7 @@ menu_list_nodes() {
 
 menu_update() {
     echo -e "\n${YELLOW}正在检测最新发行版本...${PLAIN}"
-    local release_url="https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/download/v2.0.2/aimilivpn_linux_${GO_ARCH}"
+    local release_url="https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/download/v2.0.3/aimilivpn_linux_${GO_ARCH}"
     if curl -sSL -f -m 30 "${release_url}" -o "${BIN_PATH}.tmp" && [ -s "${BIN_PATH}.tmp" ]; then
         mv -f "${BIN_PATH}.tmp" "${BIN_PATH}"
         chmod +x "${BIN_PATH}"

@@ -28,11 +28,12 @@ type Node struct {
 	LastChecked    time.Time `json:"last_checked"`
 
 	// IP 归属地与网络类型探测
-	IPType    string `json:"ip_type"` // residential (住宅) / hosting (机房) / mobile (移动) / unknown
-	ISP       string `json:"isp"`
-	City      string `json:"city"`
-	Region    string `json:"region"`
-	IsHosting bool   `json:"is_hosting"`
+	IPType     string `json:"ip_type"` // residential (住宅) / hosting (机房) / mobile (移动) / unknown
+	ISP        string `json:"isp"`
+	City       string `json:"city"`
+	Region     string `json:"region"`
+	IsHosting  bool   `json:"is_hosting"`
+	IsFavorite bool   `json:"is_favorite"`
 }
 
 func (n *Node) String() string {

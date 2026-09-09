@@ -209,6 +209,19 @@
             flex-shrink: 0;
         }
 
+        .star-btn {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 15px;
+            color: #64748b;
+            padding: 2px 5px;
+            line-height: 1;
+            transition: all 0.15s;
+        }
+        .star-btn:hover { color: #f59e0b; transform: scale(1.2); }
+        .star-btn.active { color: #f59e0b; text-shadow: 0 0 6px rgba(245, 158, 11, 0.5); }
+
         /* Modal Settings */
         .modal-overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -381,12 +394,16 @@
                     <option value="score_desc">排序: 按综合评分 (高 ➔ 低)</option>
                     <option value="ping_asc">排序: 按原始 Ping (快 ➔ 慢)</option>
                 </select>
+                <button id="btn-fav-filter" class="btn btn-outline" style="padding: 7px 11px;" onclick="toggleFavoriteFilter()">
+                    <span id="fav-icon" style="color:#f59e0b; font-size:14px;">☆</span> 仅看收藏 (<span id="fav-count">0</span>)
+                </button>
                 <span id="filtered-count" style="font-size: 12px; color: var(--text-muted); margin-left: auto;">共加载 0 个节点</span>
             </div>
             <div class="table-wrap">
                 <table>
                     <thead>
                         <tr>
+                            <th style="width: 40px; text-align: center;">收藏</th>
                             <th>国家 / 地区</th>
                             <th>IP : 端口</th>
                             <th>网络类型 / ISP</th>
@@ -450,7 +467,32 @@
                     <label class="form-label">本地自适应代理端口 [1-65535]</label>
                     <input id="cfg-proxy-port" class="input-field" style="width: 100%;" type="number" required>
                 </div>
-                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+                <div style="border-top: 1px solid var(--border-color); margin: 18px 0 14px 0; padding-top: 14px;">
+                    <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--primary);">智能自动轮换与偏好策略</div>
+                    <div class="form-group">
+                        <label class="form-label">定时自动轮换 IP 周期</label>
+                        <select id="cfg-auto-rotate" class="input-field" style="width: 100%;">
+                            <option value="0">关闭定时轮换 (保持固定连接)</option>
+                            <option value="15">每 15 分钟自动平滑切换最优节点</option>
+                            <option value="30">每 30 分钟自动平滑切换最优节点</option>
+                            <option value="60">每 1 小时自动平滑切换最优节点</option>
+                            <option value="120">每 2 小时自动平滑切换最优节点</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">轮换偏好网络类型</label>
+                        <select id="cfg-rotate-iptype" class="input-field" style="width: 100%;">
+                            <option value="all">不限类型 (优先延迟最低)</option>
+                            <option value="residential">优先住宅宽带 IP (家宽)</option>
+                            <option value="hosting">优先机房/数据中心 IP</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">节点发现与首选国家代码 (例如: JP,US,KR，留空不限)</label>
+                        <input id="cfg-discovery-countries" class="input-field" style="width: 100%;" type="text" placeholder="例如: JP,US,KR">
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
                     <button type="button" class="btn btn-outline" onclick="closeSettingsModal()">取消</button>
                     <button type="submit" class="btn">
                         <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
@@ -641,6 +683,42 @@
             renderNodes();
         }
 
+        let filterOnlyFavorites = false;
+
+        function toggleFavoriteFilter() {
+            filterOnlyFavorites = !filterOnlyFavorites;
+            const btn = document.getElementById('btn-fav-filter');
+            const icon = document.getElementById('fav-icon');
+            if (filterOnlyFavorites) {
+                btn.style.borderColor = '#f59e0b';
+                btn.style.background = 'rgba(245, 158, 11, 0.15)';
+                icon.innerText = '★';
+            } else {
+                btn.style.borderColor = '';
+                btn.style.background = '';
+                icon.innerText = '☆';
+            }
+            renderNodes();
+        }
+
+        async function toggleFavorite(nodeId) {
+            try {
+                const res = await fetch('/api/nodes/favorite', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ node_id: nodeId })
+                });
+                const ret = await res.json();
+                if (res.ok) {
+                    const node = allNodes.find(n => n.id === nodeId);
+                    if (node) {
+                        node.is_favorite = ret.is_favorite;
+                        renderNodes();
+                    }
+                }
+            } catch (err) {}
+        }
+
         function renderNodes() {
             const tbody = document.getElementById('nodes-tbody');
             const search = document.getElementById('search-filter').value.toLowerCase();
@@ -648,7 +726,11 @@
             const ipType = document.getElementById('ip-type-filter').value;
             const sortMode = document.getElementById('sort-filter').value;
 
+            const favCount = allNodes.filter(n => n.is_favorite).length;
+            document.getElementById('fav-count').innerText = favCount;
+
             const filtered = allNodes.filter(n => {
+                if (filterOnlyFavorites && !n.is_favorite) return false;
                 if (country && n.country_short !== country) return false;
                 if (ipType && n.ip_type !== ipType) return false;
                 if (search) {
@@ -679,7 +761,7 @@
             document.getElementById('filtered-count').innerText = `已筛选出 ${filtered.length} / ${allNodes.length} 个节点`;
 
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 30px;">未找到匹配条件的节点</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 30px;">未找到匹配条件的节点</td></tr>';
                 return;
             }
 
@@ -709,6 +791,11 @@
 
                 return `
                     <tr style="${isCurrent ? 'background: rgba(59, 130, 246, 0.12);' : ''}">
+                        <td style="text-align: center;">
+                            <button class="star-btn ${n.is_favorite ? 'active' : ''}" onclick="toggleFavorite('${n.id}')" title="${n.is_favorite ? '取消收藏' : '加入收藏'}">
+                                ${n.is_favorite ? '★' : '☆'}
+                            </button>
+                        </td>
                         <td>
                             <div class="flag-box">
                                 ${getCountryFlagSVG(n.country_short)}
@@ -820,6 +907,9 @@
                 document.getElementById('cfg-username').value = data.ui_username || 'admin';
                 document.getElementById('cfg-password').value = '';
                 document.getElementById('cfg-proxy-port').value = data.proxy_port || 7928;
+                document.getElementById('cfg-auto-rotate').value = data.auto_rotate_minutes || 0;
+                document.getElementById('cfg-rotate-iptype').value = data.auto_rotate_ip_type || 'all';
+                document.getElementById('cfg-discovery-countries').value = (data.discovery_countries || []).join(',');
                 document.getElementById('settings-modal').style.display = 'flex';
             } catch (err) {
                 alert('获取系统配置失败: ' + err);
@@ -857,11 +947,19 @@
                 return;
             }
 
+            const autoRotate = parseInt(document.getElementById('cfg-auto-rotate').value) || 0;
+            const rotateIPType = document.getElementById('cfg-rotate-iptype').value;
+            const countriesRaw = document.getElementById('cfg-discovery-countries').value.trim();
+            const countries = countriesRaw ? countriesRaw.split(',').map(c => c.trim().toUpperCase()).filter(Boolean) : [];
+
             const payload = {
                 ui_port: webPort,
                 ui_path: webPath,
                 ui_username: user,
-                proxy_port: proxyPort
+                proxy_port: proxyPort,
+                auto_rotate_minutes: autoRotate,
+                auto_rotate_ip_type: rotateIPType,
+                discovery_countries: countries
             };
             if (pass) {
                 payload.ui_password = pass;

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +19,7 @@ type NodePool struct {
 	snapshot  *SnapshotManager
 	blacklist *BlacklistManager
 	enricher  *IPEnricher
+	favorites *FavoritesManager
 
 	mu          sync.RWMutex
 	candidates  []*Node
@@ -31,6 +33,7 @@ func NewNodePool(cfg *config.Config) *NodePool {
 	fetcher := NewFetcher(cfg.ApiURL, cfg.MirrorURL, sm)
 	bm := NewBlacklistManager(cfg.DataDir)
 	enricher := NewIPEnricher(cfg.DataDir)
+	favorites := NewFavoritesManager(cfg.DataDir)
 
 	return &NodePool{
 		cfg:        cfg,
@@ -38,6 +41,7 @@ func NewNodePool(cfg *config.Config) *NodePool {
 		snapshot:   sm,
 		blacklist:  bm,
 		enricher:   enricher,
+		favorites:  favorites,
 		lastStatus: "初始化中",
 	}
 }
@@ -182,8 +186,16 @@ func (np *NodePool) GetCandidates() []*Node {
 	defer np.mu.RUnlock()
 
 	res := make([]*Node, len(np.candidates))
-	copy(res, np.candidates)
+	for i, n := range np.candidates {
+		cp := *n
+		cp.IsFavorite = np.favorites.IsFavorite(n.ID)
+		res[i] = &cp
+	}
 	return res
+}
+
+func (np *NodePool) Favorites() *FavoritesManager {
+	return np.favorites
 }
 
 func (np *NodePool) GetNodeByID(id string) *Node {
@@ -192,6 +204,92 @@ func (np *NodePool) GetNodeByID(id string) *Node {
 
 	for _, n := range np.candidates {
 		if n.ID == id || n.IP == id {
+			cp := *n
+			cp.IsFavorite = np.favorites.IsFavorite(n.ID)
+			return &cp
+		}
+	}
+	return nil
+}
+
+func (np *NodePool) SelectBestWithFilter(ipType string, countries []string, preferFavorites bool) *Node {
+	np.mu.RLock()
+	defer np.mu.RUnlock()
+
+	countryMap := make(map[string]bool)
+	for _, c := range countries {
+		countryMap[strings.ToUpper(strings.TrimSpace(c))] = true
+	}
+
+	matchesFilter := func(n *Node) bool {
+		if np.blacklist.IsBlacklisted(n.ID) {
+			return false
+		}
+		if len(countryMap) > 0 && !countryMap[n.CountryShort] {
+			return false
+		}
+		if ipType != "" && ipType != "all" && n.IPType != ipType {
+			return false
+		}
+		return true
+	}
+
+	// 1. If preferFavorites is true, look for reachable favorites first
+	if preferFavorites {
+		var favs []*Node
+		for _, n := range np.candidates {
+			if np.favorites.IsFavorite(n.ID) && matchesFilter(n) && n.LatencyMs > 0 {
+				favs = append(favs, n)
+			}
+		}
+		if len(favs) > 0 {
+			sort.Slice(favs, func(i, j int) bool {
+				return favs[i].LatencyMs < favs[j].LatencyMs
+			})
+			return favs[0]
+		}
+	}
+
+	// 2. Reachable nodes matching filter
+	var reachable []*Node
+	for _, n := range np.candidates {
+		if matchesFilter(n) && n.LatencyMs > 0 {
+			reachable = append(reachable, n)
+		}
+	}
+	if len(reachable) > 0 {
+		sort.Slice(reachable, func(i, j int) bool {
+			return reachable[i].LatencyMs < reachable[j].LatencyMs
+		})
+		return reachable[0]
+	}
+
+	// 3. Fallback to any node matching filter
+	for _, n := range np.candidates {
+		if matchesFilter(n) {
+			return n
+		}
+	}
+
+	// 4. Ultimate fallback to standard SelectBest
+	return np.selectBestLocked()
+}
+
+func (np *NodePool) selectBestLocked() *Node {
+	var reachable []*Node
+	for _, n := range np.candidates {
+		if !np.blacklist.IsBlacklisted(n.ID) && n.LatencyMs > 0 {
+			reachable = append(reachable, n)
+		}
+	}
+	if len(reachable) > 0 {
+		sort.Slice(reachable, func(i, j int) bool {
+			return reachable[i].LatencyMs < reachable[j].LatencyMs
+		})
+		return reachable[0]
+	}
+	for _, n := range np.candidates {
+		if !np.blacklist.IsBlacklisted(n.ID) {
 			return n
 		}
 	}
@@ -201,31 +299,7 @@ func (np *NodePool) GetNodeByID(id string) *Node {
 func (np *NodePool) SelectBest() *Node {
 	np.mu.RLock()
 	defer np.mu.RUnlock()
-
-	// 1. Prefer reachable nodes with measured latency
-	var reachable []*Node
-	for _, n := range np.candidates {
-		if !np.blacklist.IsBlacklisted(n.ID) {
-			if n.LatencyMs > 0 {
-				reachable = append(reachable, n)
-			}
-		}
-	}
-
-	if len(reachable) > 0 {
-		sort.Slice(reachable, func(i, j int) bool {
-			return reachable[i].LatencyMs < reachable[j].LatencyMs
-		})
-		return reachable[0]
-	}
-
-	// 2. Otherwise pick top candidate not blacklisted
-	for _, n := range np.candidates {
-		if !np.blacklist.IsBlacklisted(n.ID) {
-			return n
-		}
-	}
-	return nil
+	return np.selectBestLocked()
 }
 
 func (np *NodePool) Blacklist() *BlacklistManager {
