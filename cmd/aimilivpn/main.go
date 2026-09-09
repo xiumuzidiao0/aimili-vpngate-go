@@ -19,14 +19,12 @@ import (
 	"aimili-vpngate-go/pkg/vpn"
 )
 
-const version = "2.0.0-go"
-
 func main() {
 	showVersion := flag.Bool("version", false, "显示程序版本号")
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("AimiliVPN Go Gateway v%s\n", version)
+		fmt.Printf("AimiliVPN Go Gateway v%s\n", config.Version)
 		os.Exit(0)
 	}
 
@@ -36,7 +34,7 @@ func main() {
 	_ = stats.InitRingLog(1000)
 	stats.StartTrafficTicker()
 
-	stats.LogInfo("Main", "=== AimiliVPN 代理网关 (Go 高性能重构版 v%s) 启动中 ===", version)
+	stats.LogInfo("Main", "=== AimiliVPN 代理网关 (Go 高性能重构版 v%s) 启动中 ===", config.Version)
 
 	// Preflight checks
 	if err := vpn.CheckTUNDevice(); err != nil {

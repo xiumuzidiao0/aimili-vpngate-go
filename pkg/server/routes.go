@@ -22,6 +22,7 @@ type StatusResponse struct {
 	NodeSource     string                `json:"node_source"`
 	BlacklistCount int                   `json:"blacklist_count"`
 	AdminPath      string                `json:"admin_path"`
+	Version        string                `json:"version"`
 	Tunnels        []*tunnel.Tunnel      `json:"tunnels"`
 	PortRules      []proxy.PortRule      `json:"port_rules"`
 }
@@ -54,6 +55,7 @@ func (s *Server) buildStatusResponse() StatusResponse {
 		NodeSource:     source,
 		BlacklistCount: blCount,
 		AdminPath:      s.cfg.UIPath,
+		Version:        config.Version,
 		Tunnels:        tunnels,
 		PortRules:      portRules,
 	}

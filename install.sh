@@ -20,6 +20,17 @@ BIN_PATH="${INSTALL_DIR}/aimilivpn"
 CONFIG_FILE="${INSTALL_DIR}/config.env"
 SERVICE_FILE="/etc/systemd/system/aimilivpn.service"
 GITHUB_REPO="https://github.com/xiumuzidiao0/aimili-vpngate-go.git"
+DEFAULT_VERSION="2.1.0"
+
+get_app_version() {
+    if [ -f "${INSTALL_DIR}/VERSION" ]; then
+        cat "${INSTALL_DIR}/VERSION" | tr -d '\r\n '
+    elif [ -f "${BIN_PATH}" ]; then
+        "${BIN_PATH}" --version 2>/dev/null | awk '{print $NF}' | tr -d 'v' || echo "$DEFAULT_VERSION"
+    else
+        echo "$DEFAULT_VERSION"
+    fi
+}
 
 # 1. 检查 Root 权限
 check_root() {
@@ -291,6 +302,7 @@ build_and_deploy() {
     fi
 
     chmod +x "${BIN_PATH}"
+    echo "${DEFAULT_VERSION}" > "${INSTALL_DIR}/VERSION"
 
     # 部署本地兜底镜像
     mkdir -p "${INSTALL_DIR}/mirror"
@@ -388,14 +400,16 @@ print_install_success() {
     local user=$(get_config_val "UI_USERNAME")
     local pass=$(get_config_val "UI_PASSWORD")
     local proxy_port=$(get_config_val "LOCAL_PROXY_PORT")
+    local ver=$(get_app_version)
 
     echo -e "\n${GREEN}==================================================================${PLAIN}"
-    echo -e "${GREEN}             🎉 AimiliVPN (Go 高性能版) 安装部署完成！              ${PLAIN}"
+    echo -e "${GREEN}        🎉 AimiliVPN (Go 高性能版 v${ver}) 安装部署完成！              ${PLAIN}"
     echo -e "${GREEN}==================================================================${PLAIN}"
     echo -e " ${BOLD}Web 管理控制台${PLAIN} : ${CYAN}http://${ip}:${port}/${path}${PLAIN}"
     echo -e " ${BOLD}管理账号${PLAIN}       : ${YELLOW}${user}${PLAIN}"
     echo -e " ${BOLD}管理密码${PLAIN}       : ${YELLOW}${pass}${PLAIN}"
     echo -e " ${BOLD}本地自适应代理${PLAIN} : ${GREEN}127.0.0.1:${proxy_port}${PLAIN} (HTTP/HTTPS/SOCKS5 单端口)"
+    echo -e " ${BOLD}当前程序版本${PLAIN}   : ${YELLOW}v${ver}${PLAIN}"
     echo -e " ${BOLD}终端管理命令${PLAIN}   : 在终端随时输入 ${CYAN}ml${PLAIN} 唤出管理控制中心"
     echo -e "${GREEN}==================================================================${PLAIN}\n"
 }
@@ -590,10 +604,11 @@ menu_update() {
     if curl -sSL -f -m 30 "${release_url}" -o "${BIN_PATH}.tmp" && [ -s "${BIN_PATH}.tmp" ]; then
         mv -f "${BIN_PATH}.tmp" "${BIN_PATH}"
         chmod +x "${BIN_PATH}"
+        echo "${DEFAULT_VERSION}" > "${INSTALL_DIR}/VERSION"
         curl -sSL "https://raw.githubusercontent.com/xiumuzidiao0/aimili-vpngate-go/main/install.sh" -o "${INSTALL_DIR}/install.sh" 2>/dev/null || true
         chmod +x "${INSTALL_DIR}/install.sh" 2>/dev/null || true
         systemctl restart aimilivpn
-        echo -e "${GREEN}AimiliVPN 已成功极速更新至最新构建并重启！${PLAIN}"
+        echo -e "${GREEN}AimiliVPN 已成功极速更新至最新构建 (v${DEFAULT_VERSION}) 并重启！${PLAIN}"
         sleep 2
         return
     fi
@@ -608,11 +623,12 @@ menu_update() {
     CGO_ENABLED=0 go build -ldflags="-s -w" -o "${BIN_PATH}" ./cmd/aimilivpn
     cp -f "${TMP_DIR}/install.sh" "${INSTALL_DIR}/install.sh" 2>/dev/null || true
     chmod +x "${INSTALL_DIR}/install.sh" 2>/dev/null || true
+    cp -f "${TMP_DIR}/VERSION" "${INSTALL_DIR}/VERSION" 2>/dev/null || echo "${DEFAULT_VERSION}" > "${INSTALL_DIR}/VERSION"
     mkdir -p "${INSTALL_DIR}/mirror"
     cp -f "${TMP_DIR}/mirror/vpngate.csv" "${INSTALL_DIR}/mirror/" 2>/dev/null || true
     rm -rf "${TMP_DIR}"
     systemctl restart aimilivpn
-    echo -e "${GREEN}AimiliVPN 已成功更新至最新构建并重启！${PLAIN}"
+    echo -e "${GREEN}AimiliVPN 已成功更新至最新构建 (v$(get_app_version)) 并重启！${PLAIN}"
     sleep 2
 }
 
@@ -643,9 +659,10 @@ main_menu() {
         local user=$(get_config_val "UI_USERNAME")
         local pass=$(get_config_val "UI_PASSWORD")
         local proxy_port=$(get_config_val "LOCAL_PROXY_PORT")
+        local ver=$(get_app_version)
 
         echo -e "${BLUE}==================================================================${PLAIN}"
-        echo -e "${BLUE}           ⚡ AimiliVPN (Go 高性能版) 终端控制中心                ${PLAIN}"
+        echo -e "${BLUE}      ⚡ AimiliVPN (Go 高性能版) 终端控制中心  v${ver}            ${PLAIN}"
         echo -e "${BLUE}==================================================================${PLAIN}"
         echo -e "  ${BOLD}服务运行状态${PLAIN} : $(show_service_status)"
         echo -e "  ${BOLD}Web 控制台入口${PLAIN}: ${CYAN}http://${ip}:${port}/${path}${PLAIN}"

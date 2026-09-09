@@ -252,7 +252,10 @@
                     <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polygon points="12 8 9 13 13 13 11 17 15 12 11 12 12 8"/></svg>
                 </div>
                 <div>
-                    <h1>AimiliVPN 网关 (Go 高性能版)</h1>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <h1>AimiliVPN 网关 (Go 高性能版)</h1>
+                        <span id="app-version-badge" class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); font-family: monospace; font-size: 11px;">v2.1.0</span>
+                    </div>
                     <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">单端口自适应 HTTP / HTTPS / SOCKS5 代理网关</div>
                 </div>
             </div>
@@ -680,6 +683,10 @@
 
                 const vpn = data.vpn || {};
                 const traffic = data.traffic || {};
+
+                if (data.version) {
+                    document.getElementById('app-version-badge').innerText = 'v' + data.version.replace(/^v/, '');
+                }
 
                 // Speed stats
                 document.getElementById('stat-down-speed').innerText = formatSpeed(traffic.download_speed_bps || 0);
