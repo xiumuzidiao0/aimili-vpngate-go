@@ -1,0 +1,20 @@
+# Binaries and release builds at repo root
+/bin/
+/dist/
+
+# Runtime data & secrets
+/data/
+*.ovpn
+openvpn_auth.txt
+admin_path.txt
+*.log
+*.tmp
+
+# OS & Editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# CodeGraph
+.codegraph/

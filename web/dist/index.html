@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AimiliVPN 网关控制台</title>
+    <style>
+        :root {
+            --bg-base: #0f172a;
+            --bg-card: #1e293b;
+            --bg-hover: #334155;
+            --border-color: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --code-bg: #090d16;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg-base);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .logo-group { display: flex; align-items: center; gap: 12px; }
+        .logo-icon {
+            width: 36px; height: 36px; border-radius: 8px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px; font-weight: bold;
+        }
+        h1 { font-size: 20px; font-weight: 700; }
+        .badge {
+            font-size: 12px; padding: 4px 10px; border-radius: 9999px; font-weight: 600;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .badge.connected { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+        .badge.connecting { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+        .badge.disconnected { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+        }
+        .stat-title { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
+        .stat-val { font-size: 24px; font-weight: 700; color: #fff; }
+        .stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        @media (min-width: 900px) {
+            .dashboard-grid { grid-template-columns: 1fr 1fr; }
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .card-title { font-size: 16px; font-weight: 600; }
+
+        .btn {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn:hover { background: var(--primary-hover); }
+        .btn-danger { background: var(--danger); }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-outline { background: transparent; border: 1px solid var(--border-color); color: var(--text-main); }
+        .btn-outline:hover { background: var(--bg-hover); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .info-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 13px; }
+        .info-label { color: var(--text-muted); }
+        .info-val { font-weight: 600; font-family: monospace; }
+
+        .terminal-box {
+            background: var(--code-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            height: 220px;
+            overflow-y: auto;
+            padding: 12px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #e2e8f0;
+        }
+        .log-line { margin-bottom: 4px; word-break: break-all; }
+        .log-time { color: #64748b; margin-right: 6px; }
+        .log-level-INFO { color: #38bdf8; }
+        .log-level-WARNING { color: #fbbf24; }
+        .log-level-ERROR { color: #f87171; }
+
+        .table-wrap {
+            overflow-x: auto;
+            max-height: 480px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: left;
+        }
+        th, td {
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        th { color: var(--text-muted); font-weight: 600; background: var(--bg-card); position: sticky; top: 0; }
+        tr:hover { background: var(--bg-hover); }
+
+        .filter-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .input-field {
+            background: var(--bg-base);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+        }
+        .input-field:focus { border-color: var(--primary); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo-group">
+                <div class="logo-icon">⚡</div>
+                <div>
+                    <h1>AimiliVPN 网关 (Go 高性能版)</h1>
+                    <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">单端口自适应 HTTP / HTTPS / SOCKS5 代理网关</div>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span id="conn-badge" class="badge disconnected">● 检查中</span>
+                <button id="btn-quick-connect" class="btn" onclick="quickConnect()">⚡ 智能连接最优节点</button>
+                <button id="btn-disconnect" class="btn btn-danger" onclick="disconnectVPN()" style="display: none;">断开连接</button>
+            </div>
+        </header>
+
+        <div class="stat-grid">
+            <div class="stat-card">
+                <div class="stat-title">实时下载速率</div>
+                <div id="stat-down-speed" class="stat-val">0 B/s</div>
+                <div id="stat-total-down" class="stat-sub">总计下载: 0 B</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">实时上传速率</div>
+                <div id="stat-up-speed" class="stat-val">0 B/s</div>
+                <div id="stat-total-up" class="stat-sub">总计上传: 0 B</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">活跃代理连接</div>
+                <div id="stat-active-conns" class="stat-val">0</div>
+                <div id="stat-proxy-port" class="stat-sub">端口: 7928</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">候选节点 / 黑名单</div>
+                <div id="stat-nodes-count" class="stat-val">0 / 0</div>
+                <div id="stat-node-source" class="stat-sub">数据源: 载入中</div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">当前 VPN 状态</div>
+                    <span id="vpn-uptime" style="font-size: 12px; color: var(--text-muted);">运行时间: -</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">连接状态</span>
+                    <span id="vpn-status-text" class="info-val">未连接</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">活跃节点 IP</span>
+                    <span id="vpn-node-ip" class="info-val">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">节点国家 / 地区</span>
+                    <span id="vpn-node-country" class="info-val">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">本地代理地址</span>
+                    <span id="vpn-proxy-addr" class="info-val">127.0.0.1:7928 (HTTP / SOCKS5)</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">最新状态信息</span>
+                    <span id="vpn-last-msg" style="font-size: 12px; color: var(--text-muted);">-</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">实时运行日志</div>
+                    <button class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="clearLogs()">清屏</button>
+                </div>
+                <div id="terminal" class="terminal-box">
+                    <div class="log-line"><span class="log-time">[系统]</span> 正在建立 SSE 实时日志推流通道...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">优质 VPN 节点列表</div>
+                <button class="btn btn-outline" onclick="refreshNodes()">🔄 刷新节点源</button>
+            </div>
+            <div class="filter-bar">
+                <input id="search-filter" class="input-field" type="text" placeholder="按国家/IP搜索..." oninput="renderNodes()">
+                <select id="country-filter" class="input-field" onchange="renderNodes()">
+                    <option value="">全部国家</option>
+                </select>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>国家 / 地区</th>
+                            <th>IP : 端口</th>
+                            <th>协议</th>
+                            <th>测速延迟</th>
+                            <th>VPNGate 评分</th>
+                            <th>带宽</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="nodes-tbody">
+                        <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">正在加载节点数据...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allNodes = [];
+        let currentState = null;
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatSpeed(bps) {
+            return formatBytes(bps) + '/s';
+        }
+
+        function appendLog(entry) {
+            const term = document.getElementById('terminal');
+            const row = document.createElement('div');
+            row.className = 'log-line';
+            const timeStr = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+            row.innerHTML = `<span class="log-time">[${timeStr}]</span> <span class="log-level-${entry.level}">[${entry.module || 'System'}]</span> ${entry.message}`;
+            term.appendChild(row);
+            term.scrollTop = term.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('terminal').innerHTML = '';
+        }
+
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/api/status');
+                if (!res.ok) return;
+                const data = await res.json();
+                currentState = data;
+
+                // Update UI state
+                const vpn = data.vpn || {};
+                const traffic = data.traffic || {};
+
+                // Speed stats
+                document.getElementById('stat-down-speed').innerText = formatSpeed(traffic.download_speed_bps || 0);
+                document.getElementById('stat-up-speed').innerText = formatSpeed(traffic.upload_speed_bps || 0);
+                document.getElementById('stat-total-down').innerText = '总计下载: ' + formatBytes(traffic.total_download_bytes || 0);
+                document.getElementById('stat-total-up').innerText = '总计上传: ' + formatBytes(traffic.total_upload_bytes || 0);
+                document.getElementById('stat-active-conns').innerText = traffic.active_connections || 0;
+                document.getElementById('stat-proxy-port').innerText = `本地代理: ${data.proxy_addr || '127.0.0.1:7928'}`;
+
+                // Status Badge & Buttons
+                const badge = document.getElementById('conn-badge');
+                const btnConnect = document.getElementById('btn-quick-connect');
+                const btnDisconnect = document.getElementById('btn-disconnect');
+
+                badge.className = 'badge ' + (vpn.status || 'disconnected');
+                if (vpn.status === 'connected') {
+                    badge.innerHTML = '● 已连通就绪';
+                    btnConnect.style.display = 'none';
+                    btnDisconnect.style.display = 'inline-flex';
+                } else if (vpn.status === 'connecting' || vpn.status === 'reconnecting') {
+                    badge.innerHTML = '● 正在连接中...';
+                    btnConnect.disabled = true;
+                    btnDisconnect.style.display = 'inline-flex';
+                } else {
+                    badge.innerHTML = '● 未连接';
+                    btnConnect.style.display = 'inline-flex';
+                    btnConnect.disabled = false;
+                    btnDisconnect.style.display = 'none';
+                }
+
+                // Info card
+                document.getElementById('vpn-status-text').innerText = vpn.status_text || vpn.status || '未连接';
+                document.getElementById('vpn-node-ip').innerText = vpn.active_node ? `${vpn.active_node.ip}:${vpn.active_node.port}` : '-';
+                document.getElementById('vpn-node-country').innerText = vpn.active_node ? `${vpn.active_node.country_long} (${vpn.active_node.country_short})` : '-';
+                document.getElementById('vpn-proxy-addr').innerText = data.proxy_addr ? `${data.proxy_addr} (HTTP/SOCKS5)` : '-';
+                document.getElementById('vpn-last-msg').innerText = vpn.last_message || '-';
+
+                if (vpn.uptime_seconds > 0) {
+                    const m = Math.floor(vpn.uptime_seconds / 60);
+                    const s = vpn.uptime_seconds % 60;
+                    document.getElementById('vpn-uptime').innerText = `已连接运行: ${m}分${s}秒`;
+                } else {
+                    document.getElementById('vpn-uptime').innerText = '运行时间: -';
+                }
+
+                document.getElementById('stat-nodes-count').innerText = `${data.node_count || 0} / ${data.blacklist_count || 0}`;
+                document.getElementById('stat-node-source').innerText = `数据源: ${data.node_source || '未知'}`;
+
+            } catch (err) {
+                console.error("fetch status error:", err);
+            }
+        }
+
+        async function fetchNodes() {
+            try {
+                const res = await fetch('/api/nodes');
+                if (!res.ok) return;
+                allNodes = await res.json();
+                updateCountryFilter();
+                renderNodes();
+            } catch (err) {
+                console.error("fetch nodes error:", err);
+            }
+        }
+
+        function updateCountryFilter() {
+            const select = document.getElementById('country-filter');
+            const curr = select.value;
+            const countries = [...new Set(allNodes.map(n => n.country_short))].filter(Boolean).sort();
+            select.innerHTML = '<option value="">全部国家</option>' +
+                countries.map(c => `<option value="${c}">${c}</option>`).join('');
+            select.value = curr;
+        }
+
+        function renderNodes() {
+            const tbody = document.getElementById('nodes-tbody');
+            const search = document.getElementById('search-filter').value.toLowerCase();
+            const country = document.getElementById('country-filter').value;
+
+            const filtered = allNodes.filter(n => {
+                if (country && n.country_short !== country) return false;
+                if (search && !n.ip.includes(search) && !n.country_long.toLowerCase().includes(search) && !n.hostname.toLowerCase().includes(search)) return false;
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">未找到匹配节点</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(n => {
+                const isCurrent = currentState && currentState.vpn && currentState.vpn.active_node_id === n.id;
+                const latency = n.latency_ms > 0 ? `<span style="color: #34d399;">${n.latency_ms} ms</span>` : '<span style="color: var(--text-muted);">-</span>';
+                const speedMbps = (n.speed / 1000000).toFixed(1) + ' Mbps';
+
+                return `
+                    <tr style="${isCurrent ? 'background: rgba(59, 130, 246, 0.15);' : ''}">
+                        <td><strong>${n.country_short}</strong> ${n.country_long}</td>
+                        <td style="font-family: monospace;">${n.ip}:${n.port}</td>
+                        <td><span class="badge" style="background: rgba(148, 163, 184, 0.2);">${n.proto.toUpperCase()}</span></td>
+                        <td>${latency}</td>
+                        <td>${n.score}</td>
+                        <td>${speedMbps}</td>
+                        <td>
+                            ${isCurrent ?
+                                '<span class="badge connected">当前已连接</span>' :
+                                `<button class="btn" style="padding: 4px 10px; font-size: 11px;" onclick="connectToNode('${n.id}')">连接</button>`
+                            }
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function quickConnect() {
+            appendLog({ level: 'INFO', module: 'Action', message: '正在请求快速连接最优节点...' });
+            await fetch('/api/connect', { method: 'POST' });
+            fetchStatus();
+        }
+
+        async function connectToNode(nodeId) {
+            appendLog({ level: 'INFO', module: 'Action', message: `正在请求切换至节点: ${nodeId}...` });
+            await fetch('/api/connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ node_id: nodeId })
+            });
+            fetchStatus();
+        }
+
+        async function disconnectVPN() {
+            appendLog({ level: 'INFO', module: 'Action', message: '正在断开当前 VPN 连接...' });
+            await fetch('/api/disconnect', { method: 'POST' });
+            fetchStatus();
+        }
+
+        async function refreshNodes() {
+            appendLog({ level: 'INFO', module: 'Action', message: '正在刷新远端节点列表...' });
+            await fetch('/api/refresh', { method: 'POST' });
+            fetchNodes();
+            fetchStatus();
+        }
+
+        // Setup SSE connection for real-time live events
+        function setupSSE() {
+            const es = new EventSource('/api/events');
+            es.onopen = () => {
+                appendLog({ level: 'INFO', module: 'SSE', message: '已成功连通服务器实时推流总线' });
+            };
+            es.addEventListener('log', (e) => {
+                try {
+                    const entry = JSON.parse(e.data);
+                    appendLog(entry);
+                } catch(err){}
+            });
+            es.addEventListener('status', (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    currentState = data;
+                    fetchStatus();
+                } catch(err){}
+            });
+            es.onerror = () => {
+                // Fallback will poll
+            };
+        }
+
+        window.onload = () => {
+            fetchStatus();
+            fetchNodes();
+            setupSSE();
+            setInterval(fetchStatus, 2000);
+        };
+    </script>
+</body>
+</html>
