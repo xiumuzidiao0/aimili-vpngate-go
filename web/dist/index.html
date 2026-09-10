@@ -27,12 +27,201 @@
             background: var(--bg-base);
             color: var(--text-main);
             min-height: 100vh;
-            padding: 24px 20px 48px 20px;
+            margin: 0;
+            padding: 0;
             font-feature-settings: "cv02", "cv03", "cv04", "cv11";
             text-rendering: optimizeLegibility;
             -webkit-font-smoothing: antialiased;
         }
-        .container { max-width: 1320px; margin: 0 auto; }
+
+        /* App Layout Container */
+        .app-layout {
+            display: flex;
+            min-height: 100vh;
+            width: 100%;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: 230px;
+            background: #0b1120;
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            z-index: 100;
+            flex-shrink: 0;
+        }
+        .sidebar-brand {
+            padding: 20px 18px 18px 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        .brand-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -0.02em;
+        }
+        .brand-sub {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 2px;
+        }
+        .badge-ver {
+            background: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            font-family: ui-monospace, monospace;
+            font-size: 10px;
+            padding: 1px 5px;
+            border-radius: 4px;
+        }
+        .nav-list {
+            padding: 16px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+            overflow-y: auto;
+        }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            border-radius: 8px;
+            color: var(--text-muted);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            user-select: none;
+            position: relative;
+        }
+        .nav-item:hover {
+            color: #fff;
+            background: var(--bg-hover);
+        }
+        .nav-item.active {
+            color: #fff;
+            background: var(--primary);
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        .nav-item svg {
+            width: 17px;
+            height: 17px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            flex-shrink: 0;
+        }
+        .nav-badge {
+            margin-left: auto;
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-family: ui-monospace, monospace;
+        }
+        .nav-item.active .nav-badge {
+            background: rgba(255, 255, 255, 0.25);
+        }
+        .sidebar-footer {
+            padding: 14px 16px;
+            border-top: 1px solid var(--border);
+            font-size: 11px;
+            background: rgba(0, 0, 0, 0.2);
+        }
+        .sidebar-stat-mini {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--text-muted);
+        }
+        .sidebar-stat-mini strong {
+            color: #60a5fa;
+            font-family: ui-monospace, monospace;
+            font-weight: 600;
+        }
+
+        /* Main Content Container */
+        .main-content {
+            flex: 1;
+            min-width: 0;
+            padding: 22px 30px 48px;
+            max-width: 1400px;
+        }
+
+        /* View Pages Container */
+        .view-page {
+            display: none;
+            animation: fadeIn 0.18s ease-in-out;
+        }
+        .view-page.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Mobile Bottom Nav */
+        .bottom-nav {
+            display: none;
+        }
+        @media (max-width: 860px) {
+            .sidebar { display: none; }
+            .main-content { padding: 16px 14px 84px; }
+            .bottom-nav {
+                display: flex;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: rgba(11, 17, 32, 0.95);
+                backdrop-filter: blur(16px);
+                border-top: 1px solid var(--border);
+                z-index: 900;
+                justify-content: space-around;
+                align-items: center;
+                padding: 6px 4px 8px;
+            }
+            .bottom-nav-item {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 3px;
+                color: var(--text-muted);
+                font-size: 10px;
+                padding: 5px 8px;
+                border-radius: 8px;
+                cursor: pointer;
+                transition: all 0.15s;
+                user-select: none;
+            }
+            .bottom-nav-item svg {
+                width: 18px;
+                height: 18px;
+                stroke: currentColor;
+                fill: none;
+                stroke-width: 2;
+            }
+            .bottom-nav-item.active {
+                color: var(--primary);
+                font-weight: 600;
+            }
+        }
 
         /* Custom Dark Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -45,9 +234,12 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding-bottom: 20px;
+            padding-bottom: 18px;
             border-bottom: 1px solid var(--border);
-            margin-bottom: 24px;
+            margin-bottom: 22px;
+            flex-wrap: wrap;
+            gap: 14px;
+        }
             flex-wrap: wrap;
             gap: 16px;
         }
@@ -306,6 +498,23 @@
             padding: 24px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75);
         }
+
+        /* Embedded Modals inside View Pages become natural full cards */
+        .view-page .modal-overlay {
+            position: static !important;
+            background: transparent !important;
+            display: block !important;
+            backdrop-filter: none !important;
+            z-index: auto !important;
+            width: 100% !important;
+            padding: 0 !important;
+        }
+        .view-page .modal-card {
+            width: 100% !important;
+            max-width: 100% !important;
+            box-shadow: none !important;
+            padding: 22px 24px;
+        }
         .modal-tabs {
             display: flex; gap: 8px; border-bottom: 1px solid var(--border); margin-bottom: 18px; padding-bottom: 8px;
         }
@@ -507,45 +716,81 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Top Header -->
-        <header>
-            <div class="logo-group">
+    <div class="app-layout">
+        <!-- Desktop Left Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
                 <div class="logo-icon">
                     <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polygon points="12 8 9 13 13 13 11 17 15 12 11 12 12 8"/></svg>
                 </div>
                 <div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <h1>AimiliVPN 网关 (Go 高性能版)</h1>
-                        <span id="app-version-badge" class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); font-family: monospace; font-size: 11px;">v2.4.0</span>
-                    </div>
-                    <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">多出口并发隧道池与自适应 M:N 分流网关</div>
+                    <div class="brand-title">AimiliVPN</div>
+                    <div class="brand-sub">Go 性能网关 <span id="sidebar-version-badge" class="badge-ver">v2.4.0</span></div>
                 </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                <span id="conn-badge" class="badge disconnected"><span class="status-dot"></span> 检查中</span>
-                <button id="btn-quick-connect" class="btn" onclick="quickConnect()">
-                    <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                    智能连接最优节点
-                </button>
-                <button id="btn-disconnect" class="btn btn-danger" onclick="disconnectVPN()" style="display: none;">
-                    <svg viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
-                    断开连接
-                </button>
-                <button class="btn btn-outline" onclick="openSingBoxModal()">
+
+            <nav class="nav-list">
+                <div class="nav-item active" id="nav-dashboard" onclick="switchView('dashboard')">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+                    <span>运行概览</span>
+                </div>
+
+                <div class="nav-item" id="nav-singbox" onclick="switchView('singbox')">
                     <svg viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
-                    边缘抗封锁入站
-                </button>
-                <button class="btn btn-outline" onclick="openPortMatrixModal()">
+                    <span>边缘入站</span>
+                    <span id="nav-sb-badge" class="nav-badge" style="display:none;">0</span>
+                </div>
+
+                <div class="nav-item" id="nav-matrix" onclick="switchView('matrix')">
                     <svg viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
-                    多端口与分流矩阵
-                </button>
-                <button class="btn btn-outline" onclick="openSettingsModal()">
+                    <span>多端口分流</span>
+                    <span id="nav-port-badge" class="nav-badge">1</span>
+                </div>
+
+                <div class="nav-item" id="nav-nodes" onclick="switchView('nodes')">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    <span>节点广场</span>
+                    <span id="nav-node-badge" class="nav-badge">0</span>
+                </div>
+
+                <div class="nav-item" id="nav-settings" onclick="switchView('settings')">
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                    系统与安全设置
-                </button>
+                    <span>系统设置</span>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-stat-mini">
+                    <span>本地出口</span>
+                    <strong id="sidebar-proxy-port">7928</strong>
+                </div>
             </div>
-        </header>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Top Header Bar -->
+            <header>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <h1 id="page-title" style="font-size: 19px; font-weight: 700; letter-spacing: -0.01em;">运行概览</h1>
+                    <span id="conn-badge" class="badge disconnected"><span class="status-dot"></span> 检查中</span>
+                    <span id="app-version-badge" class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); font-family: monospace; font-size: 11px;">v2.4.0</span>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <button id="btn-quick-connect" class="btn" onclick="quickConnect()">
+                        <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                        智能连接最优节点
+                    </button>
+                    <button id="btn-disconnect" class="btn btn-danger" onclick="disconnectVPN()" style="display: none;">
+                        <svg viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+                        断开连接
+                    </button>
+                </div>
+            </header>
+
+            <!-- View 1: 运行概览 Dashboard -->
+            <div id="view-dashboard" class="view-page active">
 
         <!-- KPI Metric Tiles -->
         <div class="stat-grid">
@@ -658,7 +903,11 @@
                 </div>
             </div>
         </div>
+        </div>
+        <!-- End View 1: Dashboard -->
 
+        <!-- View 2: 边缘入站 (sing-box) -->
+        <div id="view-singbox" class="view-page">
         <!-- sing-box Edge Ingress & Chain Matrix Card -->
         <div id="singbox-section" class="card">
             <div class="card-header" style="flex-wrap: wrap; gap: 12px;">
@@ -708,7 +957,11 @@
                 <!-- Filled dynamically -->
             </div>
         </div>
+        </div>
+        <!-- End View 2: sing-box -->
 
+        <!-- View 4: 优质节点列表 Nodes -->
+        <div id="view-nodes" class="view-page">
         <!-- Node Explorer Card -->
         <div class="card">
             <div class="card-header">
@@ -782,11 +1035,13 @@
                 </table>
             </div>
         </div>
-    </div>
+        </div>
+        <!-- End View 4: Nodes -->
 
-    <!-- 1. 系统与安全设置模态弹窗 (Tabbed) -->
-    <div id="settings-modal" class="modal-overlay">
-        <div class="modal-card">
+        <!-- View 5: 系统与安全设置 Settings -->
+        <div id="view-settings" class="view-page">
+        <div id="settings-modal" class="modal-overlay">
+            <div class="modal-card">
             <div class="card-header" style="margin-bottom: 12px;">
                 <div class="card-title">
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -878,16 +1133,20 @@
                 </div>
 
                 <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; border-top: 1px solid var(--border); padding-top: 16px;">
-                    <button type="button" class="btn btn-outline" onclick="closeSettingsModal()">取消</button>
+                    <button type="button" class="btn btn-outline" onclick="switchView('dashboard')">返回概览</button>
                     <button type="submit" class="btn">💾 保存并生效</button>
                 </div>
             </form>
         </div>
-    </div>
+        </div>
+        </div>
+        <!-- End View 5: Settings -->
 
-    <!-- 2. 多端口与分流矩阵管理模态弹窗 (Tabbed) -->
-    <div id="port-matrix-modal" class="modal-overlay">
-        <div class="modal-card" style="max-width: 860px;">
+        <!-- View 3: 多端口与分流矩阵 Matrix -->
+        <div id="view-matrix" class="view-page">
+        <!-- 2. 多端口与分流矩阵管理面板 (Tabbed) -->
+        <div id="port-matrix-modal" class="modal-overlay">
+            <div class="modal-card" style="max-width: 860px;">
             <div class="card-header" style="margin-bottom: 14px;">
                 <div class="card-title">
                     <svg viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
@@ -1081,10 +1340,41 @@
             </div>
 
             <div style="display: flex; justify-content: flex-end; margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px;">
-                <button type="button" class="btn btn-outline" onclick="closePortMatrixModal()">关闭</button>
+                <button type="button" class="btn btn-outline" onclick="switchView('dashboard')">返回概览</button>
             </div>
         </div>
+        </div>
+        </div>
+        <!-- End View 3: Matrix -->
+
+        </main>
+        <!-- End Main Content Area -->
+
+        <!-- Mobile Bottom Navigation Bar -->
+        <nav class="bottom-nav">
+            <div class="bottom-nav-item active" id="bnav-dashboard" onclick="switchView('dashboard')">
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+                <span>概览</span>
+            </div>
+            <div class="bottom-nav-item" id="bnav-singbox" onclick="switchView('singbox')">
+                <svg viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+                <span>入站</span>
+            </div>
+            <div class="bottom-nav-item" id="bnav-matrix" onclick="switchView('matrix')">
+                <svg viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+                <span>分流</span>
+            </div>
+            <div class="bottom-nav-item" id="bnav-nodes" onclick="switchView('nodes')">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                <span>节点</span>
+            </div>
+            <div class="bottom-nav-item" id="bnav-settings" onclick="switchView('settings')">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                <span>设置</span>
+            </div>
+        </nav>
     </div>
+    <!-- End .app-layout -->
 
     <!-- 3. 新建 sing-box 抗封锁入站模态弹窗 -->
     <div id="singbox-add-modal" class="modal-overlay">
@@ -1350,7 +1640,19 @@
                 const traffic = data.traffic || {};
 
                 if (data.version) {
-                    document.getElementById('app-version-badge').innerText = 'v' + data.version.replace(/^v/, '');
+                    const vStr = 'v' + data.version.replace(/^v/, '');
+                    const vBadge = document.getElementById('app-version-badge');
+                    if (vBadge) vBadge.innerText = vStr;
+                    const sbVer = document.getElementById('sidebar-version-badge');
+                    if (sbVer) sbVer.innerText = vStr;
+                }
+                const sbPort = document.getElementById('sidebar-proxy-port');
+                if (sbPort && data.proxy_addr) {
+                    sbPort.innerText = data.proxy_addr.split(':').pop();
+                }
+                const portBadge = document.getElementById('nav-port-badge');
+                if (portBadge) {
+                    portBadge.innerText = (data.port_rules || []).length || 1;
                 }
 
                 // Speed stats
@@ -1462,6 +1764,10 @@
                 const res = await fetch('/api/nodes');
                 if (!res.ok) return;
                 allNodes = await res.json();
+                const nBadge = document.getElementById('nav-node-badge');
+                if (nBadge) {
+                    nBadge.innerText = allNodes.length;
+                }
                 updateCountryFilter();
                 renderNodes();
             } catch (err) {
@@ -1748,7 +2054,7 @@
             if (activeBtn) activeBtn.classList.add('active');
         }
 
-        async function openSettingsModal() {
+        async function loadSettingsForm() {
             try {
                 const res = await fetch('/api/settings');
                 if (!res.ok) return;
@@ -1764,13 +2070,16 @@
                 document.getElementById('cfg-tg-token').value = data.telegram_bot_token || '';
                 document.getElementById('cfg-tg-chatid').value = data.telegram_chat_id || '';
                 switchSettingsTab('base');
-                document.getElementById('settings-modal').style.display = 'flex';
             } catch (err) {
-                alert('获取系统配置失败: ' + err);
+                console.warn('获取系统配置失败:', err);
             }
         }
 
-        function closeSettingsModal() { document.getElementById('settings-modal').style.display = 'none'; }
+        async function openSettingsModal() {
+            switchView('settings');
+        }
+
+        function closeSettingsModal() { switchView('dashboard'); }
 
         function randomPath() {
             const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -1918,14 +2227,10 @@
         }
 
         async function openPortMatrixModal() {
-            document.getElementById('port-matrix-modal').style.display = 'flex';
-            hideEditPortForm();
-            hideDynamicGroupForm();
-            switchMatrixTab('ports');
-            await Promise.all([fetchPortRules(), fetchDynamicGroups()]);
+            switchView('matrix');
         }
 
-        function closePortMatrixModal() { document.getElementById('port-matrix-modal').style.display = 'none'; }
+        function closePortMatrixModal() { switchView('dashboard'); }
 
         async function fetchPortRules() {
             try {
@@ -2429,15 +2734,71 @@
         }
 
         // ==========================================
+        //  页面视图导航切换引擎 (View Router)
+        // ==========================================
+        function switchView(viewName) {
+            const views = ['dashboard', 'singbox', 'matrix', 'nodes', 'settings'];
+            if (!views.includes(viewName)) viewName = 'dashboard';
+
+            // 1. 切换页面卡片视图
+            views.forEach(v => {
+                const el = document.getElementById('view-' + v);
+                if (el) el.classList.remove('active');
+            });
+            const targetView = document.getElementById('view-' + viewName);
+            if (targetView) targetView.classList.add('active');
+
+            // 2. 切换侧边栏高亮项
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            const navEl = document.getElementById('nav-' + viewName);
+            if (navEl) navEl.classList.add('active');
+
+            // 3. 切换移动端底部菜单高亮项
+            document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
+            const bnavEl = document.getElementById('bnav-' + viewName);
+            if (bnavEl) bnavEl.classList.add('active');
+
+            // 4. 更新顶部大标题
+            const titles = {
+                dashboard: '运行概览',
+                singbox: '边缘抗封锁入站 (sing-box)',
+                matrix: '多端口代理与自适应分流矩阵',
+                nodes: '优质 VPN 节点列表',
+                settings: '系统与安全参数设置'
+            };
+            const titleEl = document.getElementById('page-title');
+            if (titleEl && titles[viewName]) {
+                titleEl.innerText = titles[viewName];
+            }
+
+            // 5. 同步浏览器 Hash 路由，便于后退/前进
+            if (window.location.hash !== '#' + viewName) {
+                history.replaceState(null, '', '#' + viewName);
+            }
+
+            // 6. 按需触发视图专项数据刷新
+            if (viewName === 'singbox') fetchSingBoxOverview();
+            if (viewName === 'matrix') {
+                hideEditPortForm();
+                hideDynamicGroupForm();
+                fetchPortRules();
+                fetchDynamicGroups();
+            }
+            if (viewName === 'settings') loadSettingsForm();
+            if (viewName === 'nodes') { updateCountryFilter(); renderNodes(); }
+
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        }
+
+        function openSingBoxModal() {
+            switchView('singbox');
+        }
+
+        // ==========================================
         //  sing-box 边缘抗封锁入站 & 链式代理交互引擎
         // ==========================================
         let singBoxOverview = null;
         let currentSelectedProto = 'reality';
-
-        function openSingBoxModal() {
-            const el = document.getElementById('singbox-section');
-            if (el) el.scrollIntoView({ behavior: 'smooth' });
-        }
 
         async function fetchSingBoxOverview(showToastNotice = false) {
             try {
@@ -2491,6 +2852,13 @@
                 subBadge.innerText = `订阅: :${data.subscription.port} (${data.subscription.node_count || 0} 节点)`;
             } else {
                 subBadge.style.display = 'none';
+            }
+
+            const sbNavBadge = document.getElementById('nav-sb-badge');
+            if (sbNavBadge) {
+                const count = (data && data.nodes) ? data.nodes.length : 0;
+                sbNavBadge.innerText = count;
+                sbNavBadge.style.display = count > 0 ? 'inline-block' : 'none';
             }
 
             // 3. 未安装引导状态
@@ -2828,6 +3196,14 @@
             fetchNodes();
             fetchSingBoxOverview();
             setupSSE();
+
+            const initialHash = (window.location.hash || '').replace(/^#/, '');
+            if (['dashboard', 'singbox', 'matrix', 'nodes', 'settings'].includes(initialHash)) {
+                switchView(initialHash);
+            } else {
+                switchView('dashboard');
+            }
+
             setInterval(fetchStatus, 2000);
             setInterval(fetchSingBoxOverview, 10000);
             setInterval(fetchNodes, 15000);
