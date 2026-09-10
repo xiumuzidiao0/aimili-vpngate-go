@@ -11,26 +11,19 @@ import (
 	"sync"
 	"time"
 
+	"aimili-vpngate-go/pkg/nodes"
 	"aimili-vpngate-go/pkg/stats"
 )
 
-type ServiceUnlockStatus string
+type ServiceUnlockStatus = nodes.ServiceUnlockStatus
 
 const (
-	StatusUnlocked ServiceUnlockStatus = "unlocked" // 解锁可用
-	StatusBlocked  ServiceUnlockStatus = "blocked"  // 风控或地区封锁
-	StatusUnknown  ServiceUnlockStatus = "unknown"  // 探测超时或未知
+	StatusUnlocked = nodes.StatusUnlocked
+	StatusBlocked  = nodes.StatusBlocked
+	StatusUnknown  = nodes.StatusUnknown
 )
 
-type UnlockResult struct {
-	IP            string              `json:"ip"`
-	OpenAI        ServiceUnlockStatus `json:"openai"`         // ChatGPT / OpenAI
-	Claude        ServiceUnlockStatus `json:"claude"`         // Claude / Anthropic
-	Google        ServiceUnlockStatus `json:"google"`         // Google Search / 204
-	Netflix       ServiceUnlockStatus `json:"netflix"`        // Netflix
-	NetflixRegion string              `json:"netflix_region"` // 地区代码，如 "JP", "US"
-	CheckedAt     time.Time           `json:"checked_at"`
-}
+type UnlockResult = nodes.UnlockResult
 
 type UnlockDetector struct {
 	cachePath string
@@ -101,6 +94,115 @@ func (d *UnlockDetector) GetAllCached() map[string]*UnlockResult {
 		cp := *r
 		res[ip] = &cp
 	}
+	return res
+}
+
+var openAISupportedCountries = map[string]bool{
+	"US": true, "JP": true, "KR": true, "TW": true, "SG": true, "GB": true,
+	"DE": true, "FR": true, "CA": true, "AU": true, "NL": true, "IN": true,
+	"VN": true, "TH": true, "MY": true, "PH": true, "ID": true, "BR": true,
+	"IT": true, "ES": true, "SE": true, "NO": true, "FI": true, "PL": true,
+	"CH": true, "AT": true, "BE": true, "DK": true, "NZ": true, "IE": true,
+}
+
+var claudeSupportedCountries = map[string]bool{
+	"US": true, "JP": true, "KR": true, "TW": true, "SG": true, "GB": true,
+	"DE": true, "FR": true, "CA": true, "AU": true, "NL": true, "IN": true,
+	"NZ": true, "IE": true, "CH": true, "AT": true, "BE": true, "DK": true,
+	"NO": true, "SE": true, "FI": true, "PL": true, "IT": true, "ES": true,
+	"BR": true, "IL": true, "AE": true, "ZA": true,
+}
+
+// EvaluateNodeUnlock evaluates unlock prediction for a node and caches it
+func (d *UnlockDetector) EvaluateNodeUnlock(node *nodes.Node) *UnlockResult {
+	if node == nil || node.IP == "" {
+		return nil
+	}
+
+	d.mu.RLock()
+	if cached, ok := d.cache[node.IP]; ok && time.Since(cached.CheckedAt) < 12*time.Hour {
+		d.mu.RUnlock()
+		node.Unlock = cached
+		return cached
+	}
+	d.mu.RUnlock()
+
+	res := &UnlockResult{
+		IP:            node.IP,
+		OpenAI:        StatusUnknown,
+		Claude:        StatusUnknown,
+		Google:        StatusUnknown,
+		Netflix:       StatusUnknown,
+		NetflixRegion: node.CountryShort,
+		CheckedAt:     time.Now(),
+	}
+
+	c := strings.ToUpper(strings.TrimSpace(node.CountryShort))
+	isOpenAIOk := openAISupportedCountries[c]
+	isClaudeOk := claudeSupportedCountries[c]
+	isGoogleOk := c != "CN" && c != "IR" && c != "KP"
+	isNetflixOk := c != "" && c != "CN"
+
+	if node.LatencyMs > 0 {
+		if node.IPType == "residential" {
+			// Residential (home broadband) IPs in supported countries have best unlock rates
+			if isOpenAIOk {
+				res.OpenAI = StatusUnlocked
+			} else {
+				res.OpenAI = StatusBlocked
+			}
+
+			if isClaudeOk {
+				res.Claude = StatusUnlocked
+			} else {
+				res.Claude = StatusBlocked
+			}
+
+			if isGoogleOk {
+				res.Google = StatusUnlocked
+			} else {
+				res.Google = StatusBlocked
+			}
+
+			if isNetflixOk {
+				res.Netflix = StatusUnlocked
+			} else {
+				res.Netflix = StatusBlocked
+			}
+		} else if node.IPType == "hosting" {
+			// Datacenter IPs
+			if isGoogleOk {
+				res.Google = StatusUnlocked
+			}
+			res.Netflix = StatusBlocked
+			res.Claude = StatusBlocked
+			if isOpenAIOk && node.ReputationScore >= 70 {
+				res.OpenAI = StatusUnlocked
+			} else {
+				res.OpenAI = StatusBlocked
+			}
+		} else {
+			if isOpenAIOk {
+				res.OpenAI = StatusUnlocked
+			}
+			if isClaudeOk {
+				res.Claude = StatusUnlocked
+			}
+			if isGoogleOk {
+				res.Google = StatusUnlocked
+			}
+			if isNetflixOk {
+				res.Netflix = StatusUnlocked
+			}
+		}
+	}
+
+	d.mu.Lock()
+	d.cache[node.IP] = res
+	d.saveLocked()
+	d.mu.Unlock()
+
+	node.Unlock = res
 	return res
 }
 
@@ -222,7 +324,7 @@ func (d *UnlockDetector) ProbeTunnel(ctx context.Context, devName string, ip str
 	d.saveLocked()
 	d.mu.Unlock()
 
-	stats.LogInfo("UnlockDetector", "[%s:%s] 解锁检测结果: ChatGPT=%s, Claude=%s, Google=%s, Netflix=%s",
+	stats.LogInfo("UnlockDetector", "[%s:%s] 实测解锁结果: ChatGPT=%s, Claude=%s, Google=%s, Netflix=%s",
 		devName, ip, result.OpenAI, result.Claude, result.Google, result.Netflix)
 
 	return result

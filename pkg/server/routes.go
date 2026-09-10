@@ -75,6 +75,14 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleNodes(w http.ResponseWriter, r *http.Request) {
 	candidates := s.pool.GetCandidates()
+	if s.tunnelPool != nil && s.tunnelPool.UnlockDetector() != nil {
+		detector := s.tunnelPool.UnlockDetector()
+		for _, n := range candidates {
+			if n.Unlock == nil {
+				detector.EvaluateNodeUnlock(n)
+			}
+		}
+	}
 	s.writeJSON(w, http.StatusOK, candidates)
 }
 
@@ -87,11 +95,20 @@ func (s *Server) handleProbeNodes(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewDecoder(r.Body).Decode(&req)
 
 	go func() {
-		s.pool.ProbeSpecificNodes(context.Background(), req.NodeIDs)
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
+		targets := s.pool.ProbeSpecificNodes(ctx, req.NodeIDs)
+		if s.tunnelPool != nil && s.tunnelPool.UnlockDetector() != nil {
+			detector := s.tunnelPool.UnlockDetector()
+			for _, n := range targets {
+				detector.EvaluateNodeUnlock(n)
+			}
+		}
 	}()
 
 	s.writeJSON(w, http.StatusOK, map[string]string{
-		"message": "已在后台启动节点可用性探测与测速",
+		"message": "已在后台启动节点可用性与流媒体/AI解锁同步检测",
 	})
 }
 

@@ -32,9 +32,10 @@ type Node struct {
 	ISP        string `json:"isp"`
 	City       string `json:"city"`
 	Region     string `json:"region"`
-	IsHosting       bool   `json:"is_hosting"`
-	IsFavorite      bool   `json:"is_favorite"`
-	ReputationScore int    `json:"reputation_score"` // 历史综合稳定性信誉评分 (0-100)
+	IsHosting       bool          `json:"is_hosting"`
+	IsFavorite      bool          `json:"is_favorite"`
+	ReputationScore int           `json:"reputation_score"` // 历史综合稳定性信誉评分 (0-100)
+	Unlock          *UnlockResult `json:"unlock,omitempty"`   // AI与主流流媒体解锁状态
 }
 
 func (n *Node) String() string {

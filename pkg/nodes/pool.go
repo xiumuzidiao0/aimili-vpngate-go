@@ -163,7 +163,7 @@ func (np *NodePool) ProbeNodes(ctx context.Context, nodeList []*Node) {
 	stats.LogInfo("Probe", "全量节点测速完成！")
 }
 
-func (np *NodePool) ProbeSpecificNodes(ctx context.Context, ids []string) {
+func (np *NodePool) ProbeSpecificNodes(ctx context.Context, ids []string) []*Node {
 	np.mu.RLock()
 	var targets []*Node
 	if len(ids) == 0 {
@@ -182,6 +182,7 @@ func (np *NodePool) ProbeSpecificNodes(ctx context.Context, ids []string) {
 	np.mu.RUnlock()
 
 	np.ProbeNodes(ctx, targets)
+	return targets
 }
 
 func (np *NodePool) GetCandidates() []*Node {
