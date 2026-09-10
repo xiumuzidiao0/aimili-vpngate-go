@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"aimili-vpngate-go/pkg/stats"
@@ -47,11 +46,6 @@ func (f *Fetcher) fetchURL(ctx context.Context, url string) ([]byte, error) {
 		return nil, fmt.Errorf("unexpected http status: %d", resp.StatusCode)
 	}
 
-	contentType := strings.ToLower(resp.Header.Get("Content-Type"))
-	if strings.Contains(contentType, "text/html") {
-		return nil, fmt.Errorf("received HTML block page instead of CSV (possible ISP interception)")
-	}
-
 	body, err := io.ReadAll(io.LimitReader(resp.Body, MaxSnapshotBytes))
 	if err != nil {
 		return nil, err
@@ -59,8 +53,8 @@ func (f *Fetcher) fetchURL(ctx context.Context, url string) ([]byte, error) {
 
 	// Validate content is actually VPNGate CSV and not an ISP intercept error
 	trimmed := bytes.TrimSpace(body)
-	if bytes.HasPrefix(trimmed, []byte("<")) || bytes.HasPrefix(trimmed, []byte("<!DOCTYPE")) {
-		return nil, fmt.Errorf("response contains HTML tags, not a valid VPNGate CSV")
+	if bytes.HasPrefix(trimmed, []byte("<")) || bytes.HasPrefix(trimmed, []byte("<!DOCTYPE")) || bytes.HasPrefix(trimmed, []byte("<html")) {
+		return nil, fmt.Errorf("response contains HTML tags, not a valid VPNGate CSV (possible ISP interception)")
 	}
 
 	if !bytes.Contains(body, []byte("HostName")) && !bytes.Contains(body, []byte("vpn_servers")) {
@@ -80,11 +74,12 @@ func (f *Fetcher) FetchNodes(ctx context.Context) (*FetchResult, error) {
 		name string
 		url  string
 	}{
-		{"jsDelivr 全球加速 CDN", "https://cdn.jsdelivr.net/gh/baoweise-bot/aimili-vpngate@main/mirror/vpngate.csv"},
 		{"Fastly 全球加速 CDN", "https://fastly.jsdelivr.net/gh/baoweise-bot/aimili-vpngate@main/mirror/vpngate.csv"},
 		{"GitHub Pages 镜像源", f.mirrorURL},
 		{"GitHub Raw 直链镜像", "https://raw.githubusercontent.com/baoweise-bot/aimili-vpngate/main/mirror/vpngate.csv"},
+		{"GitHub 镜像加速源", "https://ghproxy.net/https://raw.githubusercontent.com/baoweise-bot/aimili-vpngate/main/mirror/vpngate.csv"},
 		{"用户 GitHub 镜像源", "https://raw.githubusercontent.com/xiumuzidiao0/aimili-vpngate-go/main/mirror/vpngate.csv"},
+		{"jsDelivr 全球加速 CDN", "https://cdn.jsdelivr.net/gh/baoweise-bot/aimili-vpngate@main/mirror/vpngate.csv"},
 		{"VPNGate 官方 HTTPS API", f.apiURL},
 		{"VPNGate 官方 HTTP API", "http://www.vpngate.net/api/iphone/"},
 	}

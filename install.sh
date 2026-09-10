@@ -358,9 +358,21 @@ build_and_deploy() {
     if [ -f "${SCRIPT_DIR}/mirror/vpngate.csv" ]; then
         cp -f "${SCRIPT_DIR}/mirror/vpngate.csv" "${INSTALL_DIR}/mirror/" 2>/dev/null || true
     fi
-    if [ ! -f "${INSTALL_DIR}/mirror/vpngate.csv" ]; then
+    if [ ! -f "${INSTALL_DIR}/mirror/vpngate.csv" ] || [ ! -s "${INSTALL_DIR}/mirror/vpngate.csv" ]; then
         echo -e "  -> 正在下载初始节点快照镜像..."
-        curl -sSL -m 10 "https://cdn.jsdelivr.net/gh/baoweise-bot/aimili-vpngate@main/mirror/vpngate.csv" -o "${INSTALL_DIR}/mirror/vpngate.csv" 2>/dev/null || true
+        local mirror_csv_urls=(
+            "https://fastly.jsdelivr.net/gh/baoweise-bot/aimili-vpngate@main/mirror/vpngate.csv"
+            "https://baoweise-bot.github.io/aimili-vpngate/vpngate.csv"
+            "https://raw.githubusercontent.com/baoweise-bot/aimili-vpngate/main/mirror/vpngate.csv"
+            "https://ghproxy.net/https://raw.githubusercontent.com/baoweise-bot/aimili-vpngate/main/mirror/vpngate.csv"
+            "https://raw.githubusercontent.com/xiumuzidiao0/aimili-vpngate-go/main/mirror/vpngate.csv"
+            "https://cdn.jsdelivr.net/gh/baoweise-bot/aimili-vpngate@main/mirror/vpngate.csv"
+        )
+        for m_url in "${mirror_csv_urls[@]}"; do
+            if curl -sSL -f -m 10 "$m_url" -o "${INSTALL_DIR}/mirror/vpngate.csv" 2>/dev/null && [ -s "${INSTALL_DIR}/mirror/vpngate.csv" ]; then
+                break
+            fi
+        done
     fi
 
     # 确保完整的管理脚本安装到 /opt/aimilivpn/install.sh
