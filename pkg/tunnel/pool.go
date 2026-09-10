@@ -229,6 +229,8 @@ func (p *Pool) StartTunnel(node *nodes.Node) (*Tunnel, error) {
 				_ = os.Remove(confPath)
 			}
 
+			teardownTunnelInterface(devName, devIdx)
+
 			// Immediately recycle device index and remove dead tunnel so it doesn't leak virtual NICs
 			p.mu.Lock()
 			p.freeDevIndexLocked(devIdx)
@@ -249,6 +251,9 @@ func (p *Pool) StartTunnel(node *nodes.Node) (*Tunnel, error) {
 				t.ConnectedAt = time.Now()
 				t.Message = "已连接并就绪"
 				stats.LogInfo("TunnelPool", "隧道 [%s] (%s) 已成功连通！", tunnelID, devName)
+
+				go setupTunnelInterface(devName, devIdx)
+
 				if p.nodePool != nil && p.nodePool.Reputation() != nil && t.Node != nil {
 					p.nodePool.Reputation().RecordSuccess(t.Node.IP, t.Node.ID)
 				}
@@ -349,6 +354,8 @@ func (p *Pool) StopTunnel(tunnelID string) error {
 	}
 	t.mu.Unlock()
 
+	teardownTunnelInterface(t.DevName, devIdx)
+
 	// Free dev index only after the process has completely terminated
 	p.mu.Lock()
 	p.freeDevIndexLocked(devIdx)
@@ -356,6 +363,38 @@ func (p *Pool) StopTunnel(tunnelID string) error {
 
 	stats.LogInfo("TunnelPool", "隧道 [%s] (%s) 已关闭释放", tunnelID, t.DevName)
 	return nil
+}
+
+func setupTunnelInterface(devName string, devIndex int) {
+	if devName == "" {
+		return
+	}
+	tableID := 100 + devIndex
+
+	// 1. Enable loose reverse path filtering on the tunnel device to allow responses
+	_ = exec.Command("sysctl", "-w", fmt.Sprintf("net.ipv4.conf.%s.rp_filter=2", devName)).Run()
+	_ = exec.Command("sysctl", "-w", "net.ipv4.conf.all.rp_filter=2").Run()
+
+	// 2. Add policy routing rule and default route for the tunnel device
+	// This ensures packets bound to tunX via SO_BINDTODEVICE have a valid default gateway
+	_ = exec.Command("ip", "route", "replace", "default", "dev", devName, "table", fmt.Sprintf("%d", tableID)).Run()
+	_ = exec.Command("ip", "rule", "del", "oif", devName, "table", fmt.Sprintf("%d", tableID)).Run()
+	_ = exec.Command("ip", "rule", "add", "oif", devName, "table", fmt.Sprintf("%d", tableID), "priority", "1000").Run()
+
+	// 3. Also add high-metric default route in main table as fallback (metric 1000+ avoids touching default eth0 route)
+	_ = exec.Command("ip", "route", "replace", "default", "dev", devName, "metric", fmt.Sprintf("%d", 1000+devIndex)).Run()
+
+	stats.LogInfo("TunnelPool", "已为接口 %s 配置策略路由 (Table %d, Metric %d) 与 rp_filter", devName, tableID, 1000+devIndex)
+}
+
+func teardownTunnelInterface(devName string, devIndex int) {
+	if devName == "" {
+		return
+	}
+	tableID := 100 + devIndex
+	_ = exec.Command("ip", "rule", "del", "oif", devName, "table", fmt.Sprintf("%d", tableID)).Run()
+	_ = exec.Command("ip", "route", "del", "default", "dev", devName, "table", fmt.Sprintf("%d", tableID)).Run()
+	_ = exec.Command("ip", "route", "del", "default", "dev", devName, "metric", fmt.Sprintf("%d", 1000+devIndex)).Run()
 }
 
 func (p *Pool) ListTunnels() []*Tunnel {

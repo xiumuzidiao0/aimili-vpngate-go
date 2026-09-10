@@ -18,7 +18,9 @@ func dialUpstream(targetAddr string, devName string, timeout time.Duration) (net
 			fn := func(fd uintptr) {
 				if devName != "" {
 					// Dynamically bind to the specific tunnel device (tun0, tun1, tun2...)
-					_ = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, devName)
+					if err := syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, devName); err != nil {
+						operr = err
+					}
 				}
 			}
 			if err := c.Control(fn); err != nil {
@@ -38,7 +40,9 @@ func dialUpstream(targetAddr string, devName string, timeout time.Duration) (net
 					Control: func(netw, addr string, c syscall.RawConn) error {
 						var operr error
 						fn := func(fd uintptr) {
-							_ = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, devName)
+							if err := syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, devName); err != nil {
+								operr = err
+							}
 						}
 						if err := c.Control(fn); err != nil {
 							return err
@@ -46,7 +50,12 @@ func dialUpstream(targetAddr string, devName string, timeout time.Duration) (net
 						return operr
 					},
 				}
-				return dnsDialer.DialContext(ctx, "udp", "8.8.8.8:53")
+				conn, err := dnsDialer.DialContext(ctx, "udp", "8.8.8.8:53")
+				if err != nil {
+					// Fallback to Cloudflare DNS
+					return dnsDialer.DialContext(ctx, "udp", "1.1.1.1:53")
+				}
+				return conn, nil
 			},
 		}
 	}
