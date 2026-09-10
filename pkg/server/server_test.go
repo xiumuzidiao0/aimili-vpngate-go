@@ -226,4 +226,12 @@ func TestSecretPathStealth404(t *testing.T) {
 	if wSecret.Code != http.StatusOK || wSecret.Body.String() != "inside" {
 		t.Fatalf("expected 200 inside secret path, got %d", wSecret.Code)
 	}
+
+	// 5. Scoped secret path /mysecret/api/nodes -> 200
+	reqSecretAPI := httptest.NewRequest("GET", "/mysecret/api/nodes", nil)
+	wSecretAPI := httptest.NewRecorder()
+	handler.ServeHTTP(wSecretAPI, reqSecretAPI)
+	if wSecretAPI.Code != http.StatusOK || wSecretAPI.Body.String() != "inside" {
+		t.Fatalf("expected 200 inside /mysecret/api/nodes, got %d", wSecretAPI.Code)
+	}
 }

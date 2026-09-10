@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "source": "jsDelivr 全球加速 CDN",
-  "generated_at": 1788990315,
-  "generated_at_iso": "2026-09-09T21:45:15Z",
+  "source": "Fastly 全球加速 CDN",
+  "generated_at": 1789065546,
+  "generated_at_iso": "2026-09-10T18:39:06Z",
   "row_count": 99,
   "byte_count": 1333852,
   "sha256": "df1f496ba1475b98add50d1447d030d194b26ecd620a7f98ad4c8903240b5cbf"

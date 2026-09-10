@@ -1207,6 +1207,27 @@
     </div>
 
     <script>
+        // Auto-detect secret path prefix from current browser location (e.g. /mysecret or /enter)
+        const apiPrefix = (() => {
+            const parts = window.location.pathname.split('/').filter(Boolean);
+            if (parts.length > 0 && parts[0] !== 'api' && parts[0] !== 'metrics') {
+                return '/' + parts[0];
+            }
+            return '';
+        })();
+
+        // Automatically route all /api/ and /metrics requests through the current secret path prefix
+        // so that the browser always sends Basic Auth credentials and avoids cross-path 404s
+        const originalFetch = window.fetch;
+        window.fetch = function(input, init) {
+            if (typeof input === 'string' && apiPrefix) {
+                if (input.startsWith('/api/') || input === '/api' || input.startsWith('/metrics')) {
+                    input = apiPrefix + input;
+                }
+            }
+            return originalFetch(input, init);
+        };
+
         let allNodes = [];
         let currentState = null;
         let cachedUnlockMap = {};
@@ -1824,7 +1845,7 @@
 
         // Setup SSE connection
         function setupSSE() {
-            const es = new EventSource('/api/events');
+            const es = new EventSource((apiPrefix || '') + '/api/events');
             es.onopen = () => {
                 appendLog({ level: 'INFO', module: 'SSE', message: '已成功连通服务器实时推流总线' });
             };

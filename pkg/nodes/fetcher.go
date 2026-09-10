@@ -24,7 +24,7 @@ func NewFetcher(apiURL, mirrorURL string, snapshot *SnapshotManager) *Fetcher {
 		mirrorURL: mirrorURL,
 		snapshot:  snapshot,
 		client: &http.Client{
-			Timeout: 12 * time.Second,
+			Timeout: 25 * time.Second,
 		},
 	}
 }
@@ -89,7 +89,7 @@ func (f *Fetcher) FetchNodes(ctx context.Context) (*FetchResult, error) {
 			continue
 		}
 		stats.LogInfo("Nodes", "正在尝试拉取节点列表 [%s]: %s", src.name, src.url)
-		fetchCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		fetchCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		data, err := f.fetchURL(fetchCtx, src.url)
 		cancel()
 
