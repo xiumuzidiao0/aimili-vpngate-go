@@ -12,6 +12,7 @@ import (
 
 	"aimili-vpngate-go/pkg/config"
 	"aimili-vpngate-go/pkg/nodes"
+	"aimili-vpngate-go/pkg/notify"
 	"aimili-vpngate-go/pkg/proxy"
 	"aimili-vpngate-go/pkg/server"
 	"aimili-vpngate-go/pkg/stats"
@@ -48,7 +49,8 @@ func main() {
 	vpnMgr := vpn.NewManager(cfg, nodePool, tunnelPool)
 	dynamicGroupMgr := tunnel.NewDynamicGroupManager(cfg, tunnelPool, nodePool)
 	portMgr := proxy.NewMultiPortManager(cfg, tunnelPool, dynamicGroupMgr)
-	webServer := server.NewServer(cfg, nodePool, vpnMgr, tunnelPool, dynamicGroupMgr, portMgr)
+	notifier := notify.NewTelegramNotifier(cfg)
+	webServer := server.NewServer(cfg, nodePool, vpnMgr, tunnelPool, dynamicGroupMgr, portMgr, notifier)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -67,6 +69,78 @@ func main() {
 	vpnMgr.StartHealthChecker(ctx)
 	vpnMgr.StartAutoRotator(ctx)
 	dynamicGroupMgr.StartEvaluationLoop(ctx)
+
+	// 4. Start Telegram Bot Polling & Alerting
+	notifier.StartPolling(ctx, func(cmd, args string) string {
+		switch cmd {
+		case "/status":
+			tr := stats.GetTrafficTracker().Snapshot()
+			state := vpnMgr.Snapshot()
+			tuns := tunnelPool.ListTunnels()
+			return fmt.Sprintf("📊 <b>AimiliVPN 实时状态</b>\n\n"+
+				"<b>版本:</b> v%s\n"+
+				"<b>主隧道状态:</b> %s (%s)\n"+
+				"<b>并发在线出口:</b> %d 个\n"+
+				"<b>活跃代理连接:</b> %d\n"+
+				"<b>上行网速:</b> %.2f KB/s (总计 %d MB)\n"+
+				"<b>下行网速:</b> %.2f KB/s (总计 %d MB)\n"+
+				"<b>主隧道运行:</b> %d 秒",
+				config.Version,
+				state.Status, state.ActiveNodeID,
+				len(tuns),
+				tr.ActiveConnections,
+				float64(tr.UploadSpeedBps)/1024, tr.TotalUploadBytes/(1024*1024),
+				float64(tr.DownloadSpeedBps)/1024, tr.TotalDownloadBytes/(1024*1024),
+				state.UptimeSeconds)
+
+		case "/tunnels":
+			tuns := tunnelPool.ListTunnels()
+			if len(tuns) == 0 {
+				return "暂无独立并发隧道运行中。"
+			}
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("🌐 <b>在线隧道列表 (%d 个):</b>\n\n", len(tuns)))
+			for _, t := range tuns {
+				nodeIP := ""
+				cShort := ""
+				if t.Node != nil {
+					nodeIP = t.Node.IP
+					cShort = t.Node.CountryShort
+				}
+				sb.WriteString(fmt.Sprintf("• <b>%s</b>: %s (%s) - %s [在线 %d 秒]\n",
+					t.DevName, nodeIP, cShort, t.Status, t.Uptime))
+			}
+			return sb.String()
+
+		case "/rotate":
+			go func() {
+				for _, g := range dynamicGroupMgr.ListGroups() {
+					if g.Enabled {
+						dynamicGroupMgr.EvaluateGroup(context.Background(), g)
+					}
+				}
+			}()
+			return "⚡ 已在后台触发全量动态自适应组重评与轮换！"
+
+		case "/ping":
+			return "🏓 Pong! AimiliVPN 代理守护进程正常运行中。"
+
+		case "/start", "/help":
+			fallthrough
+		default:
+			return "🤖 <b>AimiliVPN 交互控制指令菜单</b>\n\n" +
+				"<code>/status</code> - 查看网关运行状态与流量\n" +
+				"<code>/tunnels</code> - 查看当前在线隧道列表\n" +
+				"<code>/rotate</code> - 立即触发自适应池节点轮换\n" +
+				"<code>/ping</code> - 测试守护进程存活响应\n" +
+				"<code>/help</code> - 显示帮助菜单"
+		}
+	})
+
+	go func() {
+		time.Sleep(3 * time.Second)
+		notifier.NotifyStartup(config.Version, cfg.ProxyPort, cfg.UIPath)
+	}()
 
 	// 4. Initial fetch of nodes and auto-connect
 	go func() {

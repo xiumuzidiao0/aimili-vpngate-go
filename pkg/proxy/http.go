@@ -76,9 +76,8 @@ func handlePlainHTTP(client net.Conn, req *http.Request, devName string) error {
 	}
 	defer upstream.Close()
 
-	// Clean hop-by-hop and proxy headers
-	req.Header.Del("Proxy-Authorization")
-	req.Header.Del("Proxy-Connection")
+	// Clean hop-by-hop, proxy, and privacy-leaking headers
+	cleanPrivacyHeaders(req)
 
 	// Forward original request to upstream
 	if err := req.Write(upstream); err != nil {
@@ -88,4 +87,30 @@ func handlePlainHTTP(client net.Conn, req *http.Request, devName string) error {
 	// Pipe upstream response to client
 	relay(client, upstream)
 	return nil
+}
+
+// cleanPrivacyHeaders strips headers that reveal proxy usage, client real IP, or infrastructure details.
+func cleanPrivacyHeaders(req *http.Request) {
+	privacyHeaders := []string{
+		"Proxy-Authorization",
+		"Proxy-Connection",
+		"Proxy-Authenticate",
+		"Via",
+		"X-Forwarded-For",
+		"X-Forwarded-Proto",
+		"X-Forwarded-Host",
+		"X-Forwarded-Server",
+		"X-Real-IP",
+		"Forwarded",
+		"CF-Connecting-IP",
+		"True-Client-IP",
+		"X-Client-IP",
+		"X-Cluster-Client-IP",
+		"Fastly-Client-IP",
+		"X-Originating-IP",
+	}
+
+	for _, h := range privacyHeaders {
+		req.Header.Del(h)
+	}
 }

@@ -26,8 +26,9 @@ type Tunnel struct {
 	Status      TunnelStatus `json:"status"`       // connecting, connected, failed, stopped
 	Message     string       `json:"message"`      // latest status description
 	ConnectedAt time.Time    `json:"connected_at"` // handshake completed time
-	Uptime      int64        `json:"uptime"`       // seconds online
-	LatencyMs   int          `json:"latency_ms"`   // real-time probe latency
+	Uptime      int64         `json:"uptime"`       // seconds online
+	LatencyMs   int           `json:"latency_ms"`   // real-time probe latency
+	Unlock      *UnlockResult `json:"unlock,omitempty"` // AI and Streaming unlock probe status
 
 	// Internal lifecycle management
 	mu         sync.RWMutex
@@ -58,6 +59,12 @@ func (t *Tunnel) Snapshot() *Tunnel {
 		uptime = int64(time.Since(t.ConnectedAt).Seconds())
 	}
 
+	var unlockCopy *UnlockResult
+	if t.Unlock != nil {
+		cp := *t.Unlock
+		unlockCopy = &cp
+	}
+
 	return &Tunnel{
 		ID:          t.ID,
 		DevName:     t.DevName,
@@ -68,5 +75,6 @@ func (t *Tunnel) Snapshot() *Tunnel {
 		ConnectedAt: t.ConnectedAt,
 		Uptime:      uptime,
 		LatencyMs:   t.LatencyMs,
+		Unlock:      unlockCopy,
 	}
 }

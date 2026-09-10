@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"aimili-vpngate-go/pkg/config"
 	"aimili-vpngate-go/pkg/nodes"
@@ -397,6 +398,72 @@ func (s *Server) handleEvaluateTunnelGroups(w http.ResponseWriter, r *http.Reque
 	s.writeJSON(w, http.StatusOK, map[string]string{
 		"message": "已在后台启动全量动态自适应组评估与轮换",
 	})
+}
+
+func (s *Server) handleGetUnlockStatus(w http.ResponseWriter, r *http.Request) {
+	if s.tunnelPool == nil || s.tunnelPool.UnlockDetector() == nil {
+		s.writeJSON(w, http.StatusOK, map[string]*tunnel.UnlockResult{})
+		return
+	}
+	s.writeJSON(w, http.StatusOK, s.tunnelPool.UnlockDetector().GetAllCached())
+}
+
+type ProbeUnlockRequest struct {
+	TunnelID string `json:"tunnel_id"`
+}
+
+func (s *Server) handleProbeTunnelUnlock(w http.ResponseWriter, r *http.Request) {
+	var req ProbeUnlockRequest
+	_ = json.NewDecoder(r.Body).Decode(&req)
+
+	if s.tunnelPool == nil {
+		s.writeError(w, http.StatusInternalServerError, "隧道池未初始化")
+		return
+	}
+
+	t := s.tunnelPool.GetTunnel(req.TunnelID)
+	if t == nil || t.Node == nil {
+		s.writeError(w, http.StatusBadRequest, "指定隧道不存在或未上线")
+		return
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		res := s.tunnelPool.UnlockDetector().ProbeTunnel(ctx, t.DevName, t.Node.IP)
+		t.Unlock = res
+	}()
+
+	s.writeJSON(w, http.StatusOK, map[string]string{
+		"message": "已在后台启动流媒体与 AI 解锁探测",
+	})
+}
+
+func (s *Server) handleTelegramTest(w http.ResponseWriter, r *http.Request) {
+	if s.notifier == nil {
+		s.writeError(w, http.StatusBadRequest, "Telegram 通知模块未就绪")
+		return
+	}
+	if !s.notifier.IsConfigured() {
+		s.writeError(w, http.StatusBadRequest, "请先填写并保存 Telegram Bot Token 与 Chat ID")
+		return
+	}
+	err := s.notifier.SendMessage("🔔 <b>测试通知</b>: 这是一条来自 AimiliVPN Web 控制台的 Telegram 连通性测试消息。配置成功！")
+	if err != nil {
+		s.writeError(w, http.StatusBadRequest, fmt.Sprintf("发送失败: %v", err))
+		return
+	}
+	s.writeJSON(w, http.StatusOK, map[string]string{
+		"message": "测试消息发送成功，请在 Telegram 查收！",
+	})
+}
+
+func (s *Server) handleGetReputation(w http.ResponseWriter, r *http.Request) {
+	if s.pool == nil || s.pool.Reputation() == nil {
+		s.writeJSON(w, http.StatusOK, map[string]*nodes.NodeReputation{})
+		return
+	}
+	s.writeJSON(w, http.StatusOK, s.pool.Reputation().GetAllRecords())
 }
 
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {

@@ -34,6 +34,33 @@ func TestAuthenticator(t *testing.T) {
 	}
 }
 
+func TestCleanPrivacyHeaders(t *testing.T) {
+	req, _ := http.NewRequest("GET", "http://example.com/test", nil)
+	req.Header.Set("X-Forwarded-For", "203.0.113.195")
+	req.Header.Set("Via", "1.1 proxy.example.com")
+	req.Header.Set("CF-Connecting-IP", "203.0.113.195")
+	req.Header.Set("Proxy-Connection", "keep-alive")
+	req.Header.Set("User-Agent", "TestBrowser/1.0")
+
+	cleanPrivacyHeaders(req)
+
+	if req.Header.Get("X-Forwarded-For") != "" {
+		t.Errorf("expected X-Forwarded-For to be deleted")
+	}
+	if req.Header.Get("Via") != "" {
+		t.Errorf("expected Via to be deleted")
+	}
+	if req.Header.Get("CF-Connecting-IP") != "" {
+		t.Errorf("expected CF-Connecting-IP to be deleted")
+	}
+	if req.Header.Get("Proxy-Connection") != "" {
+		t.Errorf("expected Proxy-Connection to be deleted")
+	}
+	if req.Header.Get("User-Agent") != "TestBrowser/1.0" {
+		t.Errorf("expected User-Agent to be preserved")
+	}
+}
+
 func TestGatewaySocks5AndHTTP(t *testing.T) {
 	// 1. Setup a dummy target TCP echo server
 	echoLn, err := net.Listen("tcp", "127.0.0.1:0")

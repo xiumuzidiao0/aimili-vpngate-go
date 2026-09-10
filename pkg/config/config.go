@@ -46,6 +46,10 @@ type Config struct {
 	AutoRotateMinutes int    // 0 = 禁用, > 0 轮换周期分钟
 	AutoRotateIPType  string // all / residential / hosting
 
+	// Telegram 机器人告警与远程交互
+	TelegramBotToken string
+	TelegramChatID   string
+
 	// OpenVPN parameters
 	OpenVPNCommand  string
 	OpenVPNAuthUser string
@@ -66,6 +70,8 @@ type SettingsDTO struct {
 	AutoRotateMinutes  int      `json:"auto_rotate_minutes"`
 	AutoRotateIPType   string   `json:"auto_rotate_ip_type"`
 	DiscoveryCountries []string `json:"discovery_countries"`
+	TelegramBotToken   string   `json:"telegram_bot_token"`
+	TelegramChatID     string   `json:"telegram_chat_id"`
 }
 
 func getEnv(key, defaultVal string) string {
@@ -162,6 +168,9 @@ func LoadConfig() *Config {
 		AutoRotateMinutes: getEnvInt("AUTO_ROTATE_INTERVAL_MINUTES", 0, 0, 1440),
 		AutoRotateIPType:  getEnv("AUTO_ROTATE_IP_TYPE", "all"),
 
+		TelegramBotToken: getEnv("TELEGRAM_BOT_TOKEN", ""),
+		TelegramChatID:   getEnv("TELEGRAM_CHAT_ID", ""),
+
 		OpenVPNCommand:  getEnv("OPENVPN_CMD", "openvpn"),
 		OpenVPNAuthUser: getEnv("OPENVPN_AUTH_USER", "vpn"),
 		OpenVPNAuthPass: getEnv("OPENVPN_AUTH_PASS", "vpn"),
@@ -183,6 +192,8 @@ func (c *Config) GetSettings() SettingsDTO {
 		AutoRotateMinutes:  c.AutoRotateMinutes,
 		AutoRotateIPType:   c.AutoRotateIPType,
 		DiscoveryCountries: c.DiscoveryCountries,
+		TelegramBotToken:   c.TelegramBotToken,
+		TelegramChatID:     c.TelegramChatID,
 	}
 }
 
@@ -220,6 +231,8 @@ func (c *Config) UpdateSettings(dto SettingsDTO) error {
 	if dto.DiscoveryCountries != nil {
 		c.DiscoveryCountries = dto.DiscoveryCountries
 	}
+	c.TelegramBotToken = strings.TrimSpace(dto.TelegramBotToken)
+	c.TelegramChatID = strings.TrimSpace(dto.TelegramChatID)
 	if dto.ProxyPass != "" {
 		c.ProxyPass = strings.TrimSpace(dto.ProxyPass)
 	}
@@ -252,6 +265,8 @@ TARGET_VALID_NODES=%d
 AUTO_ROTATE_INTERVAL_MINUTES=%d
 AUTO_ROTATE_IP_TYPE=%s
 DISCOVERY_COUNTRIES=%s
+TELEGRAM_BOT_TOKEN=%s
+TELEGRAM_CHAT_ID=%s
 `,
 				c.DataDir,
 				c.UIHost,
@@ -270,6 +285,8 @@ DISCOVERY_COUNTRIES=%s
 				c.AutoRotateMinutes,
 				c.AutoRotateIPType,
 				strings.Join(c.DiscoveryCountries, ","),
+				c.TelegramBotToken,
+				c.TelegramChatID,
 			)
 			_ = os.WriteFile(p, []byte(content), 0600)
 			break

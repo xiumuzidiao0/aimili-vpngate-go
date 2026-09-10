@@ -561,7 +561,9 @@
                             <th>网络类型 / ISP</th>
                             <th>协议</th>
                             <th onclick="toggleSort('latency')" style="cursor: pointer; user-select: none;" title="点击按测速延迟排序">测速延迟 / 状态 <span id="sort-icon-latency">⇅</span></th>
-                            <th onclick="toggleSort('score')" style="cursor: pointer; user-select: none;" title="点击按评分排序">VPNGate 评分 <span id="sort-icon-score">⇅</span></th>
+                            <th>历史信誉</th>
+                            <th>AI/流媒体解锁</th>
+                            <th onclick="toggleSort('score')" style="cursor: pointer; user-select: none;" title="点击按评分排序">评分 <span id="sort-icon-score">⇅</span></th>
                             <th onclick="toggleSort('speed')" style="cursor: pointer; user-select: none;" title="点击按带宽排序">带宽 <span id="sort-icon-speed">⇅</span></th>
                             <th>操作</th>
                         </tr>
@@ -642,6 +644,20 @@
                     <div class="form-group">
                         <label class="form-label">节点发现与首选国家代码 (例如: JP,US,KR，留空不限)</label>
                         <input id="cfg-discovery-countries" class="input-field" style="width: 100%;" type="text" placeholder="例如: JP,US,KR">
+                    </div>
+                </div>
+                <div style="border-top: 1px solid var(--border-color); margin: 18px 0 14px 0; padding-top: 14px;">
+                    <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px; color: #38bdf8; display: flex; justify-content: space-between; align-items: center;">
+                        <span>🤖 Telegram 机器人告警与交互设置</span>
+                        <button type="button" class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="testTelegramAlert()">🔔 发送测试消息</button>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Telegram Bot Token (从 @BotFather 获取)</label>
+                        <input id="cfg-tg-token" class="input-field" style="width: 100%; font-family: monospace;" type="text" placeholder="例如: 123456789:ABCdefGhIJKlmNoPQRstuVWXyz">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Telegram 接收 Chat ID (个人或频道 ID)</label>
+                        <input id="cfg-tg-chatid" class="input-field" style="width: 100%; font-family: monospace;" type="text" placeholder="例如: 987654321">
                     </div>
                 </div>
                 <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
@@ -903,6 +919,66 @@
     <script>
         let allNodes = [];
         let currentState = null;
+        let cachedUnlockMap = {};
+
+        function renderUnlockBadges(u) {
+            if (!u) return '<span style="color:var(--text-muted); font-size:11px;">未检测</span>';
+            const badges = [];
+            if (u.openai === 'unlocked') badges.push('<span class="badge" style="background:rgba(16,185,129,0.15); color:#34d399; font-size:10px; padding:1px 5px;" title="OpenAI / ChatGPT 解锁正常">GPT:✅</span>');
+            else if (u.openai === 'blocked') badges.push('<span class="badge" style="background:rgba(239,68,68,0.15); color:#f87171; font-size:10px; padding:1px 5px;" title="OpenAI 阻断拦截">GPT:❌</span>');
+
+            if (u.claude === 'unlocked') badges.push('<span class="badge" style="background:rgba(168,85,247,0.15); color:#c084fc; font-size:10px; padding:1px 5px;" title="Claude / Anthropic 访问正常">Claude:✅</span>');
+            else if (u.claude === 'blocked') badges.push('<span class="badge" style="background:rgba(239,68,68,0.15); color:#f87171; font-size:10px; padding:1px 5px;" title="Claude 风控拦截">Claude:❌</span>');
+
+            if (u.netflix === 'unlocked') badges.push('<span class="badge" style="background:rgba(245,158,11,0.15); color:#fbbf24; font-size:10px; padding:1px 5px;" title="Netflix 原生流媒体解锁">NF:✅</span>');
+            else if (u.netflix === 'blocked') badges.push('<span class="badge" style="background:rgba(239,68,68,0.15); color:#f87171; font-size:10px; padding:1px 5px;" title="Netflix 限制访问">NF:❌</span>');
+
+            if (u.google === 'unlocked') badges.push('<span class="badge" style="background:rgba(59,130,246,0.15); color:#60a5fa; font-size:10px; padding:1px 5px;" title="Google Search 干净无验证码">G:✅</span>');
+            else if (u.google === 'blocked') badges.push('<span class="badge" style="background:rgba(239,68,68,0.15); color:#f87171; font-size:10px; padding:1px 5px;" title="Google 出现验证码异常">G:⚠️</span>');
+
+            if (badges.length === 0) return '<span style="color:var(--text-muted); font-size:11px;">未检测</span>';
+            return `<div style="display:flex; gap:3px; flex-wrap:wrap;">${badges.join('')}</div>`;
+        }
+
+        async function fetchUnlockCache() {
+            try {
+                const res = await fetch('/api/unlock');
+                if (res.ok) {
+                    cachedUnlockMap = await res.json() || {};
+                }
+            } catch(e) {}
+        }
+
+        async function probeTunnelUnlock(tunnelId) {
+            appendLog({ level: 'INFO', module: 'Unlock', message: `正在对隧道 ${tunnelId} 启动流媒体与 AI 解锁探测...` });
+            try {
+                await fetch('/api/unlock/probe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tunnel_id: tunnelId })
+                });
+                setTimeout(async () => {
+                    await fetchUnlockCache();
+                    fetchStatus();
+                }, 3500);
+            } catch(err) {
+                alert('探测请求失败: ' + err);
+            }
+        }
+
+        async function testTelegramAlert() {
+            try {
+                const res = await fetch('/api/telegram/test', { method: 'POST' });
+                const ret = await res.json();
+                if (res.ok) {
+                    alert(ret.message || '测试消息发送成功！');
+                } else {
+                    alert('测试失败: ' + (ret.error || '未知错误'));
+                }
+            } catch(err) {
+                alert('请求失败: ' + err);
+            }
+        }
 
         const countryNames = {
             JP: '日本', US: '美国', KR: '韩国', TW: '台湾', HK: '香港',
@@ -1059,13 +1135,16 @@
                             const flag = cCode ? getCountryFlagSVG(cCode) : '';
                             const ip = t.node ? `${t.node.ip}:${t.node.port}` : '';
                             const pingStr = t.node && t.node.latency_ms > 0 ? `${t.node.latency_ms}ms` : '';
+                            const unlockBadges = renderUnlockBadges(t.unlock || (t.node ? cachedUnlockMap[t.node.ip] : null));
                             return `
-                                <div style="display: inline-flex; align-items: center; gap: 6px; background: var(--bg-card); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 12px;">
+                                <div style="display: inline-flex; align-items: center; gap: 6px; background: var(--bg-card); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 12px; flex-wrap: wrap;">
                                     <span class="status-dot" style="background:${t.status === 'connected' ? '#10b981' : '#f59e0b'};"></span>
                                     <strong style="font-family: monospace; color: var(--primary);">${t.dev_name}</strong>
                                     <span class="flag-box" style="font-size: 11px;">${flag} ${ip}</span>
                                     ${pingStr ? `<span style="color:#34d399; font-size:11px;">(${pingStr})</span>` : ''}
-                                    <button class="btn btn-danger" style="padding: 1px 6px; font-size: 10px; margin-left: 4px;" onclick="stopTunnel('${t.id}')">断开</button>
+                                    <div style="display:flex; align-items:center; gap:3px;">${unlockBadges}</div>
+                                    <button class="btn btn-outline" style="padding: 1px 5px; font-size: 10px;" onclick="probeTunnelUnlock('${t.id}')" title="探测该隧道的流媒体与AI解锁状态">⚡ 测解锁</button>
+                                    <button class="btn btn-danger" style="padding: 1px 6px; font-size: 10px;" onclick="stopTunnel('${t.id}')">断开</button>
                                 </div>
                             `;
                         }).join('');
@@ -1083,14 +1162,19 @@
                             const ip = t.node ? `${t.node.ip}:${t.node.port}` : '';
                             const isUp = t.status === 'connected';
                             const badgeClass = isUp ? 'connected' : (t.status === 'connecting' ? 'connecting' : 'disconnected');
+                            const unlockBadges = renderUnlockBadges(t.unlock || (t.node ? cachedUnlockMap[t.node.ip] : null));
                             return `
-                                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 12px;">
-                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 12px; flex-wrap: wrap; gap: 6px;">
+                                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                                         <strong style="font-family: monospace; color: var(--primary);">${t.dev_name}</strong>
                                         <span class="badge ${badgeClass}" style="padding: 1px 5px; font-size: 10px;"><span class="status-dot"></span> ${t.status === 'connected' ? '在线' : t.status}</span>
                                         <span class="flag-box" style="font-size: 11px;">${flag} ${ip}</span>
+                                        <div style="display:flex; align-items:center; gap:3px;">${unlockBadges}</div>
                                     </div>
-                                    <button class="btn btn-danger" style="padding: 2px 7px; font-size: 10px;" onclick="stopTunnel('${t.id}')">断开</button>
+                                    <div style="display:flex; gap:4px;">
+                                        <button class="btn btn-outline" style="padding: 1px 5px; font-size: 10px;" onclick="probeTunnelUnlock('${t.id}')">⚡ 测解锁</button>
+                                        <button class="btn btn-danger" style="padding: 2px 7px; font-size: 10px;" onclick="stopTunnel('${t.id}')">断开</button>
+                                    </div>
                                 </div>
                             `;
                         }).join('');
@@ -1245,6 +1329,14 @@
                 const ispInfo = n.isp ? `<div style="font-size: 11px; color: var(--text-muted); max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${n.isp}">${n.isp}</div>` : '';
                 const cityInfo = n.city ? `<span style="color: var(--text-muted); font-size: 11.5px;"> · ${n.city}</span>` : '';
 
+                let repColor = '#34d399';
+                const repVal = n.reputation_score !== undefined ? n.reputation_score : 60;
+                if (repVal < 45) repColor = '#f87171';
+                else if (repVal < 70) repColor = '#fbbf24';
+                const repBadge = `<span class="badge" style="background: rgba(148, 163, 184, 0.12); color: ${repColor}; font-weight:600; font-size:11px;">⭐ ${repVal}分</span>`;
+
+                const unlockInfo = cachedUnlockMap[n.ip] ? renderUnlockBadges(cachedUnlockMap[n.ip]) : '<span style="color:var(--text-muted); font-size:11px;">-</span>';
+
                 return `
                     <tr style="${isCurrent ? 'background: rgba(59, 130, 246, 0.12);' : (activeTun ? 'background: rgba(16, 185, 129, 0.08);' : '')}">
                         <td style="text-align: center;">
@@ -1263,6 +1355,8 @@
                         <td>${typeTag}${ispInfo}</td>
                         <td><span class="badge badge-proto">${n.proto.toUpperCase()}</span></td>
                         <td>${latencyBadge}</td>
+                        <td>${repBadge}</td>
+                        <td>${unlockInfo}</td>
                         <td>${n.score}</td>
                         <td>${speedMbps}</td>
                         <td>
@@ -1375,6 +1469,8 @@
                 document.getElementById('cfg-auto-rotate').value = data.auto_rotate_minutes || 0;
                 document.getElementById('cfg-rotate-iptype').value = data.auto_rotate_ip_type || 'all';
                 document.getElementById('cfg-discovery-countries').value = (data.discovery_countries || []).join(',');
+                document.getElementById('cfg-tg-token').value = data.telegram_bot_token || '';
+                document.getElementById('cfg-tg-chatid').value = data.telegram_chat_id || '';
                 document.getElementById('settings-modal').style.display = 'flex';
             } catch (err) {
                 alert('获取系统配置失败: ' + err);
@@ -1416,6 +1512,8 @@
             const rotateIPType = document.getElementById('cfg-rotate-iptype').value;
             const countriesRaw = document.getElementById('cfg-discovery-countries').value.trim();
             const countries = countriesRaw ? countriesRaw.split(',').map(c => c.trim().toUpperCase()).filter(Boolean) : [];
+            const tgToken = document.getElementById('cfg-tg-token').value.trim();
+            const tgChatID = document.getElementById('cfg-tg-chatid').value.trim();
 
             const payload = {
                 ui_port: webPort,
@@ -1424,7 +1522,9 @@
                 proxy_port: proxyPort,
                 auto_rotate_minutes: autoRotate,
                 auto_rotate_ip_type: rotateIPType,
-                discovery_countries: countries
+                discovery_countries: countries,
+                telegram_bot_token: tgToken,
+                telegram_chat_id: tgChatID
             };
             if (pass) {
                 payload.ui_password = pass;
@@ -2032,11 +2132,13 @@
         }
 
         window.onload = () => {
+            fetchUnlockCache();
             fetchStatus();
             fetchNodes();
             setupSSE();
             setInterval(fetchStatus, 2000);
             setInterval(fetchNodes, 15000);
+            setInterval(fetchUnlockCache, 30000);
         };
     </script>
 </body>

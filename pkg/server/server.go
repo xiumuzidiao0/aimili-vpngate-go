@@ -11,6 +11,7 @@ import (
 
 	"aimili-vpngate-go/pkg/config"
 	"aimili-vpngate-go/pkg/nodes"
+	"aimili-vpngate-go/pkg/notify"
 	"aimili-vpngate-go/pkg/proxy"
 	"aimili-vpngate-go/pkg/stats"
 	"aimili-vpngate-go/pkg/tunnel"
@@ -25,13 +26,14 @@ type Server struct {
 	tunnelPool *tunnel.Pool
 	dynamicMgr *tunnel.DynamicGroupManager
 	portMgr    *proxy.MultiPortManager
+	notifier   *notify.TelegramNotifier
 	httpServer *http.Server
 	sseHub     *SSEHub
 	mu         sync.Mutex
 	listener   net.Listener
 }
 
-func NewServer(cfg *config.Config, pool *nodes.NodePool, vpnMgr *vpn.Manager, tp *tunnel.Pool, dm *tunnel.DynamicGroupManager, pm *proxy.MultiPortManager) *Server {
+func NewServer(cfg *config.Config, pool *nodes.NodePool, vpnMgr *vpn.Manager, tp *tunnel.Pool, dm *tunnel.DynamicGroupManager, pm *proxy.MultiPortManager, tn *notify.TelegramNotifier) *Server {
 	s := &Server{
 		cfg:        cfg,
 		pool:       pool,
@@ -39,6 +41,7 @@ func NewServer(cfg *config.Config, pool *nodes.NodePool, vpnMgr *vpn.Manager, tp
 		tunnelPool: tp,
 		dynamicMgr: dm,
 		portMgr:    pm,
+		notifier:   tn,
 	}
 	s.sseHub = NewSSEHub(s)
 	return s
@@ -74,6 +77,14 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/tunnel-groups", s.handleSaveTunnelGroup)
 	mux.HandleFunc("DELETE /api/tunnel-groups", s.handleDeleteTunnelGroup)
 	mux.HandleFunc("POST /api/tunnel-groups/evaluate", s.handleEvaluateTunnelGroups)
+
+	// AI & Streaming Unlock APIs
+	mux.HandleFunc("GET /api/unlock", s.handleGetUnlockStatus)
+	mux.HandleFunc("POST /api/unlock/probe", s.handleProbeTunnelUnlock)
+
+	// Reputation & Telegram Integration APIs
+	mux.HandleFunc("GET /api/reputation", s.handleGetReputation)
+	mux.HandleFunc("POST /api/telegram/test", s.handleTelegramTest)
 
 	// Static UI file server
 	fileServer := http.FileServer(web.GetFileSystem())

@@ -27,7 +27,7 @@ func TestServerAPI(t *testing.T) {
 	vpnMgr := vpn.NewManager(cfg, pool, tunnelPool)
 	dynamicMgr := tunnel.NewDynamicGroupManager(cfg, tunnelPool, pool)
 	portMgr := proxy.NewMultiPortManager(cfg, tunnelPool, dynamicMgr)
-	srv := NewServer(cfg, pool, vpnMgr, tunnelPool, dynamicMgr, portMgr)
+	srv := NewServer(cfg, pool, vpnMgr, tunnelPool, dynamicMgr, portMgr, nil)
 
 	// Test Status endpoint handler directly
 	req := httptest.NewRequest("GET", "/api/status", nil)

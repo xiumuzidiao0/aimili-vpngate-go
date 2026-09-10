@@ -18,21 +18,27 @@ import (
 )
 
 type Pool struct {
-	cfg        *config.Config
-	mu         sync.RWMutex
-	tunnels    map[string]*Tunnel
-	usedDevs   map[int]bool
-	nodePool   *nodes.NodePool
-	nextIDSeq  int
+	cfg            *config.Config
+	mu             sync.RWMutex
+	tunnels        map[string]*Tunnel
+	usedDevs       map[int]bool
+	nodePool       *nodes.NodePool
+	unlockDetector *UnlockDetector
+	nextIDSeq      int
 }
 
 func NewPool(cfg *config.Config, np *nodes.NodePool) *Pool {
 	return &Pool{
-		cfg:      cfg,
-		tunnels:  make(map[string]*Tunnel),
-		usedDevs: make(map[int]bool),
-		nodePool: np,
+		cfg:            cfg,
+		tunnels:        make(map[string]*Tunnel),
+		usedDevs:       make(map[int]bool),
+		nodePool:       np,
+		unlockDetector: NewUnlockDetector(cfg.DataDir),
 	}
+}
+
+func (p *Pool) UnlockDetector() *UnlockDetector {
+	return p.unlockDetector
 }
 
 func (p *Pool) allocDevIndexLocked() int {
@@ -163,11 +169,27 @@ func (p *Pool) StartTunnel(node *nodes.Node) (*Tunnel, error) {
 	go func() {
 		defer func() {
 			t.mu.Lock()
+			wasConnected := t.Status == StatusConnected
+			connectedAt := t.ConnectedAt
 			if t.Status == StatusConnecting || t.Status == StatusConnected {
 				t.Status = StatusFailed
 				t.Message = "进程退出"
 			}
+			node := t.Node
 			t.mu.Unlock()
+
+			if p.nodePool != nil && p.nodePool.Reputation() != nil && node != nil {
+				if wasConnected && !connectedAt.IsZero() {
+					uptimeSec := int64(time.Since(connectedAt).Seconds())
+					p.nodePool.Reputation().RecordUptime(node.IP, node.ID, uptimeSec)
+					if uptimeSec < 180 {
+						p.nodePool.Reputation().RecordFail(node.IP, node.ID, true)
+					}
+				} else {
+					p.nodePool.Reputation().RecordFail(node.IP, node.ID, false)
+				}
+			}
+
 			_ = cmd.Wait()
 		}()
 
@@ -182,6 +204,10 @@ func (p *Pool) StartTunnel(node *nodes.Node) (*Tunnel, error) {
 				t.ConnectedAt = time.Now()
 				t.Message = "已连接并就绪"
 				stats.LogInfo("TunnelPool", "隧道 [%s] (%s) 已成功连通！", tunnelID, devName)
+				if p.nodePool != nil && p.nodePool.Reputation() != nil && t.Node != nil {
+					p.nodePool.Reputation().RecordSuccess(t.Node.IP, t.Node.ID)
+				}
+				go p.probeUnlock(tunnelID)
 			} else if strings.Contains(line, "AUTH_FAILED") {
 				t.Status = StatusFailed
 				t.Message = "身份认证失败"
@@ -193,6 +219,34 @@ func (p *Pool) StartTunnel(node *nodes.Node) (*Tunnel, error) {
 	}()
 
 	return t, nil
+}
+
+func (p *Pool) probeUnlock(tunnelID string) {
+	p.mu.RLock()
+	t, ok := p.tunnels[tunnelID]
+	p.mu.RUnlock()
+	if !ok || t.Node == nil {
+		return
+	}
+
+	if p.unlockDetector == nil {
+		return
+	}
+
+	if cached := p.unlockDetector.GetUnlock(t.Node.IP); cached != nil {
+		t.mu.Lock()
+		t.Unlock = cached
+		t.mu.Unlock()
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	res := p.unlockDetector.ProbeTunnel(ctx, t.DevName, t.Node.IP)
+	t.mu.Lock()
+	t.Unlock = res
+	t.mu.Unlock()
 }
 
 func (p *Pool) StopTunnel(tunnelID string) error {

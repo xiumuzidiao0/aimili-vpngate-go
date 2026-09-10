@@ -17,9 +17,10 @@ type NodePool struct {
 	cfg       *config.Config
 	fetcher   *Fetcher
 	snapshot  *SnapshotManager
-	blacklist *BlacklistManager
-	enricher  *IPEnricher
-	favorites *FavoritesManager
+	blacklist  *BlacklistManager
+	enricher   *IPEnricher
+	favorites  *FavoritesManager
+	reputation *ReputationManager
 
 	mu          sync.RWMutex
 	candidates  []*Node
@@ -34,6 +35,7 @@ func NewNodePool(cfg *config.Config) *NodePool {
 	bm := NewBlacklistManager(cfg.DataDir)
 	enricher := NewIPEnricher(cfg.DataDir)
 	favorites := NewFavoritesManager(cfg.DataDir)
+	reputation := NewReputationManager(cfg.DataDir)
 
 	return &NodePool{
 		cfg:        cfg,
@@ -42,6 +44,7 @@ func NewNodePool(cfg *config.Config) *NodePool {
 		blacklist:  bm,
 		enricher:   enricher,
 		favorites:  favorites,
+		reputation: reputation,
 		lastStatus: "初始化中",
 	}
 }
@@ -189,6 +192,11 @@ func (np *NodePool) GetCandidates() []*Node {
 	for i, n := range np.candidates {
 		cp := *n
 		cp.IsFavorite = np.favorites.IsFavorite(n.ID)
+		if np.reputation != nil {
+			cp.ReputationScore = np.reputation.GetScore(n.IP)
+		} else {
+			cp.ReputationScore = 60
+		}
 		res[i] = &cp
 	}
 	return res
@@ -196,6 +204,10 @@ func (np *NodePool) GetCandidates() []*Node {
 
 func (np *NodePool) Favorites() *FavoritesManager {
 	return np.favorites
+}
+
+func (np *NodePool) Reputation() *ReputationManager {
+	return np.reputation
 }
 
 func (np *NodePool) GetNodeByID(id string) *Node {
@@ -206,6 +218,11 @@ func (np *NodePool) GetNodeByID(id string) *Node {
 		if n.ID == id || n.IP == id {
 			cp := *n
 			cp.IsFavorite = np.favorites.IsFavorite(n.ID)
+			if np.reputation != nil {
+				cp.ReputationScore = np.reputation.GetScore(n.IP)
+			} else {
+				cp.ReputationScore = 60
+			}
 			return &cp
 		}
 	}
@@ -259,7 +276,19 @@ func (np *NodePool) SelectBestWithFilter(ipType string, countries []string, pref
 	}
 	if len(reachable) > 0 {
 		sort.Slice(reachable, func(i, j int) bool {
-			return reachable[i].LatencyMs < reachable[j].LatencyMs
+			scoreA := 60
+			scoreB := 60
+			if np.reputation != nil {
+				scoreA = np.reputation.GetScore(reachable[i].IP)
+				scoreB = np.reputation.GetScore(reachable[j].IP)
+			}
+			if (scoreA < 35) != (scoreB < 35) {
+				return scoreA >= 35
+			}
+			if reachable[i].LatencyMs != reachable[j].LatencyMs {
+				return reachable[i].LatencyMs < reachable[j].LatencyMs
+			}
+			return scoreA > scoreB
 		})
 		return reachable[0]
 	}
@@ -284,7 +313,19 @@ func (np *NodePool) selectBestLocked() *Node {
 	}
 	if len(reachable) > 0 {
 		sort.Slice(reachable, func(i, j int) bool {
-			return reachable[i].LatencyMs < reachable[j].LatencyMs
+			scoreA := 60
+			scoreB := 60
+			if np.reputation != nil {
+				scoreA = np.reputation.GetScore(reachable[i].IP)
+				scoreB = np.reputation.GetScore(reachable[j].IP)
+			}
+			if (scoreA < 35) != (scoreB < 35) {
+				return scoreA >= 35
+			}
+			if reachable[i].LatencyMs != reachable[j].LatencyMs {
+				return reachable[i].LatencyMs < reachable[j].LatencyMs
+			}
+			return scoreA > scoreB
 		})
 		return reachable[0]
 	}
