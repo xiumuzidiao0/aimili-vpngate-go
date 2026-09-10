@@ -259,7 +259,7 @@ func (c *Client) AddNode(ctx context.Context, protocol, port, uuidOrPass, sniOrH
 
 	args := []string{"add", protocol, port, uuidOrPass, sniOrHost}
 	if outbound != "" {
-		args = append(args, outbound)
+		args = append(args, "--outbound", outbound)
 	}
 
 	data, err := c.execAPI(ctxTimeout, args...)
