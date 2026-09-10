@@ -90,6 +90,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/telegram/test", s.handleTelegramTest)
 
 	// sing-box Inbound & Outbound Integration APIs
+	mux.HandleFunc("GET /api/singbox/overview", s.handleSingBoxOverview)
 	mux.HandleFunc("GET /api/singbox/status", s.handleSingBoxStatus)
 	mux.HandleFunc("GET /api/singbox/protocols", s.handleSingBoxProtocols)
 	mux.HandleFunc("GET /api/singbox/nodes", s.handleSingBoxListNodes)

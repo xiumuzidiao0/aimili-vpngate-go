@@ -111,6 +111,14 @@ func TestServerAPI(t *testing.T) {
 	if wSBProtos.Code != http.StatusOK {
 		t.Fatalf("expected singbox protocols 200, got %d", wSBProtos.Code)
 	}
+
+	// Test sing-box overview endpoint
+	reqSBOverview := httptest.NewRequest("GET", "/api/singbox/overview", nil)
+	wSBOverview := httptest.NewRecorder()
+	srv.handleSingBoxOverview(wSBOverview, reqSBOverview)
+	if wSBOverview.Code != http.StatusOK {
+		t.Fatalf("expected singbox overview 200, got %d", wSBOverview.Code)
+	}
 }
 
 func TestBasicAuthMiddleware(t *testing.T) {
