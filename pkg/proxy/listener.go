@@ -16,6 +16,7 @@ type PortRule struct {
 	Port            int        `json:"port"`
 	Enabled         bool       `json:"enabled"`
 	BoundTunnelIDs  []string   `json:"bound_tunnel_ids"`
+	BoundGroupIDs   []string   `json:"bound_group_ids"` // Dynamic group IDs
 	Policy          PortPolicy `json:"policy"`
 	IntervalSeconds int        `json:"interval_seconds"`
 	AuthMode        string     `json:"auth_mode"` // "default_web", "custom", "none"
@@ -135,7 +136,7 @@ func (l *PortListener) dispatch(client net.Conn) {
 	// Select destination tunnel device for this connection
 	devName := ""
 	if l.scheduler != nil {
-		if tun := l.scheduler.SelectTunnel(l.rule.Port, l.rule.BoundTunnelIDs, l.rule.Policy, l.rule.IntervalSeconds); tun != nil {
+		if tun := l.scheduler.SelectTunnel(l.rule.Port, l.rule.BoundTunnelIDs, l.rule.BoundGroupIDs, l.rule.Policy, l.rule.IntervalSeconds); tun != nil {
 			devName = tun.DevName
 		}
 	}

@@ -25,8 +25,9 @@ func TestServerAPI(t *testing.T) {
 	pool := nodes.NewNodePool(cfg)
 	tunnelPool := tunnel.NewPool(cfg, pool)
 	vpnMgr := vpn.NewManager(cfg, pool, tunnelPool)
-	portMgr := proxy.NewMultiPortManager(cfg, tunnelPool)
-	srv := NewServer(cfg, pool, vpnMgr, tunnelPool, portMgr)
+	dynamicMgr := tunnel.NewDynamicGroupManager(cfg, tunnelPool, pool)
+	portMgr := proxy.NewMultiPortManager(cfg, tunnelPool, dynamicMgr)
+	srv := NewServer(cfg, pool, vpnMgr, tunnelPool, dynamicMgr, portMgr)
 
 	// Test Status endpoint handler directly
 	req := httptest.NewRequest("GET", "/api/status", nil)
@@ -76,6 +77,23 @@ func TestServerAPI(t *testing.T) {
 	}
 	if srv.cfg.GetSettings().UIUsername != "newadmin" {
 		t.Fatalf("expected newadmin, got %s", srv.cfg.GetSettings().UIUsername)
+	}
+
+	// Test Save Dynamic Tunnel Group
+	groupJSON := `{"id":"test-dg","name":"日本Top3住宅组","enabled":true,"country":"JP","ip_type":"residential","sort_by":"latency","target_count":3,"interval_minutes":15}`
+	reqGroup := httptest.NewRequest("POST", "/api/tunnel-groups", strings.NewReader(groupJSON))
+	wGroup := httptest.NewRecorder()
+	srv.handleSaveTunnelGroup(wGroup, reqGroup)
+	if wGroup.Code != http.StatusOK {
+		t.Fatalf("expected save group 200, got %d", wGroup.Code)
+	}
+
+	// Test List Dynamic Groups
+	reqListGroups := httptest.NewRequest("GET", "/api/tunnel-groups", nil)
+	wListGroups := httptest.NewRecorder()
+	srv.handleListTunnelGroups(wListGroups, reqListGroups)
+	if wListGroups.Code != http.StatusOK {
+		t.Fatalf("expected list groups 200, got %d", wListGroups.Code)
 	}
 }
 

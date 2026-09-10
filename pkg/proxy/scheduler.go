@@ -18,26 +18,59 @@ const (
 )
 
 type TunnelSelector interface {
-	SelectTunnel(port int, boundIDs []string, policy PortPolicy, intervalSec int) *tunnel.Tunnel
+	SelectTunnel(port int, boundIDs []string, boundGroupIDs []string, policy PortPolicy, intervalSec int) *tunnel.Tunnel
 }
 
 type DefaultScheduler struct {
-	pool    *tunnel.Pool
-	counter atomic.Uint64
+	pool       *tunnel.Pool
+	dynamicMgr *tunnel.DynamicGroupManager
+	counter    atomic.Uint64
 }
 
-func NewScheduler(pool *tunnel.Pool) *DefaultScheduler {
-	return &DefaultScheduler{pool: pool}
+func NewScheduler(pool *tunnel.Pool, dm *tunnel.DynamicGroupManager) *DefaultScheduler {
+	return &DefaultScheduler{
+		pool:       pool,
+		dynamicMgr: dm,
+	}
 }
 
-func (s *DefaultScheduler) SelectTunnel(port int, boundIDs []string, policy PortPolicy, intervalSec int) *tunnel.Tunnel {
+func (s *DefaultScheduler) SelectTunnel(port int, boundIDs []string, boundGroupIDs []string, policy PortPolicy, intervalSec int) *tunnel.Tunnel {
 	if s.pool == nil {
 		return nil
 	}
 
-	healthy := s.pool.GetHealthyTunnels(boundIDs)
+	seen := make(map[string]bool)
+	var healthy []*tunnel.Tunnel
+
+	// 1. Resolve tunnels from bound dynamic groups
+	if s.dynamicMgr != nil && len(boundGroupIDs) > 0 {
+		groupTunnels := s.dynamicMgr.GetTunnelsForGroups(boundGroupIDs)
+		for _, t := range groupTunnels {
+			if t.IsHealthy() && !seen[t.ID] {
+				healthy = append(healthy, t)
+				seen[t.ID] = true
+			}
+		}
+	}
+
+	// 2. Resolve tunnels from explicitly bound static IDs
+	if len(boundIDs) > 0 {
+		staticTunnels := s.pool.GetHealthyTunnels(boundIDs)
+		for _, t := range staticTunnels {
+			if t.IsHealthy() && !seen[t.ID] {
+				healthy = append(healthy, t)
+				seen[t.ID] = true
+			}
+		}
+	}
+
+	// 3. Fallback if no specific bound tunnels were chosen
+	if len(boundIDs) == 0 && len(boundGroupIDs) == 0 {
+		healthy = s.pool.GetHealthyTunnels(nil)
+	}
+
 	if len(healthy) == 0 {
-		// Fall back to any healthy tunnel in the pool
+		// Ultimate fallback: try any healthy tunnel in the whole pool
 		healthy = s.pool.GetHealthyTunnels(nil)
 		if len(healthy) == 0 {
 			return nil

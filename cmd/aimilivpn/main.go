@@ -46,8 +46,9 @@ func main() {
 	nodePool := nodes.NewNodePool(cfg)
 	tunnelPool := tunnel.NewPool(cfg, nodePool)
 	vpnMgr := vpn.NewManager(cfg, nodePool, tunnelPool)
-	portMgr := proxy.NewMultiPortManager(cfg, tunnelPool)
-	webServer := server.NewServer(cfg, nodePool, vpnMgr, tunnelPool, portMgr)
+	dynamicGroupMgr := tunnel.NewDynamicGroupManager(cfg, tunnelPool, nodePool)
+	portMgr := proxy.NewMultiPortManager(cfg, tunnelPool, dynamicGroupMgr)
+	webServer := server.NewServer(cfg, nodePool, vpnMgr, tunnelPool, dynamicGroupMgr, portMgr)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -62,9 +63,10 @@ func main() {
 		}
 	}()
 
-	// 3. Start VPN Health Checker and Auto Rotator
+	// 3. Start VPN Health Checker, Auto Rotator, and Dynamic Groups Evaluator
 	vpnMgr.StartHealthChecker(ctx)
 	vpnMgr.StartAutoRotator(ctx)
+	dynamicGroupMgr.StartEvaluationLoop(ctx)
 
 	// 4. Initial fetch of nodes and auto-connect
 	go func() {

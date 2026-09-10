@@ -15,16 +15,17 @@ import (
 )
 
 type StatusResponse struct {
-	VPN            any                   `json:"vpn"`
-	Traffic        stats.TrafficSnapshot `json:"traffic"`
-	ProxyAddr      string                `json:"proxy_addr"`
-	NodeCount      int                   `json:"node_count"`
-	NodeSource     string                `json:"node_source"`
-	BlacklistCount int                   `json:"blacklist_count"`
-	AdminPath      string                `json:"admin_path"`
-	Version        string                `json:"version"`
-	Tunnels        []*tunnel.Tunnel      `json:"tunnels"`
-	PortRules      []proxy.PortRule      `json:"port_rules"`
+	VPN            any                    `json:"vpn"`
+	Traffic        stats.TrafficSnapshot  `json:"traffic"`
+	ProxyAddr      string                 `json:"proxy_addr"`
+	NodeCount      int                    `json:"node_count"`
+	NodeSource     string                 `json:"node_source"`
+	BlacklistCount int                    `json:"blacklist_count"`
+	AdminPath      string                 `json:"admin_path"`
+	Version        string                 `json:"version"`
+	Tunnels        []*tunnel.Tunnel       `json:"tunnels"`
+	PortRules      []proxy.PortRule       `json:"port_rules"`
+	DynamicGroups  []*tunnel.DynamicGroup `json:"dynamic_groups"`
 }
 
 func (s *Server) buildStatusResponse() StatusResponse {
@@ -46,6 +47,10 @@ func (s *Server) buildStatusResponse() StatusResponse {
 	if s.portMgr != nil {
 		portRules = s.portMgr.GetRules()
 	}
+	var dynamicGroups []*tunnel.DynamicGroup
+	if s.dynamicMgr != nil {
+		dynamicGroups = s.dynamicMgr.ListGroups()
+	}
 
 	return StatusResponse{
 		VPN:            vpnState,
@@ -58,6 +63,7 @@ func (s *Server) buildStatusResponse() StatusResponse {
 		Version:        config.Version,
 		Tunnels:        tunnels,
 		PortRules:      portRules,
+		DynamicGroups:  dynamicGroups,
 	}
 }
 
@@ -308,6 +314,88 @@ func (s *Server) handleSetPortRules(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, map[string]any{
 		"message": "端口分流规则已更新生效！",
 		"rules":   s.portMgr.GetRules(),
+	})
+}
+
+func (s *Server) handleListTunnelGroups(w http.ResponseWriter, r *http.Request) {
+	if s.dynamicMgr == nil {
+		s.writeJSON(w, http.StatusOK, []*tunnel.DynamicGroup{})
+		return
+	}
+	s.writeJSON(w, http.StatusOK, s.dynamicMgr.ListGroups())
+}
+
+func (s *Server) handleSaveTunnelGroup(w http.ResponseWriter, r *http.Request) {
+	var g tunnel.DynamicGroup
+	if err := json.NewDecoder(r.Body).Decode(&g); err != nil {
+		s.writeError(w, http.StatusBadRequest, "请求格式解析失败")
+		return
+	}
+
+	if s.dynamicMgr == nil {
+		s.writeError(w, http.StatusInternalServerError, "动态隧道组管理器未初始化")
+		return
+	}
+
+	if err := s.dynamicMgr.SaveGroup(&g); err != nil {
+		s.writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if g.Enabled {
+		go s.dynamicMgr.EvaluateGroup(context.Background(), &g)
+	}
+
+	s.writeJSON(w, http.StatusOK, map[string]any{
+		"message": "动态自适应隧道组已保存并启动评估！",
+		"group":   s.dynamicMgr.GetGroup(g.ID),
+	})
+}
+
+type DeleteGroupRequest struct {
+	ID string `json:"id"`
+}
+
+func (s *Server) handleDeleteTunnelGroup(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		var req DeleteGroupRequest
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		id = req.ID
+	}
+
+	if id == "" {
+		s.writeError(w, http.StatusBadRequest, "缺少 id 参数")
+		return
+	}
+
+	if s.dynamicMgr == nil {
+		s.writeError(w, http.StatusInternalServerError, "动态隧道组管理器未初始化")
+		return
+	}
+
+	s.dynamicMgr.DeleteGroup(id)
+	s.writeJSON(w, http.StatusOK, map[string]string{
+		"message": "动态自适应组已删除并释放关联出口",
+	})
+}
+
+func (s *Server) handleEvaluateTunnelGroups(w http.ResponseWriter, r *http.Request) {
+	if s.dynamicMgr == nil {
+		s.writeError(w, http.StatusInternalServerError, "动态隧道组管理器未初始化")
+		return
+	}
+
+	go func() {
+		for _, g := range s.dynamicMgr.ListGroups() {
+			if g.Enabled {
+				s.dynamicMgr.EvaluateGroup(context.Background(), g)
+			}
+		}
+	}()
+
+	s.writeJSON(w, http.StatusOK, map[string]string{
+		"message": "已在后台启动全量动态自适应组评估与轮换",
 	})
 }
 

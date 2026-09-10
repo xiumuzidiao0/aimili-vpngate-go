@@ -14,9 +14,10 @@ import (
 )
 
 type MultiPortManager struct {
-	cfg       *config.Config
+	cfg        *config.Config
 	tunnelPool *tunnel.Pool
-	scheduler TunnelSelector
+	dynamicMgr *tunnel.DynamicGroupManager
+	scheduler  TunnelSelector
 
 	mu        sync.RWMutex
 	listeners map[int]*PortListener
@@ -26,12 +27,13 @@ type MultiPortManager struct {
 	cancel    context.CancelFunc
 }
 
-func NewMultiPortManager(cfg *config.Config, tp *tunnel.Pool) *MultiPortManager {
+func NewMultiPortManager(cfg *config.Config, tp *tunnel.Pool, dm *tunnel.DynamicGroupManager) *MultiPortManager {
 	ctx, cancel := context.WithCancel(context.Background())
 	m := &MultiPortManager{
 		cfg:        cfg,
 		tunnelPool: tp,
-		scheduler:  NewScheduler(tp),
+		dynamicMgr: dm,
+		scheduler:  NewScheduler(tp, dm),
 		listeners:  make(map[int]*PortListener),
 		rulesPath:  filepath.Join(cfg.DataDir, "port_rules.json"),
 		ctx:        ctx,

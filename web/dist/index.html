@@ -682,6 +682,92 @@
                 </div>
             </div>
 
+            <!-- 动态自适应隧道组 (Dynamic Pool Groups) -->
+            <div style="background: var(--bg-base); border: 1px solid var(--border-color); border-radius: 10px; padding: 14px; margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+                    <div>
+                        <div style="font-size: 13px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 6px;">
+                            <svg style="width: 15px; height: 15px; stroke: #38bdf8; fill: none; stroke-width: 2;" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                            动态自适应隧道池 (按指标自动维持 Top N 最优节点)
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+                            按国家/家宽住宅筛选，动态维持最低延迟/最大带宽节点，并在后台定时自动轮换
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="evaluateDynamicGroups()" title="立即触发所有组后台重新探活与择优轮换">⚡ 立即重评</button>
+                        <button class="btn" style="padding: 5px 12px; font-size: 12px; background: #0284c7;" onclick="showAddDynamicGroupForm()">+ 新建自适应组</button>
+                    </div>
+                </div>
+
+                <div id="dynamic-groups-container" style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="text-align: center; color: var(--text-muted); font-size: 12px; padding: 12px;">正在加载动态自适应组...</div>
+                </div>
+
+                <!-- 动态组编辑抽屉 -->
+                <div id="dynamic-group-edit-card" style="background: var(--bg-card); border: 1px solid #0284c7; border-radius: 10px; padding: 16px; margin-top: 12px; display: none;">
+                    <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px; color: #38bdf8;" id="dynamic-group-edit-title">新增动态自适应组</div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 12px;">
+                        <div>
+                            <label class="form-label">自适应组名称</label>
+                            <input id="dg-name" class="input-field" style="width: 100%;" type="text" placeholder="例如: 日本Top3住宅组" required>
+                        </div>
+                        <div>
+                            <label class="form-label">目标国家/地区</label>
+                            <select id="dg-country" class="input-field" style="width: 100%;">
+                                <option value="">全部国家/地区</option>
+                                <option value="JP" selected>日本 (JP)</option>
+                                <option value="US">美国 (US)</option>
+                                <option value="KR">韩国 (KR)</option>
+                                <option value="TW">台湾 (TW)</option>
+                                <option value="HK">香港 (HK)</option>
+                                <option value="SG">新加坡 (SG)</option>
+                                <option value="GB">英国 (GB)</option>
+                                <option value="DE">德国 (DE)</option>
+                                <option value="CA">加拿大 (CA)</option>
+                                <option value="AU">澳大利亚 (AU)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">目标网络类型</label>
+                            <select id="dg-iptype" class="input-field" style="width: 100%;">
+                                <option value="all">不限类型</option>
+                                <option value="residential" selected>🏠 住宅宽带 IP (家宽)</option>
+                                <option value="hosting">🏢 机房/数据中心 IP</option>
+                                <option value="mobile">📱 移动蜂窝网络</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">择优筛选指标</label>
+                            <select id="dg-sortby" class="input-field" style="width: 100%;">
+                                <option value="latency" selected>⚡ 最低延迟优先 (实时TCP握手测速)</option>
+                                <option value="speed">🚀 最大带宽优先 (Mbps)</option>
+                                <option value="score">🏆 综合评分最高优先 (VPNGate Score)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">维持并发在线出口数 [1-10]</label>
+                            <input id="dg-count" class="input-field" style="width: 100%;" type="number" min="1" max="10" value="3">
+                        </div>
+                        <div>
+                            <label class="form-label">自动重评与轮换周期</label>
+                            <select id="dg-interval" class="input-field" style="width: 100%;">
+                                <option value="5">每 5 分钟重评轮换</option>
+                                <option value="10">每 10 分钟重评轮换</option>
+                                <option value="15" selected>每 15 分钟重评轮换</option>
+                                <option value="30">每 30 分钟重评轮换</option>
+                                <option value="60">每 1 小时重评轮换</option>
+                                <option value="120">每 2 小时重评轮换</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                        <button type="button" class="btn btn-outline" style="padding: 5px 12px;" onclick="hideDynamicGroupForm()">取消</button>
+                        <button type="button" class="btn" style="padding: 5px 14px; background: #0284c7;" onclick="saveDynamicGroup()">保存自适应组</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- 端口列表操作栏 -->
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                 <div style="font-size: 13px; font-weight: 600; color: #fff;">本地代理监听端口列表</div>
@@ -1397,47 +1483,14 @@
             };
         }
 
-        let currentPortRules = [];
-        let editingPort = null;
-
-        async function startNewTunnel(nodeId) {
-            appendLog({ level: 'INFO', module: 'Tunnel', message: `正在启动并发独立出口隧道: ${nodeId}...` });
-            try {
-                const res = await fetch('/api/tunnels/start', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ node_id: nodeId })
-                });
-                const ret = await res.json();
-                if (!res.ok) {
-                    alert('启动并发隧道失败: ' + (ret.error || '未知错误'));
-                } else {
-                    appendLog({ level: 'INFO', module: 'Tunnel', message: `新隧道启动成功: ${ret.tunnel.id} (${ret.tunnel.dev_name})` });
-                    fetchStatus();
-                }
-            } catch (err) {
-                alert('请求失败: ' + err);
-            }
-        }
-
-        async function stopTunnel(tunnelId) {
-            if (!confirm('确认断开并释放该并发隧道吗？')) return;
-            try {
-                await fetch('/api/tunnels/stop', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ tunnel_id: tunnelId })
-                });
-                fetchStatus();
-            } catch (err) {
-                alert('断开失败: ' + err);
-            }
-        }
+        let currentDynamicGroups = [];
+        let editingGroupId = null;
 
         async function openPortMatrixModal() {
             document.getElementById('port-matrix-modal').style.display = 'flex';
             hideEditPortForm();
-            await fetchPortRules();
+            hideDynamicGroupForm();
+            await Promise.all([fetchPortRules(), fetchDynamicGroups()]);
         }
 
         function closePortMatrixModal() {
@@ -1453,6 +1506,167 @@
             } catch (err) {
                 console.error("fetch port rules error:", err);
             }
+        }
+
+        async function fetchDynamicGroups() {
+            try {
+                const res = await fetch('/api/tunnel-groups');
+                if (!res.ok) return;
+                currentDynamicGroups = await res.json();
+                renderDynamicGroups();
+            } catch (err) {
+                console.error("fetch dynamic groups error:", err);
+            }
+        }
+
+        function renderDynamicGroups() {
+            const container = document.getElementById('dynamic-groups-container');
+            if (!container) return;
+            if (!currentDynamicGroups || currentDynamicGroups.length === 0) {
+                container.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 12px; background: var(--bg-card); border-radius: 8px;">暂无自适应隧道池，点击右上角「+ 新建自适应组」即可自动化按指标维护出口</div>';
+                return;
+            }
+
+            container.innerHTML = currentDynamicGroups.map(g => {
+                let metricText = '⚡ 延迟最低优先';
+                if (g.sort_by === 'speed') metricText = '🚀 带宽最大优先';
+                if (g.sort_by === 'score') metricText = '🏆 评分最高优先';
+
+                let ipTypeText = '全部网络类型';
+                if (g.ip_type === 'residential') ipTypeText = '🏠 住宅宽带 IP (家宽)';
+                if (g.ip_type === 'hosting') ipTypeText = '🏢 机房 IP';
+                if (g.ip_type === 'mobile') ipTypeText = '📱 移动网络';
+
+                const countryStr = g.country ? `${getCountryName(g.country)} (${g.country})` : '全部国家/地区';
+                const activeCount = (g.active_tunnel_ids || []).length;
+                const statusClass = activeCount >= g.target_count ? 'connected' : (activeCount > 0 ? 'connecting' : 'disconnected');
+
+                return `
+                    <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                <span class="badge ${statusClass}"><span class="status-dot"></span> ${g.status_text || '正常'}</span>
+                                <strong style="color: #fff; font-size: 13px;">${g.name}</strong>
+                                <span class="badge" style="background: rgba(2, 132, 199, 0.15); color: #38bdf8; font-size: 11px;">Top ${g.target_count} 隧道</span>
+                            </div>
+                            <div style="font-size: 11.5px; color: var(--text-muted); display: flex; gap: 12px; flex-wrap: wrap;">
+                                <span>目标: <strong style="color:#e2e8f0;">${countryStr}</strong></span>
+                                <span>类型: <strong style="color:#e2e8f0;">${ipTypeText}</strong></span>
+                                <span>指标: <strong style="color:#34d399;">${metricText}</strong></span>
+                                <span>周期: <strong style="color:#e2e8f0;">${g.interval_minutes}分钟</strong></span>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 6px;">
+                            <button class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="editDynamicGroup('${g.id}')">编辑</button>
+                            <button class="btn btn-danger" style="padding: 3px 8px; font-size: 11px;" onclick="deleteDynamicGroup('${g.id}')">删除</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function showAddDynamicGroupForm() {
+            editingGroupId = null;
+            document.getElementById('dynamic-group-edit-title').innerText = '新建动态自适应隧道组';
+            document.getElementById('dg-name').value = '';
+            document.getElementById('dg-country').value = 'JP';
+            document.getElementById('dg-iptype').value = 'residential';
+            document.getElementById('dg-sortby').value = 'latency';
+            document.getElementById('dg-count').value = 3;
+            document.getElementById('dg-interval').value = 15;
+            document.getElementById('dynamic-group-edit-card').style.display = 'block';
+            document.getElementById('dynamic-group-edit-card').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function editDynamicGroup(id) {
+            const g = currentDynamicGroups.find(item => item.id === id);
+            if (!g) return;
+            editingGroupId = id;
+            document.getElementById('dynamic-group-edit-title').innerText = `编辑自适应组: ${g.name}`;
+            document.getElementById('dg-name').value = g.name;
+            document.getElementById('dg-country').value = g.country || '';
+            document.getElementById('dg-iptype').value = g.ip_type || 'all';
+            document.getElementById('dg-sortby').value = g.sort_by || 'latency';
+            document.getElementById('dg-count').value = g.target_count || 3;
+            document.getElementById('dg-interval').value = g.interval_minutes || 15;
+            document.getElementById('dynamic-group-edit-card').style.display = 'block';
+            document.getElementById('dynamic-group-edit-card').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function hideDynamicGroupForm() {
+            document.getElementById('dynamic-group-edit-card').style.display = 'none';
+        }
+
+        async function saveDynamicGroup() {
+            const name = document.getElementById('dg-name').value.trim();
+            if (!name) {
+                alert('请输入自适应组名称');
+                return;
+            }
+            const country = document.getElementById('dg-country').value;
+            const ipType = document.getElementById('dg-iptype').value;
+            const sortBy = document.getElementById('dg-sortby').value;
+            const count = parseInt(document.getElementById('dg-count').value) || 3;
+            const interval = parseInt(document.getElementById('dg-interval').value) || 15;
+
+            const payload = {
+                id: editingGroupId || '',
+                name: name,
+                enabled: true,
+                country: country,
+                ip_type: ipType,
+                sort_by: sortBy,
+                target_count: count,
+                interval_minutes: interval
+            };
+
+            try {
+                const res = await fetch('/api/tunnel-groups', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const ret = await res.json();
+                if (!res.ok) {
+                    alert('保存失败: ' + (ret.error || '未知错误'));
+                    return;
+                }
+                hideDynamicGroupForm();
+                appendLog({ level: 'INFO', module: 'Action', message: `动态自适应组 [${name}] 已成功保存并启动评估！` });
+                await fetchDynamicGroups();
+                fetchStatus();
+            } catch(err) {
+                alert('请求异常: ' + err);
+            }
+        }
+
+        async function deleteDynamicGroup(id) {
+            if (!confirm('确认删除该动态自适应组吗？其维护的隧道将被安全释放。')) return;
+            try {
+                const res = await fetch(`/api/tunnel-groups?id=${id}`, {
+                    method: 'DELETE'
+                });
+                const ret = await res.json();
+                if (!res.ok) {
+                    alert('删除失败: ' + (ret.error || '未知错误'));
+                    return;
+                }
+                await fetchDynamicGroups();
+                fetchStatus();
+            } catch(err) {
+                alert('请求异常: ' + err);
+            }
+        }
+
+        async function evaluateDynamicGroups() {
+            appendLog({ level: 'INFO', module: 'Action', message: '正在触发所有自适应组重新探活并轮换...' });
+            try {
+                await fetch('/api/tunnel-groups/evaluate', { method: 'POST' });
+                setTimeout(async () => {
+                    await fetchDynamicGroups();
+                    fetchStatus();
+                }, 1500);
+            } catch(err){}
         }
 
         function copyText(text, label) {
@@ -1500,18 +1714,31 @@
                     authBadge = `<span style="color: #60a5fa; font-size:11.5px;">🔑 独立账号: ${r.auth_user || '未设'}</span>`;
                 }
 
-                let boundHtml = '';
-                if (!r.bound_tunnel_ids || r.bound_tunnel_ids.length === 0) {
-                    boundHtml = '<span style="color: #38bdf8; font-size:11.5px; font-weight: 500;">🌐 全部在线隧道 (动态负载均衡)</span>';
-                } else {
-                    boundHtml = r.bound_tunnel_ids.map(id => {
+                let boundBadges = [];
+                // Dynamic Groups
+                if (r.bound_group_ids && r.bound_group_ids.length > 0) {
+                    r.bound_group_ids.forEach(gid => {
+                        const g = currentDynamicGroups.find(item => item.id === gid);
+                        const gName = g ? g.name : gid;
+                        boundBadges.push(`<span class="badge" style="background: rgba(2, 132, 199, 0.2); color: #38bdf8; font-size:11px;">⚡ 动态池: ${gName}</span>`);
+                    });
+                }
+                // Static Tunnels
+                if (r.bound_tunnel_ids && r.bound_tunnel_ids.length > 0) {
+                    r.bound_tunnel_ids.forEach(id => {
                         const t = tunnels.find(item => item.id === id);
                         if (t && t.node) {
                             const flag = getCountryFlagSVG(t.node.country_short);
-                            return `<span class="badge badge-proto" style="font-size:11px;">${flag} ${t.dev_name} (${t.node.ip})</span>`;
+                            boundBadges.push(`<span class="badge badge-proto" style="font-size:11px;">${flag} ${t.dev_name} (${t.node.ip})</span>`);
+                        } else {
+                            boundBadges.push(`<span class="badge badge-proto" style="font-size:11px;">${id}</span>`);
                         }
-                        return `<span class="badge badge-proto" style="font-size:11px;">${id} (等待上线)</span>`;
-                    }).join(' ');
+                    });
+                }
+
+                let boundHtml = boundBadges.join(' ');
+                if (boundBadges.length === 0) {
+                    boundHtml = '<span style="color: #38bdf8; font-size:11.5px; font-weight: 500;">🌐 全部在线隧道 (动态负载均衡)</span>';
                 }
 
                 const httpUrl = `http://127.0.0.1:${r.port}`;
@@ -1544,7 +1771,7 @@
                                 <div class="port-card-val">${policyBadge}</div>
                             </div>
                             <div class="port-card-col">
-                                <span class="port-card-label">绑定出口隧道</span>
+                                <span class="port-card-label">绑定出口 / 动态自适应池</span>
                                 <div class="port-card-val">${boundHtml}</div>
                             </div>
                             <div class="port-card-col">
@@ -1570,7 +1797,7 @@
             selectAuthMode('default_web');
             document.getElementById('rule-auth-user').value = '';
             document.getElementById('rule-auth-pass').value = '';
-            renderTunnelCheckboxes([]);
+            renderTunnelCheckboxes([], []);
             document.getElementById('port-edit-card').style.display = 'block';
             suggestNextPort();
             document.getElementById('port-edit-card').scrollIntoView({ behavior: 'smooth' });
@@ -1591,7 +1818,7 @@
             selectAuthMode(rule.auth_mode || 'default_web');
             document.getElementById('rule-auth-user').value = rule.auth_user || '';
             document.getElementById('rule-auth-pass').value = rule.auth_pass || '';
-            renderTunnelCheckboxes(rule.bound_tunnel_ids || []);
+            renderTunnelCheckboxes(rule.bound_tunnel_ids || [], rule.bound_group_ids || []);
             document.getElementById('port-edit-card').style.display = 'block';
             document.getElementById('port-edit-card').scrollIntoView({ behavior: 'smooth' });
         }
@@ -1642,33 +1869,54 @@
             document.getElementById('rule-interval').value = sec;
         }
 
-        function renderTunnelCheckboxes(selectedIds) {
+        function renderTunnelCheckboxes(selectedTunnelIds, selectedGroupIds) {
             const container = document.getElementById('rule-tunnels-checkboxes');
             const tunnels = (currentState && currentState.tunnels) ? currentState.tunnels : [];
-            const selMap = {};
-            selectedIds.forEach(id => selMap[id] = true);
+            selectedTunnelIds = selectedTunnelIds || [];
+            selectedGroupIds = selectedGroupIds || [];
+            const selTunMap = {};
+            selectedTunnelIds.forEach(id => selTunMap[id] = true);
+            const selGrpMap = {};
+            selectedGroupIds.forEach(id => selGrpMap[id] = true);
+
+            const isAllChecked = (selectedTunnelIds.length === 0 && selectedGroupIds.length === 0);
 
             let html = `
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer; padding: 4px 0;">
-                    <input type="checkbox" id="chk-tunnel-all" ${selectedIds.length === 0 ? 'checked' : ''} onchange="onAllTunnelsCheckChanged(this)">
-                    <span><strong>🌐 全部在线隧道 (推荐)</strong> - 自动根据当前所有运行的隧道动态负载均衡</span>
+                    <input type="checkbox" id="chk-tunnel-all" ${isAllChecked ? 'checked' : ''} onchange="onAllTunnelsCheckChanged(this)">
+                    <span><strong>🌐 全部在线隧道 (默认)</strong> - 自动根据当前所有运行的隧道动态负载均衡</span>
                 </label>
             `;
 
-            if (tunnels.length === 0) {
-                html += `<div style="font-size: 11.5px; color: var(--text-muted); padding-left: 20px; line-height: 1.5;">
-                    当前暂无独立并发隧道运行。勾选「全部在线隧道」，任何在节点列表中启动的隧道均会自动加入该端口出网。
-                </div>`;
-            } else {
+            // Render Dynamic Groups
+            if (currentDynamicGroups && currentDynamicGroups.length > 0) {
+                html += `<div style="font-size: 11px; font-weight: 600; color: #38bdf8; margin: 8px 0 3px 18px;">⚡ 动态自适应组出口 (自动按指标维持Top N并在后台定期轮换):</div>`;
+                currentDynamicGroups.forEach(g => {
+                    const isChecked = !isAllChecked && selGrpMap[g.id];
+                    let metricText = g.sort_by === 'speed' ? '最大带宽' : (g.sort_by === 'score' ? '最高评分' : '最低延迟');
+                    html += `
+                        <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; padding: 3px 0 3px 20px;">
+                            <input type="checkbox" class="chk-dynamic-group" value="${g.id}" ${isChecked ? 'checked' : ''} onchange="onSpecificTunnelCheckChanged()">
+                            <span class="badge" style="background: rgba(2, 132, 199, 0.2); color: #38bdf8; font-size: 10px;">自适应组</span>
+                            <strong style="color: #fff;">${g.name}</strong>
+                            <span style="color: var(--text-muted); font-size: 11px;">(${g.country || '全部'} · ${g.ip_type === 'residential' ? '家宽' : (g.ip_type === 'hosting' ? '机房' : '不限')} · ${metricText} Top${g.target_count})</span>
+                        </label>
+                    `;
+                });
+            }
+
+            // Render Static Active Tunnels
+            if (tunnels.length > 0) {
+                html += `<div style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin: 8px 0 3px 18px;">固定独立在线隧道:</div>`;
                 tunnels.forEach(t => {
                     const ip = t.node ? t.node.ip : '';
                     const cName = t.node ? getCountryName(t.node.country_short) : '';
                     const flag = t.node ? getCountryFlagSVG(t.node.country_short) : '';
-                    const isChecked = selectedIds.length > 0 && selMap[t.id];
+                    const isChecked = !isAllChecked && selTunMap[t.id];
                     const pingStr = t.node && t.node.latency_ms > 0 ? `(${t.node.latency_ms}ms)` : '';
                     html += `
-                        <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; padding: 4px 0 4px 20px;">
-                            <input type="checkbox" class="chk-single-tunnel" value="${t.id}" ${isChecked ? 'checked' : ''} onchange="onSingleTunnelCheckChanged()">
+                        <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; padding: 3px 0 3px 20px;">
+                            <input type="checkbox" class="chk-single-tunnel" value="${t.id}" ${isChecked ? 'checked' : ''} onchange="onSpecificTunnelCheckChanged()">
                             <span class="flag-box">${flag}</span>
                             <strong style="font-family: monospace; color: var(--primary);">${t.dev_name}</strong>
                             <span>${cName} (${ip})</span>
@@ -1684,13 +1932,15 @@
         function onAllTunnelsCheckChanged(el) {
             if (el.checked) {
                 document.querySelectorAll('.chk-single-tunnel').forEach(c => c.checked = false);
+                document.querySelectorAll('.chk-dynamic-group').forEach(c => c.checked = false);
             }
         }
 
-        function onSingleTunnelCheckChanged() {
-            const anyChecked = Array.from(document.querySelectorAll('.chk-single-tunnel')).some(c => c.checked);
+        function onSpecificTunnelCheckChanged() {
+            const anyTunChecked = Array.from(document.querySelectorAll('.chk-single-tunnel')).some(c => c.checked);
+            const anyGrpChecked = Array.from(document.querySelectorAll('.chk-dynamic-group')).some(c => c.checked);
             const allChk = document.getElementById('chk-tunnel-all');
-            if (anyChecked) {
+            if (anyTunChecked || anyGrpChecked) {
                 allChk.checked = false;
             } else {
                 allChk.checked = true;
@@ -1711,15 +1961,18 @@
             const authPass = document.getElementById('rule-auth-pass').value.trim();
 
             let boundTunnels = [];
+            let boundGroups = [];
             const allChk = document.getElementById('chk-tunnel-all');
             if (!allChk || !allChk.checked) {
                 document.querySelectorAll('.chk-single-tunnel:checked').forEach(c => boundTunnels.push(c.value));
+                document.querySelectorAll('.chk-dynamic-group:checked').forEach(c => boundGroups.push(c.value));
             }
 
             const newRule = {
                 port: port,
                 enabled: true,
                 bound_tunnel_ids: boundTunnels,
+                bound_group_ids: boundGroups,
                 policy: policy,
                 interval_seconds: interval,
                 auth_mode: authMode,

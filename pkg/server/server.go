@@ -23,6 +23,7 @@ type Server struct {
 	pool       *nodes.NodePool
 	vpn        *vpn.Manager
 	tunnelPool *tunnel.Pool
+	dynamicMgr *tunnel.DynamicGroupManager
 	portMgr    *proxy.MultiPortManager
 	httpServer *http.Server
 	sseHub     *SSEHub
@@ -30,12 +31,13 @@ type Server struct {
 	listener   net.Listener
 }
 
-func NewServer(cfg *config.Config, pool *nodes.NodePool, vpnMgr *vpn.Manager, tp *tunnel.Pool, pm *proxy.MultiPortManager) *Server {
+func NewServer(cfg *config.Config, pool *nodes.NodePool, vpnMgr *vpn.Manager, tp *tunnel.Pool, dm *tunnel.DynamicGroupManager, pm *proxy.MultiPortManager) *Server {
 	s := &Server{
 		cfg:        cfg,
 		pool:       pool,
 		vpn:        vpnMgr,
 		tunnelPool: tp,
+		dynamicMgr: dm,
 		portMgr:    pm,
 	}
 	s.sseHub = NewSSEHub(s)
@@ -66,6 +68,12 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/tunnels/stop", s.handleStopTunnel)
 	mux.HandleFunc("GET /api/proxy/ports", s.handleGetPortRules)
 	mux.HandleFunc("POST /api/proxy/ports", s.handleSetPortRules)
+
+	// Dynamic Auto-Managed Tunnel Groups APIs
+	mux.HandleFunc("GET /api/tunnel-groups", s.handleListTunnelGroups)
+	mux.HandleFunc("POST /api/tunnel-groups", s.handleSaveTunnelGroup)
+	mux.HandleFunc("DELETE /api/tunnel-groups", s.handleDeleteTunnelGroup)
+	mux.HandleFunc("POST /api/tunnel-groups/evaluate", s.handleEvaluateTunnelGroups)
 
 	// Static UI file server
 	fileServer := http.FileServer(web.GetFileSystem())
