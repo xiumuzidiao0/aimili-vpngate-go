@@ -13,6 +13,7 @@ import (
 	"aimili-vpngate-go/pkg/nodes"
 	"aimili-vpngate-go/pkg/notify"
 	"aimili-vpngate-go/pkg/proxy"
+	"aimili-vpngate-go/pkg/singbox"
 	"aimili-vpngate-go/pkg/stats"
 	"aimili-vpngate-go/pkg/tunnel"
 	"aimili-vpngate-go/pkg/vpn"
@@ -20,28 +21,30 @@ import (
 )
 
 type Server struct {
-	cfg        *config.Config
-	pool       *nodes.NodePool
-	vpn        *vpn.Manager
-	tunnelPool *tunnel.Pool
-	dynamicMgr *tunnel.DynamicGroupManager
-	portMgr    *proxy.MultiPortManager
-	notifier   *notify.TelegramNotifier
-	httpServer *http.Server
-	sseHub     *SSEHub
-	mu         sync.Mutex
-	listener   net.Listener
+	cfg           *config.Config
+	pool          *nodes.NodePool
+	vpn           *vpn.Manager
+	tunnelPool    *tunnel.Pool
+	dynamicMgr    *tunnel.DynamicGroupManager
+	portMgr       *proxy.MultiPortManager
+	notifier      *notify.TelegramNotifier
+	singboxClient *singbox.Client
+	httpServer    *http.Server
+	sseHub        *SSEHub
+	mu            sync.Mutex
+	listener      net.Listener
 }
 
 func NewServer(cfg *config.Config, pool *nodes.NodePool, vpnMgr *vpn.Manager, tp *tunnel.Pool, dm *tunnel.DynamicGroupManager, pm *proxy.MultiPortManager, tn *notify.TelegramNotifier) *Server {
 	s := &Server{
-		cfg:        cfg,
-		pool:       pool,
-		vpn:        vpnMgr,
-		tunnelPool: tp,
-		dynamicMgr: dm,
-		portMgr:    pm,
-		notifier:   tn,
+		cfg:           cfg,
+		pool:          pool,
+		vpn:           vpnMgr,
+		tunnelPool:    tp,
+		dynamicMgr:    dm,
+		portMgr:       pm,
+		notifier:      tn,
+		singboxClient: singbox.NewClient(),
 	}
 	s.sseHub = NewSSEHub(s)
 	return s
@@ -85,6 +88,17 @@ func (s *Server) Start(ctx context.Context) error {
 	// Reputation & Telegram Integration APIs
 	mux.HandleFunc("GET /api/reputation", s.handleGetReputation)
 	mux.HandleFunc("POST /api/telegram/test", s.handleTelegramTest)
+
+	// sing-box Inbound & Outbound Integration APIs
+	mux.HandleFunc("GET /api/singbox/status", s.handleSingBoxStatus)
+	mux.HandleFunc("GET /api/singbox/protocols", s.handleSingBoxProtocols)
+	mux.HandleFunc("GET /api/singbox/nodes", s.handleSingBoxListNodes)
+	mux.HandleFunc("POST /api/singbox/nodes", s.handleSingBoxAddNode)
+	mux.HandleFunc("POST /api/singbox/nodes/outbound", s.handleSingBoxSetOutbound)
+	mux.HandleFunc("DELETE /api/singbox/nodes", s.handleSingBoxDeleteNode)
+	mux.HandleFunc("GET /api/singbox/subscription", s.handleSingBoxGetSub)
+	mux.HandleFunc("POST /api/singbox/subscription/sync", s.handleSingBoxSyncSub)
+	mux.HandleFunc("POST /api/singbox/subscription/init", s.handleSingBoxInitSub)
 
 	// Static UI file server
 	fileServer := http.FileServer(web.GetFileSystem())
