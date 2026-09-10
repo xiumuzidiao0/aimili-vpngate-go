@@ -375,16 +375,13 @@ func setupTunnelInterface(devName string, devIndex int) {
 	_ = exec.Command("sysctl", "-w", fmt.Sprintf("net.ipv4.conf.%s.rp_filter=2", devName)).Run()
 	_ = exec.Command("sysctl", "-w", "net.ipv4.conf.all.rp_filter=2").Run()
 
-	// 2. Add policy routing rule and default route for the tunnel device
-	// This ensures packets bound to tunX via SO_BINDTODEVICE have a valid default gateway
+	// 2. Add policy routing rule and default route STRICTLY inside isolated tableID
+	// NEVER touch the main routing table so eth0 default gateway and SSH port 22 are 100% untouched
 	_ = exec.Command("ip", "route", "replace", "default", "dev", devName, "table", fmt.Sprintf("%d", tableID)).Run()
 	_ = exec.Command("ip", "rule", "del", "oif", devName, "table", fmt.Sprintf("%d", tableID)).Run()
 	_ = exec.Command("ip", "rule", "add", "oif", devName, "table", fmt.Sprintf("%d", tableID), "priority", "1000").Run()
 
-	// 3. Also add high-metric default route in main table as fallback (metric 1000+ avoids touching default eth0 route)
-	_ = exec.Command("ip", "route", "replace", "default", "dev", devName, "metric", fmt.Sprintf("%d", 1000+devIndex)).Run()
-
-	stats.LogInfo("TunnelPool", "已为接口 %s 配置策略路由 (Table %d, Metric %d) 与 rp_filter", devName, tableID, 1000+devIndex)
+	stats.LogInfo("TunnelPool", "已为接口 %s 配置独立隔离策略路由 (Table %d) 与 rp_filter", devName, tableID)
 }
 
 func teardownTunnelInterface(devName string, devIndex int) {
@@ -394,7 +391,6 @@ func teardownTunnelInterface(devName string, devIndex int) {
 	tableID := 100 + devIndex
 	_ = exec.Command("ip", "rule", "del", "oif", devName, "table", fmt.Sprintf("%d", tableID)).Run()
 	_ = exec.Command("ip", "route", "del", "default", "dev", devName, "table", fmt.Sprintf("%d", tableID)).Run()
-	_ = exec.Command("ip", "route", "del", "default", "dev", devName, "metric", fmt.Sprintf("%d", 1000+devIndex)).Run()
 }
 
 func (p *Pool) ListTunnels() []*Tunnel {
