@@ -119,6 +119,13 @@ func TestServerAPI(t *testing.T) {
 	if wSBOverview.Code != http.StatusOK {
 		t.Fatalf("expected singbox overview 200, got %d", wSBOverview.Code)
 	}
+	var overviewResp SingBoxOverviewResponse
+	if err := json.Unmarshal(wSBOverview.Body.Bytes(), &overviewResp); err != nil {
+		t.Fatalf("failed to parse overview json: %v", err)
+	}
+	if !overviewResp.OK || len(overviewResp.AvailableOutbounds) == 0 {
+		t.Fatalf("expected overview ok and outbounds > 0, got: %+v", overviewResp)
+	}
 }
 
 func TestBasicAuthMiddleware(t *testing.T) {
