@@ -451,6 +451,8 @@ print_install_success() {
     local proxy_port=$(get_config_val "LOCAL_PROXY_PORT")
     local ver=$(get_app_version)
 
+    local sb_status=$(show_singbox_status)
+
     echo -e "\n${GREEN}==================================================================${PLAIN}"
     echo -e "${GREEN}        🎉 AimiliVPN (Go 高性能版 v${ver}) 安装部署完成！              ${PLAIN}"
     echo -e "${GREEN}==================================================================${PLAIN}"
@@ -458,6 +460,7 @@ print_install_success() {
     echo -e " ${BOLD}管理账号${PLAIN}       : ${YELLOW}${user}${PLAIN}"
     echo -e " ${BOLD}管理密码${PLAIN}       : ${YELLOW}${pass}${PLAIN}"
     echo -e " ${BOLD}本地自适应代理${PLAIN} : ${GREEN}127.0.0.1:${proxy_port}${PLAIN} (HTTP/HTTPS/SOCKS5 单端口)"
+    echo -e " ${BOLD}边缘抗封锁网关${PLAIN} : ${sb_status} (VLESS-REALITY / Hysteria2)"
     echo -e " ${BOLD}当前程序版本${PLAIN}   : ${YELLOW}v${ver}${PLAIN}"
     echo -e " ${BOLD}终端管理命令${PLAIN}   : 在终端随时输入 ${CYAN}ml${PLAIN} 唤出管理控制中心"
     echo -e "${GREEN}==================================================================${PLAIN}\n"
@@ -711,6 +714,232 @@ menu_uninstall() {
     fi
 }
 
+show_singbox_status() {
+    if type -P sing-box &>/dev/null || [ -x "/usr/local/bin/sing-box" ] || [ -f "/etc/sing-box/sh/sing-box.sh" ]; then
+        if systemctl is-active --quiet sing-box 2>/dev/null || pgrep -f "/etc/sing-box/bin/sing-box" &>/dev/null || pgrep -f "sing-box" &>/dev/null; then
+            echo -e "${GREEN}● 运行中${PLAIN}"
+        else
+            echo -e "${YELLOW}○ 已停止${PLAIN}"
+        fi
+    else
+        echo -e "${RED}未安装${PLAIN} (按 11 一键安装)"
+    fi
+}
+
+do_install_singbox() {
+    echo -e "\n${YELLOW}正在准备安装部署 sing-box 边缘抗封锁网关...${PLAIN}"
+    local sb_installer="/tmp/singbox_install_$$.sh"
+    local dl_ok=0
+
+    # 1. 优先检测本地源码仓库
+    if [ -f "/home/xmzd/sing-box/install.sh" ]; then
+        echo -e "  -> 检测到本地 sing-box 源码安装脚本，正在准备部署..."
+        cp -f "/home/xmzd/sing-box/install.sh" "${sb_installer}"
+        dl_ok=1
+    fi
+
+    # 2. 如果未找到本地脚本，尝试多 CDN 镜像源下载
+    if [ "$dl_ok" = "0" ]; then
+        local sb_urls=(
+            "https://raw.githubusercontent.com/xiumuzidiao0/sing-box/main/install.sh"
+            "https://ghproxy.net/https://raw.githubusercontent.com/xiumuzidiao0/sing-box/main/install.sh"
+            "https://mirror.ghproxy.com/https://raw.githubusercontent.com/xiumuzidiao0/sing-box/main/install.sh"
+            "https://cdn.jsdelivr.net/gh/xiumuzidiao0/sing-box@main/install.sh"
+        )
+        for u in "${sb_urls[@]}"; do
+            echo -e "  -> 尝试从镜像源拉取 sing-box 脚本: ${u} ..."
+            if curl -sSL -f -m 15 "$u" -o "${sb_installer}" 2>/dev/null && [ -s "${sb_installer}" ]; then
+                dl_ok=1
+                break
+            fi
+        done
+    fi
+
+    if [ "$dl_ok" = "1" ] && [ -s "${sb_installer}" ]; then
+        chmod +x "${sb_installer}"
+        bash "${sb_installer}"
+        rm -f "${sb_installer}"
+        if type -P sing-box &>/dev/null || [ -x "/usr/local/bin/sing-box" ]; then
+            echo -e "${GREEN}✓ sing-box 边缘抗封锁网关安装部署成功！${PLAIN}"
+            return 0
+        fi
+    fi
+
+    echo -e "${RED}✗ sing-box 安装脚本拉取或执行未成功完成，请检查网络连通性。${PLAIN}"
+    rm -f "${sb_installer}"
+    return 1
+}
+
+setup_singbox_integration() {
+    echo -e "\n${YELLOW}[4/4] 正在配置边缘抗封锁网关 (sing-box)...${PLAIN}"
+    local proxy_port=$(get_config_val "LOCAL_PROXY_PORT")
+    [ -z "$proxy_port" ] && proxy_port="7928"
+
+    if ! type -P sing-box &>/dev/null && [ ! -x "/usr/local/bin/sing-box" ]; then
+        echo -e "AimiliVPN 支持联动 sing-box 实现【公网高抗封锁入站 + 全球住宅家宽出站】。"
+        echo -e "安装后，客户端可使用 VLESS-REALITY / Hysteria2 安全直连，且流量自动经由 AimiliVPN 住宅 IP 分流出海。"
+        local install_choice="y"
+        prompt_input "是否同时安装部署 sing-box 边缘抗封锁网关？[Y/n] (推荐安装): " "y" install_choice
+        if [ "${install_choice,,}" = "y" ] || [ "${install_choice,,}" = "yes" ]; then
+            if do_install_singbox; then
+                local create_node="y"
+                prompt_input "是否立即创建一个推荐的 VLESS-REALITY 节点并链式接入本地 ${proxy_port} 代理？[Y/n]: " "y" create_node
+                if [ "${create_node,,}" = "y" ] || [ "${create_node,,}" = "yes" ]; then
+                    local sb_bin=$(type -P sing-box || echo "/usr/local/bin/sing-box")
+                    $sb_bin api add reality auto auto auto "127.0.0.1:${proxy_port}" 2>/dev/null || true
+                    echo -e "${GREEN}✓ VLESS-REALITY 入站已自动创建并绑定到 AimiliVPN 出口 (${proxy_port})！${PLAIN}"
+                fi
+            fi
+        fi
+    else
+        echo -e "${GREEN}✓ 检测到系统中已安装 sing-box，已自动启用边缘入站与 Web 控制台联动！${PLAIN}"
+    fi
+}
+
+menu_singbox() {
+    while true; do
+        clear
+        local sb_cmd=""
+        if type -P sing-box &>/dev/null; then
+            sb_cmd="sing-box"
+        elif [ -x "/usr/local/bin/sing-box" ]; then
+            sb_cmd="/usr/local/bin/sing-box"
+        elif [ -f "/etc/sing-box/sh/sing-box.sh" ]; then
+            sb_cmd="bash /etc/sing-box/sh/sing-box.sh"
+        fi
+
+        echo -e "${BLUE}==================================================================${PLAIN}"
+        echo -e "${BLUE}      🚀 sing-box 边缘抗封锁入站网关控制中心                      ${PLAIN}"
+        echo -e "${BLUE}==================================================================${PLAIN}"
+
+        if [ -z "$sb_cmd" ]; then
+            echo -e "  ${BOLD}当前状态${PLAIN}: ${RED}尚未安装 sing-box 服务端${PLAIN}"
+            echo -e ""
+            echo -e "  ${BOLD}功能说明${PLAIN}:"
+            echo -e "  sing-box 能够提供 VLESS-REALITY（借用海外权威名站 TLS 指纹）、"
+            echo -e "  Hysteria2（UDP 极速狂飙）等顶级抗封锁协议，让客户端安全直连 VPS，"
+            echo -e "  并将流量链式分流给 AimiliVPN 维护的全球住宅家宽 IP 出口矩阵。"
+            echo -e "${BLUE}------------------------------------------------------------------${PLAIN}"
+            echo -e "  ${GREEN}[1]${PLAIN} 立即一键安装部署 sing-box 边缘网关"
+            echo -e "  ${YELLOW}[0]${PLAIN} 返回上级主菜单"
+            echo -e "${BLUE}==================================================================${PLAIN}"
+            read -p "请输入选项 [0-1]: " sb_choice
+            case "$sb_choice" in
+                1)
+                    do_install_singbox
+                    read -p "按回车键继续..."
+                    ;;
+                0) return ;;
+                *) echo -e "${RED}输入无效${PLAIN}"; sleep 1 ;;
+            esac
+            continue
+        fi
+
+        local proxy_port=$(get_config_val "LOCAL_PROXY_PORT")
+        [ -z "$proxy_port" ] && proxy_port="7928"
+
+        local status_str=$(show_singbox_status)
+        local n_count=0
+        if [ -d "/etc/sing-box/conf" ]; then
+            n_count=$(ls /etc/sing-box/conf 2>/dev/null | grep -c '\.json$' || true)
+        fi
+
+        echo -e "  ${BOLD}服务运行状态${PLAIN} : ${status_str}"
+        echo -e "  ${BOLD}活跃入站节点${PLAIN} : ${CYAN}${n_count}${PLAIN} 个配置"
+        echo -e "  ${BOLD}AimiliVPN出口${PLAIN}: ${GREEN}127.0.0.1:${proxy_port}${PLAIN}"
+        echo -e "${BLUE}------------------------------------------------------------------${PLAIN}"
+        echo -e "  ${GREEN}[1]${PLAIN} 一键将所有 sing-box 入站接入 AimiliVPN 住宅出口 (${proxy_port})"
+        echo -e "  ${GREEN}[2]${PLAIN} 一键将所有 sing-box 入站恢复直连 (direct)"
+        echo -e "  ${GREEN}[3]${PLAIN} 查看入站节点列表与客户端分享链接 (vless://, hy2://)"
+        echo -e "  ${GREEN}[4]${PLAIN} 快速新建抗封锁入站节点 (REALITY / Hysteria2)"
+        echo -e "  ${GREEN}[5]${PLAIN} 启动 / 停止 / 重启 sing-box 服务"
+        echo -e "  ${GREEN}[6]${PLAIN} 获取并复制远程订阅链接 (Clash / 小火箭)"
+        echo -e "  ${GREEN}[7]${PLAIN} 打开 sing-box 原生终端交互菜单"
+        echo -e "  ${YELLOW}[8]${PLAIN} 重新安装 / 更新 sing-box"
+        echo -e "  ${RED}[9]${PLAIN} 卸载 sing-box"
+        echo -e "  ${YELLOW}[0]${PLAIN} 返回上级主菜单"
+        echo -e "${BLUE}==================================================================${PLAIN}"
+        read -p "请输入选项 [0-9]: " sb_choice
+
+        case "$sb_choice" in
+            1)
+                echo -e "\n${YELLOW}正在将全部 sing-box 入站出口切换至 127.0.0.1:${proxy_port} ...${PLAIN}"
+                $sb_cmd api outbound all "127.0.0.1:${proxy_port}"
+                echo -e "${GREEN}✓ 全部入站节点流量已成功链式绑定至 AimiliVPN 住宅代理出口！${PLAIN}"
+                read -p "按回车键继续..."
+                ;;
+            2)
+                echo -e "\n${YELLOW}正在将全部 sing-box 入站出口恢复为 direct (直连) ...${PLAIN}"
+                $sb_cmd api outbound all "direct"
+                echo -e "${GREEN}✓ 全部入站节点已恢复 VPS 本机直连出网！${PLAIN}"
+                read -p "按回车键继续..."
+                ;;
+            3)
+                echo -e "\n${YELLOW}---------------- 当前活跃入站节点清单 ----------------${PLAIN}"
+                $sb_cmd api list | jq -r '.nodes[] | "----------------------------------------\n节点标签: \(.name)\n监听端口: :\(.port)\n传输协议: \(.protocol) (\(.network))\n链式出口: \(.outbound)\n分享链接: \(.url)\n----------------------------------------"' 2>/dev/null || $sb_cmd api list
+                read -p "按回车键继续..."
+                ;;
+            4)
+                echo -e "\n${YELLOW}请选择要新建的协议类型:${PLAIN}"
+                echo -e " 1) VLESS-REALITY (推荐：免域名免证书，借用亚马逊/苹果 TLS 指纹)"
+                echo -e " 2) Hysteria2     (推荐：UDP 极速抗丢包狂飙)"
+                echo -e " 3) TUIC          (QUIC BBR 拥塞控制，低延迟)"
+                echo -e " 4) Shadowsocks   (经典 2022 轻量协议)"
+                read -p "请选择 [1-4, 默认 1]: " p_choice
+                local p_proto="reality"
+                [ "$p_choice" = "2" ] && p_proto="hy2"
+                [ "$p_choice" = "3" ] && p_proto="tuic"
+                [ "$p_choice" = "4" ] && p_proto="ss"
+
+                read -p "请输入监听端口 [直接回车 auto 自动分配]: " p_port
+                [ -z "$p_port" ] && p_port="auto"
+
+                read -p "是否直接链式接入 AimiliVPN 本地代理出口 (127.0.0.1:${proxy_port})？[Y/n]: " p_chain
+                local p_outbound="127.0.0.1:${proxy_port}"
+                if [ "${p_chain,,}" = "n" ] || [ "${p_chain,,}" = "no" ]; then
+                    p_outbound="direct"
+                fi
+
+                echo -e "\n${YELLOW}正在创建并部署入站节点...${PLAIN}"
+                $sb_cmd api add "$p_proto" "$p_port" auto auto "$p_outbound"
+                echo -e "${GREEN}✓ 节点创建完成！${PLAIN}"
+                read -p "按回车键继续..."
+                ;;
+            5)
+                echo -e "\n 1) 启动  2) 停止  3) 重启"
+                read -p "请选择 [1-3]: " s_op
+                case "$s_op" in
+                    1) systemctl start sing-box && echo -e "${GREEN}服务已启动${PLAIN}" ;;
+                    2) systemctl stop sing-box && echo -e "${YELLOW}服务已停止${PLAIN}" ;;
+                    3) systemctl restart sing-box && echo -e "${GREEN}服务已重启${PLAIN}" ;;
+                esac
+                sleep 1
+                ;;
+            6)
+                echo -e "\n${YELLOW}正在拉取远程订阅链接...${PLAIN}"
+                $sb_cmd api sub get
+                read -p "按回车键继续..."
+                ;;
+            7)
+                $sb_cmd
+                ;;
+            8)
+                do_install_singbox
+                read -p "按回车键继续..."
+                ;;
+            9)
+                read -p "确认彻底卸载 sing-box 及其所有配置文件吗？[y/N]: " un_confirm
+                if [ "${un_confirm,,}" = "y" ]; then
+                    $sb_cmd un
+                fi
+                read -p "按回车键继续..."
+                ;;
+            0) return ;;
+            *) echo -e "${RED}输入无效${PLAIN}"; sleep 1 ;;
+        esac
+    done
+}
+
 main_menu() {
     while true; do
         clear
@@ -721,23 +950,26 @@ main_menu() {
         local pass=$(get_config_val "UI_PASSWORD")
         local proxy_port=$(get_config_val "LOCAL_PROXY_PORT")
         local ver=$(get_app_version)
+        local sb_status=$(show_singbox_status)
 
         echo -e "${BLUE}==================================================================${PLAIN}"
         echo -e "${BLUE}      ⚡ AimiliVPN (Go 高性能版) 终端控制中心  v${ver}            ${PLAIN}"
         echo -e "${BLUE}==================================================================${PLAIN}"
-        echo -e "  ${BOLD}服务运行状态${PLAIN} : $(show_service_status)"
-        echo -e "  ${BOLD}Web 控制台入口${PLAIN}: ${CYAN}http://${ip}:${port}/${path}${PLAIN}"
-        echo -e "  ${BOLD}管理账号/密码${PLAIN} : ${YELLOW}${user}${PLAIN} / ${YELLOW}${pass}${PLAIN}"
-        echo -e "  ${BOLD}本地代理端口${PLAIN}   : ${GREEN}127.0.0.1:${proxy_port}${PLAIN} (HTTP & SOCKS5 单端口自适应)"
+        echo -e "  ${BOLD}服务运行状态${PLAIN}   : $(show_service_status)"
+        echo -e "  ${BOLD}sing-box 入站状态${PLAIN}: ${sb_status}"
+        echo -e "  ${BOLD}Web 控制台入口${PLAIN}  : ${CYAN}http://${ip}:${port}/${path}${PLAIN}"
+        echo -e "  ${BOLD}管理账号/密码${PLAIN}   : ${YELLOW}${user}${PLAIN} / ${YELLOW}${pass}${PLAIN}"
+        echo -e "  ${BOLD}本地代理端口${PLAIN}     : ${GREEN}127.0.0.1:${proxy_port}${PLAIN} (HTTP & SOCKS5 单端口自适应)"
         echo -e "${BLUE}------------------------------------------------------------------${PLAIN}"
         echo -e "  ${GREEN}[1]${PLAIN} 启动服务               ${GREEN}[2]${PLAIN} 停止服务"
         echo -e "  ${GREEN}[3]${PLAIN} 重启服务               ${GREEN}[4]${PLAIN} 查看实时运行日志"
         echo -e "  ${GREEN}[5]${PLAIN} 智能切换最优节点       ${GREEN}[6]${PLAIN} 查看当前候选节点列表"
         echo -e "  ${GREEN}[7]${PLAIN} 修改管理账号/密码      ${GREEN}[8]${PLAIN} 修改 Web/代理端口与安全路径"
         echo -e "  ${GREEN}[9]${PLAIN} 检查并在线更新版本     ${RED}[10]${PLAIN} 卸载 AimiliVPN"
+        echo -e "  ${CYAN}[11]${PLAIN} 🚀 管理 / 安装 sing-box 边缘抗封锁入站网关"
         echo -e "  ${YELLOW}[0]${PLAIN} 退出终端管理"
         echo -e "${BLUE}==================================================================${PLAIN}"
-        read -p "请输入选项 [0-10]: " choice
+        read -p "请输入选项 [0-11]: " choice
 
         case "$choice" in
             1) menu_start ;;
@@ -750,6 +982,7 @@ main_menu() {
             8) menu_modify_ports_and_path ;;
             9) menu_update ;;
             10) menu_uninstall ;;
+            11) menu_singbox ;;
             0) exit 0 ;;
             *) echo -e "${RED}输入无效，请重新选择${PLAIN}"; sleep 1 ;;
         esac
@@ -779,4 +1012,5 @@ install_dependencies
 configure_install_params
 build_and_deploy
 install_service
+setup_singbox_integration
 print_install_success
