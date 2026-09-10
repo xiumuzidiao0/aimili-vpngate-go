@@ -2086,6 +2086,17 @@
             } catch(err){}
         }
 
+        function showToast(text) {
+            const t = document.getElementById('toast');
+            const msg = document.getElementById('toast-msg');
+            if (t && msg) {
+                msg.innerText = text;
+                t.style.display = 'flex';
+                clearTimeout(t._timer);
+                t._timer = setTimeout(() => { t.style.display = 'none'; }, 2500);
+            }
+        }
+
         function copyText(text, label) {
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(text);
@@ -2097,11 +2108,7 @@
                 document.execCommand('copy');
                 document.body.removeChild(ta);
             }
-            const t = document.getElementById('toast');
-            const msg = document.getElementById('toast-msg');
-            msg.innerText = `已复制: ${label || text}`;
-            t.style.display = 'flex';
-            setTimeout(() => { t.style.display = 'none'; }, 2000);
+            showToast(`已复制: ${label || text}`);
         }
 
         function renderPortRules() {
