@@ -272,17 +272,13 @@ func (m *DynamicGroupManager) EvaluateGroup(ctx context.Context, g *DynamicGroup
 		}
 	})
 
-	// 4. Select top target count nodes
+	// 4. Target count to maintain
 	targetN := g.TargetCount
 	if targetN <= 0 {
 		targetN = 3
 	}
-	if len(matched) < targetN {
-		targetN = len(matched)
-	}
-	topNodes := matched[:targetN]
 
-	// 5. Compare with currently active tunnels in this group
+	// 5. Clean up any stale/dead tunnels first
 	m.pool.ReapStaleTunnels()
 
 	m.mu.RLock()
@@ -292,63 +288,103 @@ func (m *DynamicGroupManager) EvaluateGroup(ctx context.Context, g *DynamicGroup
 
 	activeTunnels := make(map[string]*Tunnel)
 	for _, tid := range currentTunnelIDs {
-		if t := m.pool.GetTunnel(tid); t != nil && (t.Status == StatusConnected || t.Status == StatusConnecting) {
+		if t := m.pool.GetTunnel(tid); t != nil && t.IsHealthy() {
 			activeTunnels[tid] = t
 		} else {
 			_ = m.pool.StopTunnel(tid)
 		}
 	}
 
-	// Identify which top nodes already have an active healthy tunnel
+	// 6. Identify existing healthy tunnels that match our group's criteria
 	chosenTunnelIDs := make([]string, 0, targetN)
-	remainingNodes := make([]*nodes.Node, 0)
+	usedNodeIDs := make(map[string]bool)
 
-	for _, n := range topNodes {
-		foundExisting := false
-		for tid, t := range activeTunnels {
-			if t.Node != nil && (t.Node.ID == n.ID || t.Node.IP == n.IP) && t.IsHealthy() {
-				chosenTunnelIDs = append(chosenTunnelIDs, tid)
-				delete(activeTunnels, tid)
-				foundExisting = true
-				break
-			}
-		}
-		if !foundExisting {
-			remainingNodes = append(remainingNodes, n)
-		}
-	}
-
-	// 6. Launch new tunnels for the newly required top nodes (strictly limited to targetN)
-	for _, n := range remainingNodes {
+	// Keep existing healthy tunnels whose nodes are in the matched list (ranked best)
+	for _, n := range matched {
 		if len(chosenTunnelIDs) >= targetN {
 			break
 		}
-		stats.LogInfo("DynamicGroup", "[%s] 启动新出口以维持指标 Top%d: 节点 %s (%s, 延迟: %dms, 带宽: %.1fMbps)",
-			g.Name, targetN, n.ID, n.CountryShort, n.LatencyMs, float64(n.Speed)/1000000.0)
-
-		newTun, err := m.pool.StartTunnel(n)
-		if err == nil && newTun != nil {
-			chosenTunnelIDs = append(chosenTunnelIDs, newTun.ID)
-		} else {
-			stats.LogWarn("DynamicGroup", "[%s] 启动候选节点 %s 失败: %v", g.Name, n.ID, err)
+		for tid, t := range activeTunnels {
+			if t.Node != nil && (t.Node.ID == n.ID || t.Node.IP == n.IP) && t.IsHealthy() {
+				chosenTunnelIDs = append(chosenTunnelIDs, tid)
+				usedNodeIDs[n.ID] = true
+				usedNodeIDs[n.IP] = true
+				delete(activeTunnels, tid)
+				break
+			}
 		}
 	}
 
-	// 7. Stop any old tunnels that are no longer part of the top chosen group
+	// 7. Replenish / backfill any missing slots from the sorted matched list
+	needed := targetN - len(chosenTunnelIDs)
+	if needed > 0 {
+		for _, n := range matched {
+			if needed <= 0 {
+				break
+			}
+			if usedNodeIDs[n.ID] || usedNodeIDs[n.IP] {
+				continue
+			}
+			if m.nodePool.Blacklist().IsBlacklisted(n.ID) {
+				continue
+			}
+
+			stats.LogInfo("DynamicGroup", "[%s] 递补启动新出口 (目标: %d, 仍缺: %d): 节点 %s (%s, 延迟: %dms, 带宽: %.1fMbps)",
+				g.Name, targetN, needed, n.ID, n.CountryShort, n.LatencyMs, float64(n.Speed)/1000000.0)
+
+			newTun, err := m.pool.StartTunnel(n)
+			if err != nil || newTun == nil {
+				stats.LogWarn("DynamicGroup", "[%s] 启动候选节点 %s 失败: %v，尝试下一个候选", g.Name, n.ID, err)
+				m.nodePool.Blacklist().Mark(n, fmt.Sprintf("启动失败: %v", err), 600*time.Second)
+				continue
+			}
+
+			// Wait briefly (up to 8s) for handshake completion or early exit
+			connected := false
+			for w := 0; w < 16; w++ {
+				time.Sleep(500 * time.Millisecond)
+				st := newTun.GetStatus()
+				if st == StatusConnected {
+					connected = true
+					break
+				}
+				if st == StatusFailed || st == StatusStopped {
+					break
+				}
+			}
+
+			if connected {
+				chosenTunnelIDs = append(chosenTunnelIDs, newTun.ID)
+				usedNodeIDs[n.ID] = true
+				usedNodeIDs[n.IP] = true
+				needed--
+			} else {
+				stats.LogWarn("DynamicGroup", "[%s] 候选节点 %s 握手超时或失败，已自动释放并递补下一个候选...", g.Name, n.ID)
+				_ = m.pool.StopTunnel(newTun.ID)
+				m.nodePool.Blacklist().Mark(n, "动态组探测握手未通过", 900*time.Second)
+			}
+		}
+	}
+
+	// 8. Stop any leftover old tunnels that are no longer chosen
 	for tid, oldTun := range activeTunnels {
 		stats.LogInfo("DynamicGroup", "[%s] 平滑淘汰退役旧出口: %s (%s)", g.Name, tid, oldTun.DevName)
 		_ = m.pool.StopTunnel(tid)
 	}
 
-	// 8. Update group status
+	// 9. Update group status
 	m.mu.Lock()
 	g.ActiveTunnelIDs = chosenTunnelIDs
 	g.LastEvaluatedAt = time.Now()
-	g.StatusText = fmt.Sprintf("正常运行 (在网出口: %d/%d)", len(chosenTunnelIDs), g.TargetCount)
+	if len(chosenTunnelIDs) >= g.TargetCount {
+		g.StatusText = fmt.Sprintf("正常运行 (在网出口: %d/%d)", len(chosenTunnelIDs), g.TargetCount)
+	} else {
+		g.StatusText = fmt.Sprintf("部分就绪 (在网出口: %d/%d)", len(chosenTunnelIDs), g.TargetCount)
+	}
 	m.saveLocked()
 	m.mu.Unlock()
 
-	stats.LogInfo("DynamicGroup", "[%s] 动态评估完成，当前活跃出口数量: %d", g.Name, len(chosenTunnelIDs))
+	stats.LogInfo("DynamicGroup", "[%s] 动态评估完成，当前活跃出口数量: %d/%d", g.Name, len(chosenTunnelIDs), g.TargetCount)
 }
 
 // StartEvaluationLoop starts periodic health checking & evaluation for all dynamic groups

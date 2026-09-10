@@ -207,15 +207,22 @@ func (p *Pool) StartTunnel(node *nodes.Node) (*Tunnel, error) {
 			devIdx := t.DevIndex
 			t.mu.Unlock()
 
-			if p.nodePool != nil && p.nodePool.Reputation() != nil && node != nil {
+			if p.nodePool != nil && node != nil {
 				if wasConnected && !connectedAt.IsZero() {
 					uptimeSec := int64(time.Since(connectedAt).Seconds())
-					p.nodePool.Reputation().RecordUptime(node.IP, node.ID, uptimeSec)
-					if uptimeSec < 180 {
-						p.nodePool.Reputation().RecordFail(node.IP, node.ID, true)
+					if p.nodePool.Reputation() != nil {
+						p.nodePool.Reputation().RecordUptime(node.IP, node.ID, uptimeSec)
+						if uptimeSec < 180 {
+							p.nodePool.Reputation().RecordFail(node.IP, node.ID, true)
+						}
 					}
 				} else {
-					p.nodePool.Reputation().RecordFail(node.IP, node.ID, false)
+					if p.nodePool.Reputation() != nil {
+						p.nodePool.Reputation().RecordFail(node.IP, node.ID, false)
+					}
+					if p.nodePool.Blacklist() != nil {
+						p.nodePool.Blacklist().Mark(node, "握手连接失败或认证拒绝", 900*time.Second)
+					}
 				}
 			}
 
