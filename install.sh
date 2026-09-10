@@ -20,7 +20,7 @@ BIN_PATH="${INSTALL_DIR}/aimilivpn"
 CONFIG_FILE="${INSTALL_DIR}/config.env"
 SERVICE_FILE="/etc/systemd/system/aimilivpn.service"
 GITHUB_REPO="https://github.com/xiumuzidiao0/aimili-vpngate-go.git"
-DEFAULT_VERSION="2.1.0"
+DEFAULT_VERSION="2.1.1"
 
 get_app_version() {
     if [ -f "${INSTALL_DIR}/VERSION" ]; then
@@ -84,14 +84,45 @@ detect_arch() {
         i386|i686)
             GO_ARCH="386"
             ;;
-        armv7l|armv7)
-            GO_ARCH="armv6l"
+        armv7*|armv6*|arm*)
+            GO_ARCH="arm"
             ;;
         *)
-            echo -e "${RED}错误: 不受支持的 CPU 架构: $ARCH${PLAIN}"
-            exit 1
+            GO_ARCH="amd64"
             ;;
     esac
+    export GO_ARCH
+}
+
+# 多源加速下载官方预编译二进制程序 (支持国内外网络自适应)
+download_release_binary() {
+    local target_file="$1"
+    detect_arch
+
+    local urls=(
+        "https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/latest/download/aimilivpn_linux_${GO_ARCH}"
+        "https://ghproxy.net/https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/latest/download/aimilivpn_linux_${GO_ARCH}"
+        "https://mirror.ghproxy.com/https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/latest/download/aimilivpn_linux_${GO_ARCH}"
+        "https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/download/v2.1.0/aimilivpn_linux_${GO_ARCH}"
+        "https://ghproxy.net/https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/download/v2.1.0/aimilivpn_linux_${GO_ARCH}"
+    )
+
+    for u in "${urls[@]}"; do
+        echo -e "  -> 尝试从源拉取预编译程序: ${u} ..."
+        if curl -sSL -f -m 30 "$u" -o "${target_file}.tmp" 2>/dev/null && [ -s "${target_file}.tmp" ]; then
+            if head -c 4 "${target_file}.tmp" | grep -q 'ELF'; then
+                mv -f "${target_file}.tmp" "${target_file}"
+                chmod +x "${target_file}"
+                echo -e "${GREEN}  -> 二进制预编译包下载成功并已校验 (${GO_ARCH})！${PLAIN}"
+                return 0
+            else
+                rm -f "${target_file}.tmp"
+            fi
+        else
+            rm -f "${target_file}.tmp" 2>/dev/null || true
+        fi
+    done
+    return 1
 }
 
 # 4. 安装基础依赖
@@ -131,10 +162,31 @@ ensure_go() {
     fi
 
     echo -e "${YELLOW}正在安装 Go 1.22 编译环境 (架构: ${GO_ARCH})...${PLAIN}"
-    GO_TAR="go1.22.6.linux-${GO_ARCH}.tar.gz"
-    if ! curl -sSL -f "https://go.dev/dl/${GO_TAR}" | tar -xz -C /usr/local; then
-        echo -e "${YELLOW}正在尝试从国内与高可用镜像源下载 Go 1.22...${PLAIN}"
-        curl -sSL -f "https://golang.google.cn/dl/${GO_TAR}" | tar -xz -C /usr/local || true
+    local go_tar="go1.22.6.linux-${GO_ARCH}.tar.gz"
+    local go_urls=(
+        "https://mirrors.aliyun.com/golang/${go_tar}"
+        "https://golang.google.cn/dl/${go_tar}"
+        "https://go.dev/dl/${go_tar}"
+    )
+    local dl_ok=0
+    for u in "${go_urls[@]}"; do
+        echo -e "  -> 尝试从镜像源下载 Go: $u ..."
+        if curl -sSL -f -m 60 "$u" -o "/tmp/${go_tar}" 2>/dev/null && [ -s "/tmp/${go_tar}" ]; then
+            if tar -xzf "/tmp/${go_tar}" -C /usr/local 2>/dev/null; then
+                dl_ok=1
+                rm -f "/tmp/${go_tar}"
+                break
+            fi
+            rm -f "/tmp/${go_tar}"
+        fi
+    done
+
+    if [ "$dl_ok" = "1" ]; then
+        export PATH="/usr/local/go/bin:$PATH"
+        echo 'export PATH="/usr/local/go/bin:$PATH"' >> /etc/profile
+        echo -e "${GREEN}Go 编译环境安装完成！${PLAIN}"
+    else
+        echo -e "${RED}无法下载 Go 编译环境，请检查网络连接。${PLAIN}"
     fi
     export PATH="/usr/local/go/bin:$PATH"
     echo 'export PATH="/usr/local/go/bin:$PATH"' >> /etc/profile
@@ -271,11 +323,8 @@ build_and_deploy() {
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     local dl_ok=0
 
-    # 1. 优先尝试极速下载已发布的官方跨平台静态二进制文件 (约 5.8MB, 无需等待编译)
-    local release_url="https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/download/v2.1.0/aimilivpn_linux_${GO_ARCH}"
-    echo -e "  -> 正在检测并极速下载已发布的官方静态二进制包 (${GO_ARCH})..."
-    if curl -sSL -f -m 30 "${release_url}" -o "${BIN_PATH}" && [ -s "${BIN_PATH}" ]; then
-        echo -e "${GREEN}  -> 二进制预编译包下载完成！${PLAIN}"
+    # 1. 优先尝试极速下载已发布的官方跨平台静态二进制文件 (约 6MB, 支持多镜像源)
+    if download_release_binary "${BIN_PATH}"; then
         dl_ok=1
     fi
 
@@ -599,37 +648,49 @@ menu_list_nodes() {
 }
 
 menu_update() {
-    echo -e "\n${YELLOW}正在检测最新发行版本...${PLAIN}"
-    local release_url="https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/download/v2.1.0/aimilivpn_linux_${GO_ARCH}"
-    if curl -sSL -f -m 30 "${release_url}" -o "${BIN_PATH}.tmp" && [ -s "${BIN_PATH}.tmp" ]; then
+    detect_arch
+    echo -e "\n${YELLOW}正在检测并拉取最新发行版本 (${GO_ARCH})...${PLAIN}"
+
+    if download_release_binary "${BIN_PATH}.tmp"; then
         mv -f "${BIN_PATH}.tmp" "${BIN_PATH}"
         chmod +x "${BIN_PATH}"
-        echo "${DEFAULT_VERSION}" > "${INSTALL_DIR}/VERSION"
-        curl -sSL "https://raw.githubusercontent.com/xiumuzidiao0/aimili-vpngate-go/main/install.sh" -o "${INSTALL_DIR}/install.sh" 2>/dev/null || true
+        curl -sSL -f "https://raw.githubusercontent.com/xiumuzidiao0/aimili-vpngate-go/main/VERSION" -o "${INSTALL_DIR}/VERSION" 2>/dev/null || true
+        curl -sSL -f "https://raw.githubusercontent.com/xiumuzidiao0/aimili-vpngate-go/main/install.sh" -o "${INSTALL_DIR}/install.sh" 2>/dev/null || true
         chmod +x "${INSTALL_DIR}/install.sh" 2>/dev/null || true
         systemctl restart aimilivpn
-        echo -e "${GREEN}AimiliVPN 已成功极速更新至最新构建 (v${DEFAULT_VERSION}) 并重启！${PLAIN}"
-        sleep 2
+        local new_ver=$(get_app_version)
+        echo -e "\n${GREEN}🎉 AimiliVPN 已成功极速更新至最新构建 (v${new_ver}) 并重启！${PLAIN}"
+        read -p "按回车键返回主菜单..."
         return
     fi
 
-    echo -e "  -> 正在从 GitHub 拉取源码就地重新编译..."
-    cd "${INSTALL_DIR}" 2>/dev/null || cd /tmp
+    echo -e "\n${YELLOW}预编译发行包下载失败，正在从 GitHub 源码编译更新...${PLAIN}"
     TMP_DIR=$(mktemp -d)
-    git clone --depth 1 "${GITHUB_REPO}" "${TMP_DIR}"
-    cd "${TMP_DIR}"
-    ensure_go
-    echo -e "  -> 正在就地编译 (约需 20-30 秒)..."
-    CGO_ENABLED=0 go build -ldflags="-s -w" -o "${BIN_PATH}" ./cmd/aimilivpn
-    cp -f "${TMP_DIR}/install.sh" "${INSTALL_DIR}/install.sh" 2>/dev/null || true
-    chmod +x "${INSTALL_DIR}/install.sh" 2>/dev/null || true
-    cp -f "${TMP_DIR}/VERSION" "${INSTALL_DIR}/VERSION" 2>/dev/null || echo "${DEFAULT_VERSION}" > "${INSTALL_DIR}/VERSION"
-    mkdir -p "${INSTALL_DIR}/mirror"
-    cp -f "${TMP_DIR}/mirror/vpngate.csv" "${INSTALL_DIR}/mirror/" 2>/dev/null || true
-    rm -rf "${TMP_DIR}"
-    systemctl restart aimilivpn
-    echo -e "${GREEN}AimiliVPN 已成功更新至最新构建 (v$(get_app_version)) 并重启！${PLAIN}"
-    sleep 2
+    if git clone --depth 1 "${GITHUB_REPO}" "${TMP_DIR}"; then
+        cd "${TMP_DIR}"
+        ensure_go
+        if command -v go >/dev/null 2>&1; then
+            echo -e "  -> 正在编译二进制程序 (通常需要 20-30 秒)..."
+            if CGO_ENABLED=0 go build -ldflags="-s -w" -o "${BIN_PATH}" ./cmd/aimilivpn; then
+                chmod +x "${BIN_PATH}"
+                cp -f "${TMP_DIR}/install.sh" "${INSTALL_DIR}/install.sh" 2>/dev/null || true
+                chmod +x "${INSTALL_DIR}/install.sh" 2>/dev/null || true
+                cp -f "${TMP_DIR}/VERSION" "${INSTALL_DIR}/VERSION" 2>/dev/null || true
+                mkdir -p "${INSTALL_DIR}/mirror"
+                cp -f "${TMP_DIR}/mirror/vpngate.csv" "${INSTALL_DIR}/mirror/" 2>/dev/null || true
+                systemctl restart aimilivpn
+                echo -e "\n${GREEN}🎉 源码就地编译更新完成并已重启服务！(v$(get_app_version))${PLAIN}"
+            else
+                echo -e "${RED}编译失败！${PLAIN}"
+            fi
+        else
+            echo -e "${RED}未找到 Go 编译环境，更新失败。${PLAIN}"
+        fi
+        rm -rf "${TMP_DIR}"
+    else
+        echo -e "${RED}拉取源码失败，请检查网络连接。${PLAIN}"
+    fi
+    read -p "按回车键返回主菜单..."
 }
 
 menu_uninstall() {
