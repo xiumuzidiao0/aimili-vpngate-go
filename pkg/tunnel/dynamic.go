@@ -283,6 +283,8 @@ func (m *DynamicGroupManager) EvaluateGroup(ctx context.Context, g *DynamicGroup
 	topNodes := matched[:targetN]
 
 	// 5. Compare with currently active tunnels in this group
+	m.pool.ReapStaleTunnels()
+
 	m.mu.RLock()
 	currentTunnelIDs := make([]string, len(g.ActiveTunnelIDs))
 	copy(currentTunnelIDs, g.ActiveTunnelIDs)
@@ -290,8 +292,10 @@ func (m *DynamicGroupManager) EvaluateGroup(ctx context.Context, g *DynamicGroup
 
 	activeTunnels := make(map[string]*Tunnel)
 	for _, tid := range currentTunnelIDs {
-		if t := m.pool.GetTunnel(tid); t != nil {
+		if t := m.pool.GetTunnel(tid); t != nil && (t.Status == StatusConnected || t.Status == StatusConnecting) {
 			activeTunnels[tid] = t
+		} else {
+			_ = m.pool.StopTunnel(tid)
 		}
 	}
 
@@ -314,8 +318,11 @@ func (m *DynamicGroupManager) EvaluateGroup(ctx context.Context, g *DynamicGroup
 		}
 	}
 
-	// 6. Launch new tunnels for the newly required top nodes
+	// 6. Launch new tunnels for the newly required top nodes (strictly limited to targetN)
 	for _, n := range remainingNodes {
+		if len(chosenTunnelIDs) >= targetN {
+			break
+		}
 		stats.LogInfo("DynamicGroup", "[%s] 启动新出口以维持指标 Top%d: 节点 %s (%s, 延迟: %dms, 带宽: %.1fMbps)",
 			g.Name, targetN, n.ID, n.CountryShort, n.LatencyMs, float64(n.Speed)/1000000.0)
 

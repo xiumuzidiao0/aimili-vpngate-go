@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -41,7 +42,32 @@ func (p *Pool) UnlockDetector() *UnlockDetector {
 	return p.unlockDetector
 }
 
+func (p *Pool) reapDeadTunnelsLocked() {
+	for id, t := range p.tunnels {
+		t.mu.RLock()
+		status := t.Status
+		devIndex := t.DevIndex
+		authPath := t.authPath
+		confPath := t.confPath
+		t.mu.RUnlock()
+
+		if status == StatusFailed || status == StatusStopped {
+			p.freeDevIndexLocked(devIndex)
+			delete(p.tunnels, id)
+			go func(a, c string) {
+				if a != "" {
+					_ = os.Remove(a)
+				}
+				if c != "" {
+					_ = os.Remove(c)
+				}
+			}(authPath, confPath)
+		}
+	}
+}
+
 func (p *Pool) allocDevIndexLocked() int {
+	p.reapDeadTunnelsLocked()
 	for i := 0; i < 64; i++ {
 		if !p.usedDevs[i] {
 			p.usedDevs[i] = true
@@ -176,6 +202,9 @@ func (p *Pool) StartTunnel(node *nodes.Node) (*Tunnel, error) {
 				t.Message = "进程退出"
 			}
 			node := t.Node
+			authPath := t.authPath
+			confPath := t.confPath
+			devIdx := t.DevIndex
 			t.mu.Unlock()
 
 			if p.nodePool != nil && p.nodePool.Reputation() != nil && node != nil {
@@ -191,6 +220,22 @@ func (p *Pool) StartTunnel(node *nodes.Node) (*Tunnel, error) {
 			}
 
 			_ = cmd.Wait()
+
+			// Clean up auth/config files
+			if authPath != "" {
+				_ = os.Remove(authPath)
+			}
+			if confPath != "" {
+				_ = os.Remove(confPath)
+			}
+
+			// Immediately recycle device index and remove dead tunnel so it doesn't leak virtual NICs
+			p.mu.Lock()
+			p.freeDevIndexLocked(devIdx)
+			delete(p.tunnels, tunnelID)
+			p.mu.Unlock()
+
+			stats.LogInfo("TunnelPool", "隧道 [%s] (%s) 进程已终止，已回收虚拟网卡和设备槽位", tunnelID, devName)
 		}()
 
 		scanner := bufio.NewScanner(stdout)
@@ -215,6 +260,26 @@ func (p *Pool) StartTunnel(node *nodes.Node) (*Tunnel, error) {
 				t.Message = line
 			}
 			t.mu.Unlock()
+		}
+	}()
+
+	// Handshake watchdog: if connecting for > 25s without completing, terminate and recycle
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(25 * time.Second):
+			t.mu.RLock()
+			st := t.Status
+			t.mu.RUnlock()
+			if st == StatusConnecting {
+				stats.LogWarn("TunnelPool", "隧道 [%s] (%s) 握手超时 (25s)，自动终止并回收资源", tunnelID, devName)
+				t.mu.Lock()
+				if t.cancelFunc != nil {
+					t.cancelFunc()
+				}
+				t.mu.Unlock()
+			}
 		}
 	}()
 
@@ -299,9 +364,25 @@ func (p *Pool) ListTunnels() []*Tunnel {
 
 	res := make([]*Tunnel, 0, len(p.tunnels))
 	for _, t := range p.tunnels {
-		res = append(res, t.Snapshot())
+		t.mu.RLock()
+		st := t.Status
+		t.mu.RUnlock()
+		if st == StatusConnecting || st == StatusConnected {
+			res = append(res, t.Snapshot())
+		}
 	}
+
+	// Stably sort by virtual device index ascending (tun0, tun1, tun2...)
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].DevIndex < res[j].DevIndex
+	})
 	return res
+}
+
+func (p *Pool) ReapStaleTunnels() {
+	p.mu.Lock()
+	p.reapDeadTunnelsLocked()
+	p.mu.Unlock()
 }
 
 func (p *Pool) GetTunnel(id string) *Tunnel {

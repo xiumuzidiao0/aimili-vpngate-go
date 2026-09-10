@@ -1417,8 +1417,12 @@
                 document.getElementById('stat-nodes-count').innerText = `${data.node_count || 0} / ${data.blacklist_count || 0}`;
                 document.getElementById('stat-node-source').innerText = `数据源: ${data.node_source || '未知'}`;
 
-                // Render active tunnels strip
-                const tunnels = data.tunnels || [];
+                // Render active tunnels strip sorted stably by virtual interface index (tun0, tun1, tun2...)
+                const tunnels = (data.tunnels || []).sort((a, b) => {
+                    const idxA = parseInt((a.dev_name || '').replace(/\D+/g, '')) || 0;
+                    const idxB = parseInt((b.dev_name || '').replace(/\D+/g, '')) || 0;
+                    return idxA - idxB;
+                });
                 document.getElementById('tunnels-count').innerText = tunnels.length;
                 const tunListEl = document.getElementById('active-tunnels-list');
                 if (tunListEl) {
