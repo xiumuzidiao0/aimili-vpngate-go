@@ -6,10 +6,12 @@
     <title>AimiliVPN 网关控制台</title>
     <style>
         :root {
-            --bg-base: #090d16;
-            --bg-card: #131b2e;
+            --bg-base: #080c14;
+            --bg-card: #0f172a;
+            --bg-card-sub: #141f36;
             --bg-hover: #1e293b;
-            --border-color: #243048;
+            --border: #1e293b;
+            --border-highlight: rgba(255, 255, 255, 0.08);
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
             --primary: #3b82f6;
@@ -17,40 +19,53 @@
             --success: #10b981;
             --warning: #f59e0b;
             --danger: #ef4444;
-            --code-bg: #060910;
+            --code-bg: #050811;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background: var(--bg-base);
             color: var(--text-main);
             min-height: 100vh;
-            padding: 24px 20px;
+            padding: 24px 20px 48px 20px;
+            font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
         }
-        .container { max-width: 1280px; margin: 0 auto; }
+        .container { max-width: 1320px; margin: 0 auto; }
+
+        /* Custom Dark Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-base); }
+        ::-webkit-scrollbar-thumb { background: #26334d; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3b82f6; }
+
+        /* Header */
         header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding-bottom: 20px;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border);
             margin-bottom: 24px;
             flex-wrap: wrap;
             gap: 16px;
         }
         .logo-group { display: flex; align-items: center; gap: 14px; }
         .logo-icon {
-            width: 40px; height: 40px; border-radius: 10px;
-            background: linear-gradient(135deg, #2563eb, #7c3aed);
+            width: 42px; height: 42px; border-radius: 12px;
+            background: linear-gradient(135deg, #2563eb, #6366f1);
             display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+            box-shadow: 0 4px 16px rgba(37, 99, 235, 0.35);
+            border: 1px solid rgba(255,255,255,0.15);
         }
         .logo-icon svg { width: 22px; height: 22px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
         h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
 
+        /* Badges */
         .badge {
             font-size: 11.5px; padding: 3px 9px; border-radius: 6px; font-weight: 600;
-            display: inline-flex; align-items: center; gap: 5px;
+            display: inline-flex; align-items: center; gap: 5px; line-height: 1.2;
         }
         .status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
         .badge.connected { background: rgba(16, 185, 129, 0.12); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
@@ -63,28 +78,53 @@
         .badge-residential { background: rgba(16, 185, 129, 0.12); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25); }
         .badge-hosting { background: rgba(245, 158, 11, 0.12); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.25); }
         .badge-mobile { background: rgba(59, 130, 246, 0.12); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.25); }
-        .badge-proto { background: rgba(148, 163, 184, 0.12); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.2); font-family: monospace; font-size: 11px; }
+        .badge-proto { background: rgba(148, 163, 184, 0.12); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.2); font-family: ui-monospace, monospace; font-size: 11px; }
 
+        /* Stat Grid */
         .stat-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
             gap: 16px;
             margin-bottom: 24px;
         }
         .stat-card {
             background: var(--bg-card);
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--border);
+            border-top: 1px solid var(--border-highlight);
             border-radius: 12px;
-            padding: 18px;
+            padding: 18px 20px;
             position: relative;
             overflow: hidden;
+            transition: transform 0.2s, border-color 0.2s;
         }
-        .stat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .stat-card:hover { transform: translateY(-2px); border-color: rgba(59, 130, 246, 0.4); }
+        .stat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
         .stat-title { font-size: 13px; color: var(--text-muted); font-weight: 500; }
         .stat-icon { width: 18px; height: 18px; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-        .stat-val { font-size: 26px; font-weight: 700; color: #fff; letter-spacing: -0.02em; font-family: ui-monospace, SFMono-Regular, monospace; }
+        .stat-val { font-size: 26px; font-weight: 700; color: #fff; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, monospace; }
         .stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
 
+        /* Dedicated Active Tunnels Strip */
+        .tunnels-strip {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-top: 1px solid var(--border-highlight);
+            border-radius: 12px;
+            padding: 14px 18px;
+            margin-bottom: 24px;
+        }
+        .tunnels-strip-header {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;
+        }
+        .tunnels-strip-title {
+            font-size: 13px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px;
+        }
+        .tunnels-strip-title svg { width: 16px; height: 16px; stroke: var(--primary); fill: none; stroke-width: 2; }
+        .tunnels-strip-list {
+            display: flex; flex-wrap: wrap; gap: 8px;
+        }
+
+        /* Balanced Dashboard Grid */
         .dashboard-grid {
             display: grid;
             grid-template-columns: 1fr;
@@ -97,7 +137,8 @@
 
         .card {
             background: var(--bg-card);
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--border);
+            border-top: 1px solid var(--border-highlight);
             border-radius: 12px;
             padding: 20px;
         }
@@ -107,41 +148,44 @@
             align-items: center;
             margin-bottom: 16px;
             padding-bottom: 12px;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border);
         }
-        .card-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-        .card-title svg { width: 18px; height: 18px; stroke: var(--primary); fill: none; stroke-width: 2; }
+        .card-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; color: #fff; }
+        .card-title svg { width: 17px; height: 17px; stroke: var(--primary); fill: none; stroke-width: 2; }
 
+        /* Buttons */
         .btn {
             background: var(--primary);
             color: #fff;
-            border: none;
-            padding: 8px 15px;
+            border: 1px solid transparent;
+            padding: 7px 14px;
             border-radius: 8px;
             cursor: pointer;
             font-size: 13px;
             font-weight: 500;
             transition: all 0.15s ease-in-out;
             display: inline-flex; align-items: center; gap: 6px;
-            line-height: 1;
+            line-height: 1.2;
+            user-select: none;
         }
-        .btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
         .btn:hover { background: var(--primary-hover); transform: translateY(-1px); }
+        .btn:active { transform: scale(0.98); }
         .btn-danger { background: var(--danger); }
         .btn-danger:hover { background: #dc2626; }
-        .btn-outline { background: transparent; border: 1px solid var(--border-color); color: var(--text-main); }
-        .btn-outline:hover { background: var(--bg-hover); border-color: #3b82f6; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+        .btn-outline:hover { background: var(--bg-hover); border-color: #3b82f6; color: #fff; }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
         .info-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 13px; }
         .info-label { color: var(--text-muted); }
-        .info-val { font-weight: 600; font-family: monospace; }
+        .info-val { font-weight: 600; font-family: ui-monospace, monospace; }
 
         .terminal-box {
             background: var(--code-bg);
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--border);
             border-radius: 8px;
-            height: 230px;
+            height: 240px;
             overflow-y: auto;
             padding: 12px 14px;
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -155,34 +199,46 @@
         .log-level-WARNING { color: #fbbf24; }
         .log-level-ERROR { color: #f87171; }
 
-        .table-wrap {
-            overflow-x: auto;
-            max-height: 520px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-            text-align: left;
-        }
-        th, td {
-            padding: 12px 14px;
-            border-bottom: 1px solid var(--border-color);
-            vertical-align: middle;
-        }
-        th { color: var(--text-muted); font-weight: 600; background: var(--bg-card); position: sticky; top: 0; z-index: 1; }
-        tr:hover { background: var(--bg-hover); }
-
-        .filter-bar {
+        /* Quick Chips Filter Bar */
+        .chips-bar {
             display: flex;
-            gap: 12px;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+        .chip {
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            user-select: none;
+        }
+        .chip:hover { border-color: var(--primary); color: #fff; }
+        .chip.active {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: var(--primary);
+            color: #60a5fa;
+            font-weight: 600;
+        }
+
+        .filter-controls {
+            display: flex;
+            gap: 10px;
             margin-bottom: 16px;
             flex-wrap: wrap;
             align-items: center;
         }
         .input-field {
             background: var(--bg-base);
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--border);
             color: var(--text-main);
             padding: 8px 12px;
             border-radius: 8px;
@@ -192,196 +248,132 @@
         }
         .input-field:focus { border-color: var(--primary); }
 
-        /* Country Flag Graphics */
-        .flag-box {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
+        /* Table */
+        .table-wrap {
+            overflow-x: auto;
+            max-height: 560px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: left;
+        }
+        th, td {
+            padding: 11px 14px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+        }
+        th {
+            color: var(--text-muted);
             font-weight: 600;
+            background: var(--bg-card-sub);
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            font-size: 12px;
+            letter-spacing: 0.02em;
         }
-        .flag-img {
-            width: 20px;
-            height: 14px;
-            border-radius: 2px;
-            object-fit: cover;
-            display: inline-block;
-            box-shadow: 0 0 1px rgba(255,255,255,0.4);
-            flex-shrink: 0;
-        }
+        tr:hover { background: rgba(255, 255, 255, 0.025); }
+
+        /* Country Flag Graphics */
+        .flag-box { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+        .flag-img { width: 20px; height: 14px; border-radius: 2px; object-fit: cover; display: inline-block; box-shadow: 0 0 1px rgba(255,255,255,0.4); flex-shrink: 0; }
 
         .star-btn {
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            font-size: 15px;
-            color: #64748b;
-            padding: 2px 5px;
-            line-height: 1;
-            transition: all 0.15s;
+            background: transparent; border: none; cursor: pointer; font-size: 16px;
+            color: #475569; padding: 2px 5px; line-height: 1; transition: all 0.15s;
         }
         .star-btn:hover { color: #f59e0b; transform: scale(1.2); }
-        .star-btn.active { color: #f59e0b; text-shadow: 0 0 6px rgba(245, 158, 11, 0.5); }
+        .star-btn.active { color: #f59e0b; text-shadow: 0 0 8px rgba(245, 158, 11, 0.5); }
 
-        /* Modal Settings & Matrix */
+        /* Modal Styles */
         .modal-overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(4, 7, 13, 0.75);
+            background: rgba(3, 7, 18, 0.75);
             display: none; justify-content: center; align-items: center;
             z-index: 1000;
-            backdrop-filter: blur(6px);
+            backdrop-filter: blur(8px);
         }
         .modal-card {
             background: var(--bg-card);
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--border);
+            border-top: 1px solid var(--border-highlight);
             border-radius: 14px;
-            width: 90%; max-width: 500px;
+            width: 90%; max-width: 600px;
             padding: 24px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75);
         }
+        .modal-tabs {
+            display: flex; gap: 8px; border-bottom: 1px solid var(--border); margin-bottom: 18px; padding-bottom: 8px;
+        }
+        .modal-tab-btn {
+            background: transparent; border: none; color: var(--text-muted); font-size: 13px; font-weight: 500;
+            padding: 6px 12px; border-radius: 6px; cursor: pointer; transition: all 0.15s;
+        }
+        .modal-tab-btn:hover { color: #fff; background: var(--bg-hover); }
+        .modal-tab-btn.active { color: #fff; background: var(--primary); font-weight: 600; }
+
         .form-group { margin-bottom: 16px; }
-        .form-label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; font-weight: 500; }
+        .form-label { display: block; font-size: 12.5px; color: var(--text-muted); margin-bottom: 6px; font-weight: 500; }
         .input-addon { display: flex; gap: 8px; }
         .input-addon input { flex: 1; }
 
-        /* Choice Cards */
-        .choice-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 10px;
-            margin-top: 6px;
-        }
-        .choice-card {
-            background: var(--bg-base);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 10px 12px;
-            cursor: pointer;
-            transition: all 0.15s ease-in-out;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            user-select: none;
-        }
-        .choice-card:hover {
-            border-color: var(--primary);
-            background: var(--bg-hover);
-        }
-        .choice-card.selected {
-            border-color: var(--primary);
-            background: rgba(59, 130, 246, 0.12);
-            box-shadow: 0 0 0 1px var(--primary);
-        }
-        .choice-card-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: #fff;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .choice-card-desc {
-            font-size: 11px;
-            color: var(--text-muted);
-            line-height: 1.4;
-        }
-
-        /* Port Cards */
+        /* Port Matrix Card */
         .port-card {
             background: var(--bg-base);
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--border);
             border-radius: 10px;
             padding: 14px 16px;
             margin-bottom: 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
+            display: flex; flex-direction: column; gap: 10px;
             transition: border-color 0.15s;
         }
-        .port-card:hover {
-            border-color: #3b82f6;
-        }
-        .port-card-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
+        .port-card:hover { border-color: #3b82f6; }
+        .port-card-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
         .port-card-badge {
-            font-size: 15px;
-            font-weight: 700;
-            font-family: ui-monospace, monospace;
-            color: var(--primary);
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            font-size: 15px; font-weight: 700; font-family: ui-monospace, monospace; color: var(--primary);
+            display: flex; align-items: center; gap: 8px;
         }
         .port-card-body {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 12px;
-            font-size: 12px;
-            background: var(--bg-card);
-            padding: 10px 14px;
-            border-radius: 8px;
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px; font-size: 12px; background: var(--bg-card-sub); padding: 10px 14px; border-radius: 8px;
         }
-        .port-card-col {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        .port-card-label {
-            color: var(--text-muted);
-            font-size: 11px;
-        }
-        .port-card-val {
-            color: var(--text-main);
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            flex-wrap: wrap;
-        }
+        .port-card-col { display: flex; flex-direction: column; gap: 4px; }
+        .port-card-label { color: var(--text-muted); font-size: 11px; }
+        .port-card-val { color: var(--text-main); font-weight: 500; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
         .copy-pill {
-            background: var(--bg-hover);
-            border: 1px solid var(--border-color);
-            padding: 2px 7px;
-            border-radius: 4px;
-            font-family: monospace;
-            font-size: 11.5px;
-            cursor: pointer;
-            color: #e2e8f0;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            transition: all 0.15s;
+            background: var(--bg-hover); border: 1px solid var(--border); padding: 2px 7px;
+            border-radius: 4px; font-family: ui-monospace, monospace; font-size: 11.5px; cursor: pointer;
+            color: #e2e8f0; display: inline-flex; align-items: center; gap: 4px; transition: all 0.15s;
         }
-        .copy-pill:hover {
-            border-color: var(--primary);
-            color: var(--primary);
-        }
+        .copy-pill:hover { border-color: var(--primary); color: var(--primary); }
 
-        /* Toast notification */
+        /* Choice Tile Cards */
+        .choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 6px; }
+        .choice-card {
+            background: var(--bg-base); border: 1px solid var(--border); border-radius: 8px;
+            padding: 10px 12px; cursor: pointer; transition: all 0.15s; display: flex; flex-direction: column; gap: 4px; user-select: none;
+        }
+        .choice-card:hover { border-color: var(--primary); background: var(--bg-hover); }
+        .choice-card.selected { border-color: var(--primary); background: rgba(59, 130, 246, 0.12); box-shadow: 0 0 0 1px var(--primary); }
+        .choice-card-title { font-size: 12.5px; font-weight: 600; color: #fff; }
+        .choice-card-desc { font-size: 11px; color: var(--text-muted); line-height: 1.35; }
+
+        /* Toast */
         #toast {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            background: #1e293b;
-            border: 1px solid #3b82f6;
-            color: #fff;
-            padding: 10px 16px;
-            border-radius: 8px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            font-size: 13px;
-            display: none;
-            align-items: center;
-            gap: 8px;
-            z-index: 2000;
+            position: fixed; bottom: 24px; right: 24px;
+            background: #1e293b; border: 1px solid #3b82f6; color: #fff;
+            padding: 10px 16px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            font-size: 13px; display: none; align-items: center; gap: 8px; z-index: 2000;
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- Top Header -->
         <header>
             <div class="logo-group">
                 <div class="logo-icon">
@@ -390,9 +382,9 @@
                 <div>
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <h1>AimiliVPN 网关 (Go 高性能版)</h1>
-                        <span id="app-version-badge" class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); font-family: monospace; font-size: 11px;">v2.1.0</span>
+                        <span id="app-version-badge" class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); font-family: monospace; font-size: 11px;">v2.3.0</span>
                     </div>
-                    <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">单端口自适应 HTTP / HTTPS / SOCKS5 代理网关</div>
+                    <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">多出口并发隧道池与自适应 M:N 分流网关</div>
                 </div>
             </div>
             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
@@ -416,6 +408,7 @@
             </div>
         </header>
 
+        <!-- KPI Metric Tiles -->
         <div class="stat-grid">
             <div class="stat-card">
                 <div class="stat-header">
@@ -439,11 +432,11 @@
                     <svg class="stat-icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 </div>
                 <div id="stat-active-conns" class="stat-val">0</div>
-                <div id="stat-proxy-port" class="stat-sub">端口: 7928</div>
+                <div id="stat-proxy-port" class="stat-sub">默认端口: 7928</div>
             </div>
             <div class="stat-card">
                 <div class="stat-header">
-                    <span class="stat-title">候选节点 / 黑名单</span>
+                    <span class="stat-title">候选节点 / 屏蔽库</span>
                     <svg class="stat-icon" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
                 </div>
                 <div id="stat-nodes-count" class="stat-val">0 / 0</div>
@@ -451,50 +444,65 @@
             </div>
         </div>
 
+        <!-- Dedicated Active Egress Tunnels Strip -->
+        <div class="tunnels-strip">
+            <div class="tunnels-strip-header">
+                <div class="tunnels-strip-title">
+                    <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    并发在线出口隧道池 (<span id="tunnels-count" style="color: var(--primary);">0</span> 个在线出口)
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-outline" style="padding: 4px 10px; font-size: 11.5px;" onclick="openPortMatrixModal()">
+                        <svg viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/></svg>
+                        出口分流矩阵
+                    </button>
+                </div>
+            </div>
+            <div id="active-tunnels-list" class="tunnels-strip-list">
+                <div style="font-size: 12px; color: var(--text-muted); padding: 4px 0;">暂无独立并发出口，在下方列表中点击「+并发」即可多出口同时在线</div>
+            </div>
+        </div>
+
+        <!-- Balanced 2-Column Dashboard Cards -->
         <div class="dashboard-grid">
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">
-                        <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                        当前 VPN 隧道
+            <!-- Left Card: Main Connection Status -->
+            <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                    <div class="card-header">
+                        <div class="card-title">
+                            <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                            主出口隧道状态
+                        </div>
+                        <span id="vpn-uptime" style="font-size: 12px; color: var(--text-muted);">运行时间: -</span>
                     </div>
-                    <span id="vpn-uptime" style="font-size: 12px; color: var(--text-muted);">运行时间: -</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">连接状态</span>
-                    <span id="vpn-status-text" class="info-val">未连接</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">活跃节点 IP</span>
-                    <span id="vpn-node-ip" class="info-val">-</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">IP 类型 / 归属 ISP</span>
-                    <span id="vpn-node-type" class="info-val">-</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">国家 / 城市地区</span>
-                    <span id="vpn-node-country" class="info-val">-</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">本地代理地址</span>
-                    <span id="vpn-proxy-addr" class="info-val">127.0.0.1:7928 (HTTP / SOCKS5)</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">最新状态信息</span>
-                    <span id="vpn-last-msg" style="font-size: 12px; color: var(--text-muted);">-</span>
-                </div>
-                <div id="active-tunnels-box" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-color);">
-                    <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-                        <span>并发在线隧道池 (<span id="tunnels-count">0</span>)</span>
-                        <button class="btn btn-outline" style="padding: 2px 8px; font-size: 11px;" onclick="openPortMatrixModal()">端口分流绑定 ➔</button>
+                    <div class="info-row">
+                        <span class="info-label">连接状态</span>
+                        <span id="vpn-status-text" class="info-val">未连接</span>
                     </div>
-                    <div id="active-tunnels-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 140px; overflow-y: auto;">
-                        <div style="font-size: 12px; color: var(--text-muted);">暂无独立并发隧道 (点击节点列表"+并发启动"添加)</div>
+                    <div class="info-row">
+                        <span class="info-label">活跃节点 IP</span>
+                        <span id="vpn-node-ip" class="info-val">-</span>
                     </div>
+                    <div class="info-row">
+                        <span class="info-label">网络类型 / ISP</span>
+                        <span id="vpn-node-type" class="info-val">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">国家 / 城市地区</span>
+                        <span id="vpn-node-country" class="info-val">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">默认本地代理</span>
+                        <span id="vpn-proxy-addr" class="info-val">127.0.0.1:7928 (HTTP / SOCKS5)</span>
+                    </div>
+                </div>
+                <div style="border-top: 1px solid var(--border); padding-top: 10px; margin-top: 6px; font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+                    <span style="color: var(--primary);">●</span>
+                    <span id="vpn-last-msg">服务就绪</span>
                 </div>
             </div>
 
+            <!-- Right Card: Real-time Terminal Log -->
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">
@@ -512,6 +520,7 @@
             </div>
         </div>
 
+        <!-- Node Explorer Card -->
         <div class="card">
             <div class="card-header">
                 <div class="card-title">
@@ -529,8 +538,21 @@
                     </button>
                 </div>
             </div>
-            <div class="filter-bar">
-                <input id="search-filter" class="input-field" type="text" placeholder="按国家/IP/ISP/城市搜索..." style="min-width: 220px;" oninput="renderNodes()">
+
+            <!-- Quick Filter Chips Toolbar -->
+            <div class="chips-bar">
+                <div class="chip active" id="chip-all" onclick="selectQuickFilter('all')">全部节点</div>
+                <div class="chip" id="chip-fav" onclick="selectQuickFilter('fav')">⭐ 仅看收藏 (<span id="fav-count">0</span>)</div>
+                <div class="chip" id="chip-res" onclick="selectQuickFilter('res')">🏠 住宅家宽</div>
+                <div class="chip" id="chip-host" onclick="selectQuickFilter('host')">🏢 机房网络</div>
+                <div class="chip" id="chip-fast" onclick="selectQuickFilter('fast')">⚡ 延迟 &lt; 150ms</div>
+                <div class="chip" id="chip-gpt" onclick="selectQuickFilter('gpt')">🤖 解锁 ChatGPT</div>
+                <div class="chip" id="chip-nf" onclick="selectQuickFilter('nf')">🎬 解锁 Netflix</div>
+            </div>
+
+            <!-- Filter Inputs -->
+            <div class="filter-controls">
+                <input id="search-filter" class="input-field" type="text" placeholder="搜索 IP / 国家 / 城市 / 运营商..." style="min-width: 240px;" oninput="renderNodes()">
                 <select id="country-filter" class="input-field" onchange="renderNodes()">
                     <option value="">全部国家/地区</option>
                 </select>
@@ -546,83 +568,84 @@
                     <option value="score_desc">排序: 按综合评分 (高 ➔ 低)</option>
                     <option value="ping_asc">排序: 按原始 Ping (快 ➔ 慢)</option>
                 </select>
-                <button id="btn-fav-filter" class="btn btn-outline" style="padding: 7px 11px;" onclick="toggleFavoriteFilter()">
-                    <span id="fav-icon" style="color:#f59e0b; font-size:14px;">☆</span> 仅看收藏 (<span id="fav-count">0</span>)
-                </button>
                 <span id="filtered-count" style="font-size: 12px; color: var(--text-muted); margin-left: auto;">共加载 0 个节点</span>
             </div>
+
+            <!-- Clean Compact 8-Column Table -->
             <div class="table-wrap">
                 <table>
                     <thead>
                         <tr>
                             <th style="width: 40px; text-align: center;">收藏</th>
-                            <th>国家 / 地区</th>
-                            <th>IP : 端口</th>
+                            <th>国家 / 城市</th>
+                            <th>出口端点</th>
                             <th>网络类型 / ISP</th>
-                            <th>协议</th>
-                            <th onclick="toggleSort('latency')" style="cursor: pointer; user-select: none;" title="点击按测速延迟排序">测速延迟 / 状态 <span id="sort-icon-latency">⇅</span></th>
-                            <th>历史信誉</th>
-                            <th>AI/流媒体解锁</th>
-                            <th onclick="toggleSort('score')" style="cursor: pointer; user-select: none;" title="点击按评分排序">评分 <span id="sort-icon-score">⇅</span></th>
-                            <th onclick="toggleSort('speed')" style="cursor: pointer; user-select: none;" title="点击按带宽排序">带宽 <span id="sort-icon-speed">⇅</span></th>
-                            <th>操作</th>
+                            <th onclick="toggleSort('latency')" style="cursor: pointer;" title="点击按延迟排序">延迟 / 可用性 <span id="sort-icon-latency">⇅</span></th>
+                            <th>信誉</th>
+                            <th>AI / 流媒体解锁</th>
+                            <th onclick="toggleSort('speed')" style="cursor: pointer;" title="点击按带宽排序">带宽 / 评分 <span id="sort-icon-speed">⇅</span></th>
+                            <th style="text-align: right;">操作</th>
                         </tr>
                     </thead>
                     <tbody id="nodes-tbody">
-                        <tr><td colspan="8" style="text-align: center; color: var(--text-muted);">正在加载节点数据...</td></tr>
+                        <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 36px;">正在加载节点数据...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- 系统与安全设置模态弹窗 -->
+    <!-- 1. 系统与安全设置模态弹窗 (Tabbed) -->
     <div id="settings-modal" class="modal-overlay">
         <div class="modal-card">
-            <div class="card-header" style="margin-bottom: 20px;">
+            <div class="card-header" style="margin-bottom: 12px;">
                 <div class="card-title">
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                     系统与安全参数设置
                 </div>
-                <button class="btn btn-outline" style="padding: 4px 8px;" onclick="closeSettingsModal()">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
+                <button class="btn btn-outline" style="padding: 4px 8px;" onclick="closeSettingsModal()">✕</button>
             </div>
+
+            <!-- Tab Switcher -->
+            <div class="modal-tabs">
+                <button type="button" class="modal-tab-btn active" id="tab-btn-base" onclick="switchSettingsTab('base')">⚙️ 基础与网络</button>
+                <button type="button" class="modal-tab-btn" id="tab-btn-rotate" onclick="switchSettingsTab('rotate')">🔄 自动轮换策略</button>
+                <button type="button" class="modal-tab-btn" id="tab-btn-tg" onclick="switchSettingsTab('tg')">🤖 Telegram 告警</button>
+            </div>
+
             <form id="settings-form" onsubmit="saveSettings(event)">
-                <div class="form-group">
-                    <label class="form-label">Web 管理控制台端口 [1-65535]</label>
-                    <input id="cfg-web-port" class="input-field" style="width: 100%;" type="number" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">后台安全访问路径 (无需斜杠)</label>
-                    <div class="input-addon">
-                        <input id="cfg-web-path" class="input-field" type="text" required>
-                        <button type="button" class="btn btn-outline" onclick="randomPath()">
-                            <svg viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                            随机
-                        </button>
+                <!-- Tab 1: Base -->
+                <div id="tab-content-base">
+                    <div class="form-group">
+                        <label class="form-label">Web 管理控制台端口 [1-65535]</label>
+                        <input id="cfg-web-port" class="input-field" style="width: 100%; font-family: monospace;" type="number" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">后台安全访问路径 (无需斜杠)</label>
+                        <div class="input-addon">
+                            <input id="cfg-web-path" class="input-field" style="font-family: monospace;" type="text" required>
+                            <button type="button" class="btn btn-outline" onclick="randomPath()">🎲 随机</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Web 管理员账号</label>
+                        <input id="cfg-username" class="input-field" style="width: 100%;" type="text" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Web 管理员密码 (留空保持原密码不变)</label>
+                        <div class="input-addon">
+                            <input id="cfg-password" class="input-field" type="text" placeholder="留空保持原密码">
+                            <button type="button" class="btn btn-outline" onclick="randomPassword()">🎲 随机密码</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">默认本地代理端口 [1-65535]</label>
+                        <input id="cfg-proxy-port" class="input-field" style="width: 100%; font-family: monospace;" type="number" required>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Web 管理员账号</label>
-                    <input id="cfg-username" class="input-field" style="width: 100%;" type="text" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Web 管理员密码 (留空保持原密码不变)</label>
-                    <div class="input-addon">
-                        <input id="cfg-password" class="input-field" type="text" placeholder="留空保持原密码">
-                        <button type="button" class="btn btn-outline" onclick="randomPassword()">
-                            <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                            随机密码
-                        </button>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">本地自适应代理端口 [1-65535]</label>
-                    <input id="cfg-proxy-port" class="input-field" style="width: 100%;" type="number" required>
-                </div>
-                <div style="border-top: 1px solid var(--border-color); margin: 18px 0 14px 0; padding-top: 14px;">
-                    <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--primary);">智能自动轮换与偏好策略</div>
+
+                <!-- Tab 2: Auto Rotate -->
+                <div id="tab-content-rotate" style="display: none;">
                     <div class="form-group">
                         <label class="form-label">定时自动轮换 IP 周期</label>
                         <select id="cfg-auto-rotate" class="input-field" style="width: 100%;">
@@ -646,84 +669,168 @@
                         <input id="cfg-discovery-countries" class="input-field" style="width: 100%;" type="text" placeholder="例如: JP,US,KR">
                     </div>
                 </div>
-                <div style="border-top: 1px solid var(--border-color); margin: 18px 0 14px 0; padding-top: 14px;">
-                    <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px; color: #38bdf8; display: flex; justify-content: space-between; align-items: center;">
-                        <span>🤖 Telegram 机器人告警与交互设置</span>
-                        <button type="button" class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="testTelegramAlert()">🔔 发送测试消息</button>
+
+                <!-- Tab 3: Telegram -->
+                <div id="tab-content-tg" style="display: none;">
+                    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px; line-height: 1.5;">
+                        配置后，网关在节点自动故障转移、自适应池全断线时自动推送告警；并支持在 TG 对话框使用 <code>/status</code>、<code>/tunnels</code>、<code>/rotate</code> 远程控制。
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Telegram Bot Token (从 @BotFather 获取)</label>
-                        <input id="cfg-tg-token" class="input-field" style="width: 100%; font-family: monospace;" type="text" placeholder="例如: 123456789:ABCdefGhIJKlmNoPQRstuVWXyz">
+                        <label class="form-label">Telegram Bot Token (向 @BotFather 申请)</label>
+                        <input id="cfg-tg-token" class="input-field" style="width: 100%; font-family: monospace;" type="text" placeholder="例如: 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Telegram 接收 Chat ID (个人或频道 ID)</label>
+                        <label class="form-label">Telegram Chat ID (接收告警的个人或群组 ID)</label>
                         <input id="cfg-tg-chatid" class="input-field" style="width: 100%; font-family: monospace;" type="text" placeholder="例如: 987654321">
                     </div>
+                    <div style="margin-top: 10px;">
+                        <button type="button" class="btn btn-outline" style="padding: 5px 12px; font-size: 12px;" onclick="testTelegramAlert()">🔔 发送测试消息</button>
+                    </div>
                 </div>
-                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; border-top: 1px solid var(--border); padding-top: 16px;">
                     <button type="button" class="btn btn-outline" onclick="closeSettingsModal()">取消</button>
-                    <button type="submit" class="btn">
-                        <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                        保存并生效
-                    </button>
+                    <button type="submit" class="btn">💾 保存并生效</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- 代理端口与出口分流矩阵管理弹窗 -->
+    <!-- 2. 多端口与分流矩阵管理模态弹窗 (Tabbed) -->
     <div id="port-matrix-modal" class="modal-overlay">
-        <div class="modal-card" style="max-width: 820px;">
-            <div class="card-header" style="margin-bottom: 16px;">
+        <div class="modal-card" style="max-width: 860px;">
+            <div class="card-header" style="margin-bottom: 14px;">
                 <div class="card-title">
                     <svg viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
-                    多代理端口与分流调度矩阵
+                    多端口代理与自适应分流矩阵
                 </div>
-                <button class="btn btn-outline" style="padding: 4px 8px;" onclick="closePortMatrixModal()">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
+                <button class="btn btn-outline" style="padding: 4px 8px;" onclick="closePortMatrixModal()">✕</button>
             </div>
 
-            <!-- 在线隧道池概览 -->
-            <div style="background: var(--bg-base); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px 14px; margin-bottom: 16px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                    <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
-                        <svg style="width: 14px; height: 14px; stroke: var(--primary); fill: none; stroke-width: 2;" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/></svg>
-                        当前并发在线出口隧道池 (<span id="modal-tunnels-count" style="color: var(--primary);">0</span> 个可用出口)
-                    </div>
-                    <span style="font-size: 11px; color: var(--text-muted);">可在主界面节点列表点击「+并发」开启更多出口</span>
+            <!-- Modal Tab Navigation -->
+            <div class="modal-tabs">
+                <button type="button" class="modal-tab-btn active" id="matrix-tab-ports" onclick="switchMatrixTab('ports')">🌐 代理监听端口管理</button>
+                <button type="button" class="modal-tab-btn" id="matrix-tab-groups" onclick="switchMatrixTab('groups')">⚡ 动态自适应隧道组</button>
+            </div>
+
+            <!-- Tab 1: Proxy Ports -->
+            <div id="matrix-content-ports">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <div style="font-size: 12.5px; color: var(--text-muted);">配置多个出站代理监听端口，每个端口独立调度不同隧道出口</div>
+                    <button class="btn" style="padding: 5px 12px; font-size: 12px;" onclick="showAddPortForm()">+ 新增代理端口</button>
                 </div>
-                <div id="modal-tunnels-list" style="display: flex; flex-wrap: wrap; gap: 8px;">
-                    <span style="font-size: 12px; color: var(--text-muted);">暂无独立并发隧道</span>
+
+                <div id="port-rules-cards" style="max-height: 320px; overflow-y: auto; margin-bottom: 16px; padding-right: 4px;">
+                    <div style="text-align: center; color: var(--text-muted); padding: 24px;">加载端口规则中...</div>
+                </div>
+
+                <!-- Port Edit Drawer -->
+                <div id="port-edit-card" style="background: var(--bg-base); border: 1px solid #3b82f6; border-radius: 12px; padding: 18px; display: none; margin-bottom: 12px;">
+                    <div style="font-size: 14px; font-weight: 600; margin-bottom: 16px; color: #60a5fa;" id="port-edit-title">新增/编辑端口分流规则</div>
+                    <div class="form-group">
+                        <label class="form-label">本地监听端口号 [1-65535]</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input id="rule-port" class="input-field" style="width: 130px; font-family: monospace;" type="number" placeholder="例如: 7928" required>
+                            <button type="button" class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="suggestNextPort()">+1 建议</button>
+                            <button type="button" class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="setPortVal(1080)">1080</button>
+                            <button type="button" class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="setPortVal(7890)">7890</button>
+                            <button type="button" class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="setPortVal(8080)">8080</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">分流调度策略</label>
+                        <input type="hidden" id="rule-policy" value="round_robin">
+                        <div class="choice-grid">
+                            <div id="card-policy-round_robin" class="choice-card selected" onclick="selectPolicy('round_robin')">
+                                <div class="choice-card-title">🔄 单连接轮询 (Round-Robin)</div>
+                                <div class="choice-card-desc">每发起一次新连接自动交替使用不同绑定的出口节点</div>
+                            </div>
+                            <div id="card-policy-random" class="choice-card" onclick="selectPolicy('random')">
+                                <div class="choice-card-title">🎲 随机分发 (Random)</div>
+                                <div class="choice-card-desc">每次连接随机选取绑定的任一健康隧道出网</div>
+                            </div>
+                            <div id="card-policy-interval" class="choice-card" onclick="selectPolicy('interval')">
+                                <div class="choice-card-title">⏱️ 定时锁定轮换 (Interval)</div>
+                                <div class="choice-card-desc">固定时间内走同一出口，到期后平滑切换到下一出口</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group" id="rule-interval-group" style="display: none; background: var(--bg-card); padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+                        <label class="form-label">定时锁定轮换时间间隔</label>
+                        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                            <input id="rule-interval" class="input-field" style="width: 120px; font-family: monospace;" type="number" value="300">
+                            <span style="font-size: 12px; color: var(--text-muted);">秒</span>
+                            <button type="button" class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="setIntervalVal(60)">1分钟</button>
+                            <button type="button" class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="setIntervalVal(300)">5分钟</button>
+                            <button type="button" class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="setIntervalVal(900)">15分钟</button>
+                            <button type="button" class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="setIntervalVal(3600)">1小时</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">代理账密鉴权设置</label>
+                        <input type="hidden" id="rule-auth-mode" value="default_web">
+                        <div class="choice-grid">
+                            <div id="card-auth-default_web" class="choice-card selected" onclick="selectAuthMode('default_web')">
+                                <div class="choice-card-title">🔒 跟随管理密码 (推荐)</div>
+                                <div class="choice-card-desc">自动同步 Web 控制台管理员用户名和密码</div>
+                            </div>
+                            <div id="card-auth-none" class="choice-card" onclick="selectAuthMode('none')">
+                                <div class="choice-card-title">🔓 免密直接连接</div>
+                                <div class="choice-card-desc">关闭认证，无需输入账号密码即可使用代理</div>
+                            </div>
+                            <div id="card-auth-custom" class="choice-card" onclick="selectAuthMode('custom')">
+                                <div class="choice-card-title">🔑 自定义独立账密</div>
+                                <div class="choice-card-desc">为当前端口单独设置独立的专用账号与密码</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="rule-custom-auth-group" style="display: none; gap: 10px; margin-bottom: 16px; background: var(--bg-card); padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+                        <div style="flex: 1;">
+                            <label class="form-label">代理用户名</label>
+                            <input id="rule-auth-user" class="input-field" style="width: 100%;" type="text" placeholder="设置代理账号">
+                        </div>
+                        <div style="flex: 1;">
+                            <label class="form-label">代理密码 (留空视为免密)</label>
+                            <input id="rule-auth-pass" class="input-field" style="width: 100%;" type="text" placeholder="设置代理密码">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">绑定出口隧道 (勾选此端口允许使用的出网出口或动态组)</label>
+                        <div id="rule-tunnels-checkboxes" style="display: flex; flex-direction: column; gap: 8px; max-height: 140px; overflow-y: auto; background: var(--bg-card); padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+                            <!-- Dynamic checkboxes -->
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
+                        <button type="button" class="btn btn-outline" onclick="hideEditPortForm()">取消</button>
+                        <button type="button" class="btn" onclick="savePortRule()">确认保存规则</button>
+                    </div>
                 </div>
             </div>
 
-            <!-- 动态自适应隧道组 (Dynamic Pool Groups) -->
-            <div style="background: var(--bg-base); border: 1px solid var(--border-color); border-radius: 10px; padding: 14px; margin-bottom: 16px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
-                    <div>
-                        <div style="font-size: 13px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 6px;">
-                            <svg style="width: 15px; height: 15px; stroke: #38bdf8; fill: none; stroke-width: 2;" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                            动态自适应隧道池 (按指标自动维持 Top N 最优节点)
-                        </div>
-                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
-                            按国家/家宽住宅筛选，动态维持最低延迟/最大带宽节点，并在后台定时自动轮换
-                        </div>
-                    </div>
+            <!-- Tab 2: Dynamic Pool Groups -->
+            <div id="matrix-content-groups" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                    <div style="font-size: 12.5px; color: var(--text-muted);">全自动按国家、住宅/机房指标维持 Top N 出口，定时自适应轮换</div>
                     <div style="display: flex; gap: 6px;">
-                        <button class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="evaluateDynamicGroups()" title="立即触发所有组后台重新探活与择优轮换">⚡ 立即重评</button>
+                        <button class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="evaluateDynamicGroups()">⚡ 立即重评</button>
                         <button class="btn" style="padding: 5px 12px; font-size: 12px; background: #0284c7;" onclick="showAddDynamicGroupForm()">+ 新建自适应组</button>
                     </div>
                 </div>
 
-                <div id="dynamic-groups-container" style="display: flex; flex-direction: column; gap: 8px;">
-                    <div style="text-align: center; color: var(--text-muted); font-size: 12px; padding: 12px;">正在加载动态自适应组...</div>
+                <div id="dynamic-groups-container" style="display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto;">
+                    <div style="text-align: center; color: var(--text-muted); font-size: 12px; padding: 16px;">加载自适应组中...</div>
                 </div>
 
-                <!-- 动态组编辑抽屉 -->
-                <div id="dynamic-group-edit-card" style="background: var(--bg-card); border: 1px solid #0284c7; border-radius: 10px; padding: 16px; margin-top: 12px; display: none;">
+                <!-- Dynamic Group Edit Drawer -->
+                <div id="dynamic-group-edit-card" style="background: var(--bg-card); border: 1px solid #0284c7; border-radius: 10px; padding: 16px; margin-top: 14px; display: none;">
                     <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px; color: #38bdf8;" id="dynamic-group-edit-title">新增动态自适应组</div>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 12px;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 14px;">
                         <div>
                             <label class="form-label">自适应组名称</label>
                             <input id="dg-name" class="input-field" style="width: 100%;" type="text" placeholder="例如: 日本Top3住宅组" required>
@@ -756,9 +863,9 @@
                         <div>
                             <label class="form-label">择优筛选指标</label>
                             <select id="dg-sortby" class="input-field" style="width: 100%;">
-                                <option value="latency" selected>⚡ 最低延迟优先 (实时TCP握手测速)</option>
+                                <option value="latency" selected>⚡ 最低延迟优先 (TCP测速)</option>
                                 <option value="speed">🚀 最大带宽优先 (Mbps)</option>
-                                <option value="score">🏆 综合评分最高优先 (VPNGate Score)</option>
+                                <option value="score">🏆 综合评分最高优先</option>
                             </select>
                         </div>
                         <div>
@@ -784,133 +891,13 @@
                 </div>
             </div>
 
-            <!-- 端口列表操作栏 -->
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <div style="font-size: 13px; font-weight: 600; color: #fff;">本地代理监听端口列表</div>
-                <button class="btn" style="padding: 6px 14px; font-size: 12px;" onclick="showAddPortForm()">
-                    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    新增代理端口
-                </button>
-            </div>
-
-            <!-- 规则卡片容器 -->
-            <div id="port-rules-cards" style="max-height: 280px; overflow-y: auto; margin-bottom: 16px; padding-right: 4px;">
-                <div style="text-align: center; color: var(--text-muted); padding: 24px;">加载端口规则中...</div>
-            </div>
-
-            <!-- 规则编辑抽屉 -->
-            <div id="port-edit-card" style="background: var(--bg-base); border: 1px solid #3b82f6; border-radius: 12px; padding: 18px; display: none; margin-bottom: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.4);">
-                <div style="font-size: 14px; font-weight: 600; margin-bottom: 16px; color: #60a5fa; display: flex; align-items: center; gap: 6px;" id="port-edit-title">
-                    <svg style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                    新增/编辑端口分流规则
-                </div>
-
-                <!-- 1. 端口配置 -->
-                <div class="form-group">
-                    <label class="form-label">本地监听端口号 [1-65535]</label>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <input id="rule-port" class="input-field" style="width: 140px; font-family: monospace; font-size: 14px;" type="number" placeholder="例如: 7928" required>
-                        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                            <button type="button" class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="suggestNextPort()">+1 建议端口</button>
-                            <button type="button" class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="setPortVal(1080)">1080</button>
-                            <button type="button" class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="setPortVal(7890)">7890</button>
-                            <button type="button" class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="setPortVal(8080)">8080</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 2. 分流调度策略 -->
-                <div class="form-group">
-                    <label class="form-label">分流调度策略 (每个端口绑定多个出口时的转发模式)</label>
-                    <input type="hidden" id="rule-policy" value="round_robin">
-                    <div class="choice-grid">
-                        <div id="card-policy-round_robin" class="choice-card selected" onclick="selectPolicy('round_robin')">
-                            <div class="choice-card-title">🔄 单连接轮询 (Round-Robin)</div>
-                            <div class="choice-card-desc">每个新连接按顺序交替切换不同绑定的出口节点，实现高频动态 IP 轮换</div>
-                        </div>
-                        <div id="card-policy-random" class="choice-card" onclick="selectPolicy('random')">
-                            <div class="choice-card-title">🎲 随机分发 (Random)</div>
-                            <div class="choice-card-desc">每次客户端连接随机抽取绑定的任一健康隧道出网，实现天然负载均衡</div>
-                        </div>
-                        <div id="card-policy-interval" class="choice-card" onclick="selectPolicy('interval')">
-                            <div class="choice-card-title">⏱️ 定时锁定轮换 (Interval)</div>
-                            <div class="choice-card-desc">在指定时间段内固定使用同一个出口，时间到后平滑无缝轮流切换至下一个节点</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 定时轮询秒数 -->
-                <div class="form-group" id="rule-interval-group" style="display: none; background: var(--bg-card); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
-                    <label class="form-label">定时锁定轮换时间间隔</label>
-                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                        <input id="rule-interval" class="input-field" style="width: 120px; font-family: monospace;" type="number" value="300">
-                        <span style="font-size: 12px; color: var(--text-muted);">秒</span>
-                        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-left: 8px;">
-                            <button type="button" class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="setIntervalVal(60)">1分钟</button>
-                            <button type="button" class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="setIntervalVal(300)">5分钟</button>
-                            <button type="button" class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="setIntervalVal(900)">15分钟</button>
-                            <button type="button" class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="setIntervalVal(1800)">30分钟</button>
-                            <button type="button" class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="setIntervalVal(3600)">1小时</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 3. 代理鉴权模式 -->
-                <div class="form-group">
-                    <label class="form-label">代理账密鉴权设置</label>
-                    <input type="hidden" id="rule-auth-mode" value="default_web">
-                    <div class="choice-grid">
-                        <div id="card-auth-default_web" class="choice-card selected" onclick="selectAuthMode('default_web')">
-                            <div class="choice-card-title">🔒 跟随管理密码 (推荐)</div>
-                            <div class="choice-card-desc">自动同步当前 Web 管理后台的管理员用户名和密码，省心安全</div>
-                        </div>
-                        <div id="card-auth-none" class="choice-card" onclick="selectAuthMode('none')">
-                            <div class="choice-card-title">🔓 免密直接连接</div>
-                            <div class="choice-card-desc">关闭认证，无需输入账号密码即可使用代理，适合本机或可信环境</div>
-                        </div>
-                        <div id="card-auth-custom" class="choice-card" onclick="selectAuthMode('custom')">
-                            <div class="choice-card-title">🔑 自定义独立账密</div>
-                            <div class="choice-card-desc">为当前端口单独设置独立的专用账号与密码</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 自定义账号密码字段 -->
-                <div id="rule-custom-auth-group" style="display: none; gap: 10px; margin-bottom: 16px; background: var(--bg-card); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
-                    <div style="flex: 1;">
-                        <label class="form-label">代理用户名</label>
-                        <input id="rule-auth-user" class="input-field" style="width: 100%;" type="text" placeholder="设置代理账号">
-                    </div>
-                    <div style="flex: 1;">
-                        <label class="form-label">代理密码 (留空视为免密)</label>
-                        <input id="rule-auth-pass" class="input-field" style="width: 100%;" type="text" placeholder="设置代理密码">
-                    </div>
-                </div>
-
-                <!-- 4. 出口隧道选择 (M:N 绑定矩阵) -->
-                <div class="form-group">
-                    <label class="form-label">绑定出口隧道 (勾选此端口允许使用的出站节点出口)</label>
-                    <div id="rule-tunnels-checkboxes" style="display: flex; flex-direction: column; gap: 8px; max-height: 140px; overflow-y: auto; background: var(--bg-card); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
-                        <!-- Dynamic checkboxes -->
-                    </div>
-                </div>
-
-                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
-                    <button type="button" class="btn btn-outline" onclick="hideEditPortForm()">取消</button>
-                    <button type="button" class="btn" onclick="savePortRule()">
-                        <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                        确认保存规则
-                    </button>
-                </div>
-            </div>
-
-            <div style="display: flex; justify-content: flex-end;">
+            <div style="display: flex; justify-content: flex-end; margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px;">
                 <button type="button" class="btn btn-outline" onclick="closePortMatrixModal()">关闭</button>
             </div>
         </div>
     </div>
 
-    <!-- 复制成功 Toast 浮层 -->
+    <!-- Toast Notification -->
     <div id="toast">
         <svg style="width: 16px; height: 16px; stroke: #34d399; fill: none; stroke-width: 2;" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
         <span id="toast-msg">已复制到剪贴板</span>
@@ -920,9 +907,62 @@
         let allNodes = [];
         let currentState = null;
         let cachedUnlockMap = {};
+        let activeQuickFilter = 'all';
+
+        const countryNames = {
+            JP: '日本', US: '美国', KR: '韩国', TW: '台湾', HK: '香港',
+            SG: '新加坡', GB: '英国', DE: '德国', FR: '法国', CA: '加拿大',
+            AU: '澳大利亚', VN: '越南', TH: '泰国', MY: '马来西亚', IN: '印度',
+            RU: '俄罗斯', NL: '荷兰', BR: '巴西', PH: '菲律宾', ID: '印尼'
+        };
+
+        const flagSVGs = {
+            JP: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#fff" width="900" height="600"/><circle fill="#bc002d" cx="450" cy="300" r="180"/></svg>',
+            US: '<svg class="flag-img" viewBox="0 0 7410 3900"><rect fill="#b22234" width="7410" height="3900"/><path stroke="#fff" stroke-width="300" d="M0,450H7410M0,1050H7410M0,1650H7410M0,2250H7410M0,2850H7410M0,3450H7410"/><rect fill="#3c3b6e" width="2964" height="2100"/></svg>',
+            KR: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#fff" width="900" height="600"/><path fill="#cd2e3a" d="M450,150a150,150 0 0,1 0,300a75,75 0 0,1 0,-150z"/><path fill="#0047a0" d="M450,450a150,150 0 0,1 0,-300a75,75 0 0,1 0,150z"/></svg>',
+            TW: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#fe0000" width="900" height="600"/><rect fill="#000095" width="450" height="300"/><circle fill="#fff" cx="225" cy="150" r="75"/></svg>',
+            HK: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#c8102e" width="900" height="600"/><circle fill="#fff" cx="450" cy="300" r="110" opacity="0.9"/></svg>',
+            SG: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#ed2939" width="900" height="300"/><rect fill="#fff" y="300" width="900" height="300"/><circle fill="#fff" cx="225" cy="150" r="100"/><circle fill="#ed2939" cx="265" cy="150" r="100"/></svg>',
+            DE: '<svg class="flag-img" viewBox="0 0 5 3"><rect width="5" height="1" y="0" fill="#000"/><rect width="5" height="1" y="1" fill="#D00"/><rect width="5" height="1" y="2" fill="#FFCE00"/></svg>',
+            FR: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#002395" width="300" height="600"/><rect fill="#fff" x="300" width="300" height="600"/><rect fill="#ed2939" x="600" width="300" height="600"/></svg>',
+            GB: '<svg class="flag-img" viewBox="0 0 60 30"><rect fill="#012169" width="60" height="30"/><path d="M0,0 L60,30 M60,0 L0,30" stroke="#fff" stroke-width="6"/><path d="M0,0 L60,30 M60,0 L0,30" stroke="#C8102E" stroke-width="4"/><path d="M30,0 v30 M0,15 h60" stroke="#fff" stroke-width="10"/><path d="M30,0 v30 M0,15 h60" stroke="#C8102E" stroke-width="6"/></svg>',
+            CA: '<svg class="flag-img" viewBox="0 0 900 450"><rect fill="#f00" width="225" height="450"/><rect fill="#fff" x="225" width="450" height="450"/><rect fill="#f00" x="675" width="225" height="450"/><polygon fill="#f00" points="450,112 470,170 515,160 480,200 500,240 450,225 400,240 420,200 385,160 430,170"/></svg>',
+            VN: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#da251d" width="900" height="600"/><polygon fill="#ffff00" points="450,140 487,254 607,254 510,324 547,438 450,368 353,438 390,324 293,254 413,254"/></svg>',
+            TH: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#a51931" width="900" height="600"/><rect fill="#f4f5f8" y="100" width="900" height="400"/><rect fill="#2d2a4a" y="200" width="900" height="200"/></svg>'
+        };
+
+        function getCountryFlagSVG(code) {
+            code = (code || '').toUpperCase();
+            if (flagSVGs[code]) return flagSVGs[code];
+            return `<svg class="flag-img" viewBox="0 0 24 24" style="background:#1e293b; padding:2px;"><circle cx="12" cy="12" r="10" stroke="#64748b" fill="none"/><line x1="2" y1="12" x2="22" y2="12" stroke="#64748b"/></svg>`;
+        }
+
+        function getCountryName(code) { return countryNames[code] || code; }
+
+        function formatBytes(bytes) {
+            if (!bytes || bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatSpeed(bps) { return formatBytes(bps) + '/s'; }
+
+        function appendLog(entry) {
+            const term = document.getElementById('terminal');
+            const row = document.createElement('div');
+            row.className = 'log-line';
+            const timeStr = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+            row.innerHTML = `<span class="log-time">[${timeStr}]</span> <span class="log-level-${entry.level}">[${entry.module || 'System'}]</span> ${entry.message}`;
+            term.appendChild(row);
+            term.scrollTop = term.scrollHeight;
+        }
+
+        function clearLogs() { document.getElementById('terminal').innerHTML = ''; }
 
         function renderUnlockBadges(u) {
-            if (!u) return '<span style="color:var(--text-muted); font-size:11px;">未检测</span>';
+            if (!u) return '<span style="color:var(--text-muted); font-size:11px;">-</span>';
             const badges = [];
             if (u.openai === 'unlocked') badges.push('<span class="badge" style="background:rgba(16,185,129,0.15); color:#34d399; font-size:10px; padding:1px 5px;" title="OpenAI / ChatGPT 解锁正常">GPT:✅</span>');
             else if (u.openai === 'blocked') badges.push('<span class="badge" style="background:rgba(239,68,68,0.15); color:#f87171; font-size:10px; padding:1px 5px;" title="OpenAI 阻断拦截">GPT:❌</span>');
@@ -936,16 +976,14 @@
             if (u.google === 'unlocked') badges.push('<span class="badge" style="background:rgba(59,130,246,0.15); color:#60a5fa; font-size:10px; padding:1px 5px;" title="Google Search 干净无验证码">G:✅</span>');
             else if (u.google === 'blocked') badges.push('<span class="badge" style="background:rgba(239,68,68,0.15); color:#f87171; font-size:10px; padding:1px 5px;" title="Google 出现验证码异常">G:⚠️</span>');
 
-            if (badges.length === 0) return '<span style="color:var(--text-muted); font-size:11px;">未检测</span>';
+            if (badges.length === 0) return '<span style="color:var(--text-muted); font-size:11px;">-</span>';
             return `<div style="display:flex; gap:3px; flex-wrap:wrap;">${badges.join('')}</div>`;
         }
 
         async function fetchUnlockCache() {
             try {
                 const res = await fetch('/api/unlock');
-                if (res.ok) {
-                    cachedUnlockMap = await res.json() || {};
-                }
+                if (res.ok) cachedUnlockMap = await res.json() || {};
             } catch(e) {}
         }
 
@@ -970,74 +1008,11 @@
             try {
                 const res = await fetch('/api/telegram/test', { method: 'POST' });
                 const ret = await res.json();
-                if (res.ok) {
-                    alert(ret.message || '测试消息发送成功！');
-                } else {
-                    alert('测试失败: ' + (ret.error || '未知错误'));
-                }
+                if (res.ok) alert(ret.message || '测试消息发送成功！');
+                else alert('测试失败: ' + (ret.error || '未知错误'));
             } catch(err) {
                 alert('请求失败: ' + err);
             }
-        }
-
-        const countryNames = {
-            JP: '日本', US: '美国', KR: '韩国', TW: '台湾', HK: '香港',
-            SG: '新加坡', GB: '英国', DE: '德国', FR: '法国', CA: '加拿大',
-            AU: '澳大利亚', VN: '越南', TH: '泰国', MY: '马来西亚', IN: '印度',
-            RU: '俄罗斯', NL: '荷兰', BR: '巴西', PH: '菲律宾', ID: '印尼'
-        };
-
-        // Vector SVG flags map for top countries
-        const flagSVGs = {
-            JP: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#fff" width="900" height="600"/><circle fill="#bc002d" cx="450" cy="300" r="180"/></svg>',
-            US: '<svg class="flag-img" viewBox="0 0 7410 3900"><rect fill="#b22234" width="7410" height="3900"/><path stroke="#fff" stroke-width="300" d="M0,450H7410M0,1050H7410M0,1650H7410M0,2250H7410M0,2850H7410M0,3450H7410"/><rect fill="#3c3b6e" width="2964" height="2100"/></svg>',
-            KR: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#fff" width="900" height="600"/><path fill="#cd2e3a" d="M450,150a150,150 0 0,1 0,300a75,75 0 0,1 0,-150z"/><path fill="#0047a0" d="M450,450a150,150 0 0,1 0,-300a75,75 0 0,1 0,150z"/></svg>',
-            TW: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#fe0000" width="900" height="600"/><rect fill="#000095" width="450" height="300"/><circle fill="#fff" cx="225" cy="150" r="75"/></svg>',
-            HK: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#c8102e" width="900" height="600"/><circle fill="#fff" cx="450" cy="300" r="110" opacity="0.9"/></svg>',
-            SG: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#ed2939" width="900" height="300"/><rect fill="#fff" y="300" width="900" height="300"/><circle fill="#fff" cx="225" cy="150" r="100"/><circle fill="#ed2939" cx="265" cy="150" r="100"/></svg>',
-            DE: '<svg class="flag-img" viewBox="0 0 5 3"><rect width="5" height="1" y="0" fill="#000"/><rect width="5" height="1" y="1" fill="#D00"/><rect width="5" height="1" y="2" fill="#FFCE00"/></svg>',
-            FR: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#002395" width="300" height="600"/><rect fill="#fff" x="300" width="300" height="600"/><rect fill="#ed2939" x="600" width="300" height="600"/></svg>',
-            GB: '<svg class="flag-img" viewBox="0 0 60 30"><rect fill="#012169" width="60" height="30"/><path d="M0,0 L60,30 M60,0 L0,30" stroke="#fff" stroke-width="6"/><path d="M0,0 L60,30 M60,0 L0,30" stroke="#C8102E" stroke-width="4"/><path d="M30,0 v30 M0,15 h60" stroke="#fff" stroke-width="10"/><path d="M30,0 v30 M0,15 h60" stroke="#C8102E" stroke-width="6"/></svg>',
-            CA: '<svg class="flag-img" viewBox="0 0 900 450"><rect fill="#f00" width="225" height="450"/><rect fill="#fff" x="225" width="450" height="450"/><rect fill="#f00" x="675" width="225" height="450"/><polygon fill="#f00" points="450,112 470,170 515,160 480,200 500,240 450,225 400,240 420,200 385,160 430,170"/></svg>',
-            VN: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#da251d" width="900" height="600"/><polygon fill="#ffff00" points="450,140 487,254 607,254 510,324 547,438 450,368 353,438 390,324 293,254 413,254"/></svg>',
-            TH: '<svg class="flag-img" viewBox="0 0 900 600"><rect fill="#a51931" width="900" height="600"/><rect fill="#f4f5f8" y="100" width="900" height="400"/><rect fill="#2d2a4a" y="200" width="900" height="200"/></svg>'
-        };
-
-        function getCountryFlagSVG(code) {
-            code = (code || '').toUpperCase();
-            if (flagSVGs[code]) return flagSVGs[code];
-            // Fallback generic globe SVG
-            return `<svg class="flag-img" viewBox="0 0 24 24" style="background:#1e293b; padding:2px;"><circle cx="12" cy="12" r="10" stroke="#64748b" fill="none"/><line x1="2" y1="12" x2="22" y2="12" stroke="#64748b"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" stroke="#64748b" fill="none"/></svg>`;
-        }
-
-        function getCountryName(code) {
-            return countryNames[code] || code;
-        }
-
-        function formatBytes(bytes) {
-            if (!bytes || bytes === 0) return '0 B';
-            const k = 1024;
-            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
-
-        function formatSpeed(bps) {
-            return formatBytes(bps) + '/s';
-        }
-
-        function appendLog(entry) {
-            const term = document.getElementById('terminal');
-            const row = document.createElement('div');
-            row.className = 'log-line';
-            const timeStr = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
-            row.innerHTML = `<span class="log-time">[${timeStr}]</span> <span class="log-level-${entry.level}">[${entry.module || 'System'}]</span> ${entry.message}`;
-            term.appendChild(row);
-            term.scrollTop = term.scrollHeight;
-        }
-
-        function clearLogs() {
-            document.getElementById('terminal').innerHTML = '';
         }
 
         async function fetchStatus() {
@@ -1060,7 +1035,7 @@
                 document.getElementById('stat-total-down').innerText = '总计下载: ' + formatBytes(traffic.total_download_bytes || 0);
                 document.getElementById('stat-total-up').innerText = '总计上传: ' + formatBytes(traffic.total_upload_bytes || 0);
                 document.getElementById('stat-active-conns').innerText = traffic.active_connections || 0;
-                document.getElementById('stat-proxy-port').innerText = `本地代理: ${data.proxy_addr || '127.0.0.1:7928'}`;
+                document.getElementById('stat-proxy-port').innerText = `默认端口: ${data.proxy_addr ? data.proxy_addr.split(':').pop() : '7928'}`;
 
                 // Status Badge & Buttons
                 const badge = document.getElementById('conn-badge');
@@ -1087,7 +1062,6 @@
                 document.getElementById('vpn-status-text').innerText = vpn.status_text || vpn.status || '未连接';
                 document.getElementById('vpn-node-ip').innerText = vpn.active_node ? `${vpn.active_node.ip}:${vpn.active_node.port}` : '-';
 
-                // Node Type & Country
                 if (vpn.active_node) {
                     let typeBadge = '<span class="badge badge-residential">住宅宽带</span>';
                     if (vpn.active_node.ip_type === 'hosting') {
@@ -1106,7 +1080,7 @@
                 }
 
                 document.getElementById('vpn-proxy-addr').innerText = data.proxy_addr ? `${data.proxy_addr} (HTTP/SOCKS5)` : '-';
-                document.getElementById('vpn-last-msg').innerText = vpn.last_message || '-';
+                document.getElementById('vpn-last-msg').innerText = vpn.last_message || '服务正常运行中';
 
                 if (vpn.uptime_seconds > 0) {
                     const m = Math.floor(vpn.uptime_seconds / 60);
@@ -1119,42 +1093,13 @@
                 document.getElementById('stat-nodes-count').innerText = `${data.node_count || 0} / ${data.blacklist_count || 0}`;
                 document.getElementById('stat-node-source').innerText = `数据源: ${data.node_source || '未知'}`;
 
-                // Render concurrent online tunnels
+                // Render active tunnels strip
                 const tunnels = data.tunnels || [];
                 document.getElementById('tunnels-count').innerText = tunnels.length;
-                const modalCountEl = document.getElementById('modal-tunnels-count');
-                if (modalCountEl) modalCountEl.innerText = tunnels.length;
-
-                const modalTunListEl = document.getElementById('modal-tunnels-list');
-                if (modalTunListEl) {
-                    if (tunnels.length === 0) {
-                        modalTunListEl.innerHTML = '<span style="font-size: 12px; color: var(--text-muted);">暂无独立并发隧道 (在下方列表点击"+并发"即可开启)</span>';
-                    } else {
-                        modalTunListEl.innerHTML = tunnels.map(t => {
-                            const cCode = t.node ? t.node.country_short : '';
-                            const flag = cCode ? getCountryFlagSVG(cCode) : '';
-                            const ip = t.node ? `${t.node.ip}:${t.node.port}` : '';
-                            const pingStr = t.node && t.node.latency_ms > 0 ? `${t.node.latency_ms}ms` : '';
-                            const unlockBadges = renderUnlockBadges(t.unlock || (t.node ? cachedUnlockMap[t.node.ip] : null));
-                            return `
-                                <div style="display: inline-flex; align-items: center; gap: 6px; background: var(--bg-card); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 12px; flex-wrap: wrap;">
-                                    <span class="status-dot" style="background:${t.status === 'connected' ? '#10b981' : '#f59e0b'};"></span>
-                                    <strong style="font-family: monospace; color: var(--primary);">${t.dev_name}</strong>
-                                    <span class="flag-box" style="font-size: 11px;">${flag} ${ip}</span>
-                                    ${pingStr ? `<span style="color:#34d399; font-size:11px;">(${pingStr})</span>` : ''}
-                                    <div style="display:flex; align-items:center; gap:3px;">${unlockBadges}</div>
-                                    <button class="btn btn-outline" style="padding: 1px 5px; font-size: 10px;" onclick="probeTunnelUnlock('${t.id}')" title="探测该隧道的流媒体与AI解锁状态">⚡ 测解锁</button>
-                                    <button class="btn btn-danger" style="padding: 1px 6px; font-size: 10px;" onclick="stopTunnel('${t.id}')">断开</button>
-                                </div>
-                            `;
-                        }).join('');
-                    }
-                }
-
                 const tunListEl = document.getElementById('active-tunnels-list');
                 if (tunListEl) {
                     if (tunnels.length === 0) {
-                        tunListEl.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); padding: 4px 0;">暂无独立并发隧道 (可在下方列表点击"+并发"启动)</div>';
+                        tunListEl.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); padding: 4px 0;">暂无独立并发出口，在下方节点列表中点击「+并发」即可多节点同时在线</div>';
                     } else {
                         tunListEl.innerHTML = tunnels.map(t => {
                             const cCode = t.node ? t.node.country_short : '';
@@ -1163,18 +1108,16 @@
                             const isUp = t.status === 'connected';
                             const badgeClass = isUp ? 'connected' : (t.status === 'connecting' ? 'connecting' : 'disconnected');
                             const unlockBadges = renderUnlockBadges(t.unlock || (t.node ? cachedUnlockMap[t.node.ip] : null));
+                            const pingStr = t.node && t.node.latency_ms > 0 ? `<span style="color:#34d399; font-weight:600;">${t.node.latency_ms}ms</span>` : '';
                             return `
-                                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 12px; flex-wrap: wrap; gap: 6px;">
-                                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                                        <strong style="font-family: monospace; color: var(--primary);">${t.dev_name}</strong>
-                                        <span class="badge ${badgeClass}" style="padding: 1px 5px; font-size: 10px;"><span class="status-dot"></span> ${t.status === 'connected' ? '在线' : t.status}</span>
-                                        <span class="flag-box" style="font-size: 11px;">${flag} ${ip}</span>
-                                        <div style="display:flex; align-items:center; gap:3px;">${unlockBadges}</div>
-                                    </div>
-                                    <div style="display:flex; gap:4px;">
-                                        <button class="btn btn-outline" style="padding: 1px 5px; font-size: 10px;" onclick="probeTunnelUnlock('${t.id}')">⚡ 测解锁</button>
-                                        <button class="btn btn-danger" style="padding: 2px 7px; font-size: 10px;" onclick="stopTunnel('${t.id}')">断开</button>
-                                    </div>
+                                <div style="display: inline-flex; align-items: center; gap: 8px; background: var(--bg-base); padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 12px; flex-wrap: wrap;">
+                                    <strong style="font-family: monospace; color: var(--primary);">${t.dev_name}</strong>
+                                    <span class="badge ${badgeClass}" style="padding: 1px 5px; font-size: 10px;"><span class="status-dot"></span> ${t.status === 'connected' ? '在线' : t.status}</span>
+                                    <span class="flag-box" style="font-size: 11.5px;">${flag} ${ip}</span>
+                                    ${pingStr}
+                                    <div style="display:flex; align-items:center; gap:3px;">${unlockBadges}</div>
+                                    <button class="btn btn-outline" style="padding: 2px 6px; font-size: 10px;" onclick="probeTunnelUnlock('${t.id}')" title="探测该出口的AI与流媒体解锁状态">⚡ 测解锁</button>
+                                    <button class="btn btn-danger" style="padding: 2px 7px; font-size: 10px;" onclick="stopTunnel('${t.id}')">断开</button>
                                 </div>
                             `;
                         }).join('');
@@ -1222,21 +1165,11 @@
             renderNodes();
         }
 
-        let filterOnlyFavorites = false;
-
-        function toggleFavoriteFilter() {
-            filterOnlyFavorites = !filterOnlyFavorites;
-            const btn = document.getElementById('btn-fav-filter');
-            const icon = document.getElementById('fav-icon');
-            if (filterOnlyFavorites) {
-                btn.style.borderColor = '#f59e0b';
-                btn.style.background = 'rgba(245, 158, 11, 0.15)';
-                icon.innerText = '★';
-            } else {
-                btn.style.borderColor = '';
-                btn.style.background = '';
-                icon.innerText = '☆';
-            }
+        function selectQuickFilter(filter) {
+            activeQuickFilter = filter;
+            document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+            const el = document.getElementById('chip-' + filter);
+            if (el) el.classList.add('active');
             renderNodes();
         }
 
@@ -1266,10 +1199,25 @@
             const sortMode = document.getElementById('sort-filter').value;
 
             const favCount = allNodes.filter(n => n.is_favorite).length;
-            document.getElementById('fav-count').innerText = favCount;
+            const favCountEl = document.getElementById('fav-count');
+            if (favCountEl) favCountEl.innerText = favCount;
 
             const filtered = allNodes.filter(n => {
-                if (filterOnlyFavorites && !n.is_favorite) return false;
+                // Quick Chips Filter Logic
+                if (activeQuickFilter === 'fav' && !n.is_favorite) return false;
+                if (activeQuickFilter === 'res' && n.ip_type !== 'residential') return false;
+                if (activeQuickFilter === 'host' && n.ip_type !== 'hosting') return false;
+                if (activeQuickFilter === 'fast' && (n.latency_ms <= 0 || n.latency_ms >= 150)) return false;
+                if (activeQuickFilter === 'gpt') {
+                    const u = cachedUnlockMap[n.ip];
+                    if (!u || u.openai !== 'unlocked') return false;
+                }
+                if (activeQuickFilter === 'nf') {
+                    const u = cachedUnlockMap[n.ip];
+                    if (!u || u.netflix !== 'unlocked') return false;
+                }
+
+                // Standard Filters
                 if (country && n.country_short !== country) return false;
                 if (ipType && n.ip_type !== ipType) return false;
                 if (search) {
@@ -1300,7 +1248,7 @@
             document.getElementById('filtered-count').innerText = `已筛选出 ${filtered.length} / ${allNodes.length} 个节点`;
 
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 30px;">未找到匹配条件的节点</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 36px;">未找到匹配条件的节点</td></tr>';
                 return;
             }
 
@@ -1351,25 +1299,29 @@
                                 ${cityInfo}
                             </div>
                         </td>
-                        <td style="font-family: monospace;">${n.ip}:${n.port}</td>
+                        <td>
+                            <div style="font-family: ui-monospace, monospace; font-weight: 600; font-size: 12.5px;">${n.ip}:${n.port}</div>
+                            <span class="badge badge-proto" style="margin-top: 2px;">${n.proto.toUpperCase()}</span>
+                        </td>
                         <td>${typeTag}${ispInfo}</td>
-                        <td><span class="badge badge-proto">${n.proto.toUpperCase()}</span></td>
                         <td>${latencyBadge}</td>
                         <td>${repBadge}</td>
                         <td>${unlockInfo}</td>
-                        <td>${n.score}</td>
-                        <td>${speedMbps}</td>
                         <td>
+                            <div style="font-weight: 600; font-variant-numeric: tabular-nums;">${speedMbps}</div>
+                            <div style="color: var(--text-muted); font-size: 11px;">评分: ${n.score}</div>
+                        </td>
+                        <td style="text-align: right;">
                             ${isCurrent ?
                                 '<span class="badge connected"><span class="status-dot"></span> 当前主连</span>' :
                                 (activeTun ?
-                                    `<div style="display:flex; align-items:center; gap:4px;">
-                                        <span class="badge connected" style="background:rgba(59,130,246,0.15); color:#60a5fa;"><span class="status-dot" style="background:#3b82f6;"></span> ${activeTun.dev_name} 在线</span>
+                                    `<div style="display:inline-flex; align-items:center; gap:4px;">
+                                        <span class="badge connected" style="background:rgba(59,130,246,0.15); color:#60a5fa;"><span class="status-dot" style="background:#3b82f6;"></span> ${activeTun.dev_name}</span>
                                         <button class="btn btn-danger" style="padding: 2px 6px; font-size: 10px;" onclick="stopTunnel('${activeTun.id}')">断开</button>
                                     </div>` :
-                                    `<div style="display:flex; gap:4px;">
-                                        <button class="btn" style="padding: 3px 8px; font-size: 11px;" onclick="connectToNode('${n.id}')" title="设置为主网关出口">主连</button>
-                                        <button class="btn btn-outline" style="padding: 3px 7px; font-size: 11px;" onclick="startNewTunnel('${n.id}')" title="启动为新的独立并发出口">+并发</button>
+                                    `<div style="display:inline-flex; gap:4px;">
+                                        <button class="btn" style="padding: 4px 9px; font-size: 11.5px;" onclick="connectToNode('${n.id}')" title="设置为主网关出口">主连</button>
+                                        <button class="btn btn-outline" style="padding: 4px 8px; font-size: 11.5px;" onclick="startNewTunnel('${n.id}')" title="启动为新的独立并发出口">+并发</button>
                                     </div>`
                                 )
                             }
@@ -1455,7 +1407,17 @@
             fetchStatus();
         }
 
-        // Settings Modal
+        // Settings Modal & Tabs
+        function switchSettingsTab(tabKey) {
+            document.querySelectorAll('#settings-modal .modal-tab-btn').forEach(b => b.classList.remove('active'));
+            ['base', 'rotate', 'tg'].forEach(k => {
+                const el = document.getElementById('tab-content-' + k);
+                if (el) el.style.display = (k === tabKey) ? 'block' : 'none';
+            });
+            const activeBtn = document.getElementById('tab-btn-' + tabKey);
+            if (activeBtn) activeBtn.classList.add('active');
+        }
+
         async function openSettingsModal() {
             try {
                 const res = await fetch('/api/settings');
@@ -1471,15 +1433,14 @@
                 document.getElementById('cfg-discovery-countries').value = (data.discovery_countries || []).join(',');
                 document.getElementById('cfg-tg-token').value = data.telegram_bot_token || '';
                 document.getElementById('cfg-tg-chatid').value = data.telegram_chat_id || '';
+                switchSettingsTab('base');
                 document.getElementById('settings-modal').style.display = 'flex';
             } catch (err) {
                 alert('获取系统配置失败: ' + err);
             }
         }
 
-        function closeSettingsModal() {
-            document.getElementById('settings-modal').style.display = 'none';
-        }
+        function closeSettingsModal() { document.getElementById('settings-modal').style.display = 'none'; }
 
         function randomPath() {
             const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -1526,9 +1487,7 @@
                 telegram_bot_token: tgToken,
                 telegram_chat_id: tgChatID
             };
-            if (pass) {
-                payload.ui_password = pass;
-            }
+            if (pass) payload.ui_password = pass;
 
             try {
                 const res = await fetch('/api/settings', {
@@ -1545,7 +1504,6 @@
                 alert('配置修改成功并已生效！');
                 closeSettingsModal();
 
-                // If port or path changed, redirect to new location
                 const curPort = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
                 if (webPort.toString() !== curPort || !window.location.pathname.includes(webPath)) {
                     const newUrl = `${window.location.protocol}//${window.location.hostname}:${webPort}/${webPath}`;
@@ -1559,7 +1517,7 @@
             }
         }
 
-        // Setup SSE connection for real-time live events
+        // Setup SSE connection
         function setupSSE() {
             const es = new EventSource('/api/events');
             es.onopen = () => {
@@ -1578,24 +1536,66 @@
                     fetchStatus();
                 } catch(err){}
             });
-            es.onerror = () => {
-                // Fallback will poll
-            };
+            es.onerror = () => {};
         }
 
+        // Port Matrix Modal & Dynamic Groups
+        let currentPortRules = [];
         let currentDynamicGroups = [];
+        let editingPort = null;
         let editingGroupId = null;
+
+        function switchMatrixTab(tabKey) {
+            document.querySelectorAll('#port-matrix-modal .modal-tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('matrix-content-ports').style.display = (tabKey === 'ports') ? 'block' : 'none';
+            document.getElementById('matrix-content-groups').style.display = (tabKey === 'groups') ? 'block' : 'none';
+            const activeBtn = document.getElementById('matrix-tab-' + tabKey);
+            if (activeBtn) activeBtn.classList.add('active');
+        }
+
+        async function startNewTunnel(nodeId) {
+            appendLog({ level: 'INFO', module: 'Tunnel', message: `正在启动并发独立出口隧道: ${nodeId}...` });
+            try {
+                const res = await fetch('/api/tunnels/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ node_id: nodeId })
+                });
+                const ret = await res.json();
+                if (!res.ok) {
+                    alert('启动并发隧道失败: ' + (ret.error || '未知错误'));
+                } else {
+                    appendLog({ level: 'INFO', module: 'Tunnel', message: `新隧道启动成功: ${ret.tunnel.id} (${ret.tunnel.dev_name})` });
+                    fetchStatus();
+                }
+            } catch (err) {
+                alert('请求失败: ' + err);
+            }
+        }
+
+        async function stopTunnel(tunnelId) {
+            if (!confirm('确认断开并释放该并发隧道吗？')) return;
+            try {
+                await fetch('/api/tunnels/stop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tunnel_id: tunnelId })
+                });
+                fetchStatus();
+            } catch (err) {
+                alert('断开失败: ' + err);
+            }
+        }
 
         async function openPortMatrixModal() {
             document.getElementById('port-matrix-modal').style.display = 'flex';
             hideEditPortForm();
             hideDynamicGroupForm();
+            switchMatrixTab('ports');
             await Promise.all([fetchPortRules(), fetchDynamicGroups()]);
         }
 
-        function closePortMatrixModal() {
-            document.getElementById('port-matrix-modal').style.display = 'none';
-        }
+        function closePortMatrixModal() { document.getElementById('port-matrix-modal').style.display = 'none'; }
 
         async function fetchPortRules() {
             try {
@@ -1623,7 +1623,7 @@
             const container = document.getElementById('dynamic-groups-container');
             if (!container) return;
             if (!currentDynamicGroups || currentDynamicGroups.length === 0) {
-                container.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 12px; background: var(--bg-card); border-radius: 8px;">暂无自适应隧道池，点击右上角「+ 新建自适应组」即可自动化按指标维护出口</div>';
+                container.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 16px; background: var(--bg-card); border-radius: 8px;">暂无自适应隧道池，点击右上角「+ 新建自适应组」即可自动化按指标维持出口</div>';
                 return;
             }
 
@@ -1633,7 +1633,7 @@
                 if (g.sort_by === 'score') metricText = '🏆 评分最高优先';
 
                 let ipTypeText = '全部网络类型';
-                if (g.ip_type === 'residential') ipTypeText = '🏠 住宅宽带 IP (家宽)';
+                if (g.ip_type === 'residential') ipTypeText = '🏠 住宅宽带 IP';
                 if (g.ip_type === 'hosting') ipTypeText = '🏢 机房 IP';
                 if (g.ip_type === 'mobile') ipTypeText = '📱 移动网络';
 
@@ -1642,7 +1642,7 @@
                 const statusClass = activeCount >= g.target_count ? 'connected' : (activeCount > 0 ? 'connecting' : 'disconnected');
 
                 return `
-                    <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                         <div>
                             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
                                 <span class="badge ${statusClass}"><span class="status-dot"></span> ${g.status_text || '正常'}</span>
@@ -1693,16 +1693,11 @@
             document.getElementById('dynamic-group-edit-card').scrollIntoView({ behavior: 'smooth' });
         }
 
-        function hideDynamicGroupForm() {
-            document.getElementById('dynamic-group-edit-card').style.display = 'none';
-        }
+        function hideDynamicGroupForm() { document.getElementById('dynamic-group-edit-card').style.display = 'none'; }
 
         async function saveDynamicGroup() {
             const name = document.getElementById('dg-name').value.trim();
-            if (!name) {
-                alert('请输入自适应组名称');
-                return;
-            }
+            if (!name) { alert('请输入自适应组名称'); return; }
             const country = document.getElementById('dg-country').value;
             const ipType = document.getElementById('dg-iptype').value;
             const sortBy = document.getElementById('dg-sortby').value;
@@ -1727,10 +1722,7 @@
                     body: JSON.stringify(payload)
                 });
                 const ret = await res.json();
-                if (!res.ok) {
-                    alert('保存失败: ' + (ret.error || '未知错误'));
-                    return;
-                }
+                if (!res.ok) { alert('保存失败: ' + (ret.error || '未知错误')); return; }
                 hideDynamicGroupForm();
                 appendLog({ level: 'INFO', module: 'Action', message: `动态自适应组 [${name}] 已成功保存并启动评估！` });
                 await fetchDynamicGroups();
@@ -1743,14 +1735,9 @@
         async function deleteDynamicGroup(id) {
             if (!confirm('确认删除该动态自适应组吗？其维护的隧道将被安全释放。')) return;
             try {
-                const res = await fetch(`/api/tunnel-groups?id=${id}`, {
-                    method: 'DELETE'
-                });
+                const res = await fetch(`/api/tunnel-groups?id=${id}`, { method: 'DELETE' });
                 const ret = await res.json();
-                if (!res.ok) {
-                    alert('删除失败: ' + (ret.error || '未知错误'));
-                    return;
-                }
+                if (!res.ok) { alert('删除失败: ' + (ret.error || '未知错误')); return; }
                 await fetchDynamicGroups();
                 fetchStatus();
             } catch(err) {
@@ -1784,9 +1771,7 @@
             const msg = document.getElementById('toast-msg');
             msg.innerText = `已复制: ${label || text}`;
             t.style.display = 'flex';
-            setTimeout(() => {
-                t.style.display = 'none';
-            }, 2000);
+            setTimeout(() => { t.style.display = 'none'; }, 2000);
         }
 
         function renderPortRules() {
@@ -1800,22 +1785,21 @@
             const tunnels = (currentState && currentState.tunnels) ? currentState.tunnels : [];
 
             container.innerHTML = currentPortRules.map(r => {
-                let policyBadge = '<span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa;"><svg style="width:12px;height:12px;stroke:currentColor;fill:none;" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> 单连接轮询 (Round-Robin)</span>';
+                let policyBadge = '<span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa;"><svg style="width:12px;height:12px;stroke:currentColor;fill:none;" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> 单连接轮询</span>';
                 if (r.policy === 'random') {
-                    policyBadge = '<span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;"><svg style="width:12px;height:12px;stroke:currentColor;fill:none;" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> 随机分发 (Random)</span>';
+                    policyBadge = '<span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;"><svg style="width:12px;height:12px;stroke:currentColor;fill:none;" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> 随机分发</span>';
                 } else if (r.policy === 'interval') {
-                    policyBadge = `<span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24;"><svg style="width:12px;height:12px;stroke:currentColor;fill:none;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> 定时轮换 (${r.interval_seconds || 300}秒)</span>`;
+                    policyBadge = `<span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24;"><svg style="width:12px;height:12px;stroke:currentColor;fill:none;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> 定时轮换 (${r.interval_seconds || 300}s)</span>`;
                 }
 
-                let authBadge = '<span style="color: #94a3b8; font-size:11.5px;">🔒 跟随 Web 管理密码</span>';
+                let authBadge = '<span style="color: #94a3b8; font-size:11.5px;">🔒 跟随管理密码</span>';
                 if (r.auth_mode === 'none') {
-                    authBadge = '<span style="color: #34d399; font-weight:600; font-size:11.5px;">🔓 免密直接连接</span>';
+                    authBadge = '<span style="color: #34d399; font-weight:600; font-size:11.5px;">🔓 免密直连</span>';
                 } else if (r.auth_mode === 'custom') {
                     authBadge = `<span style="color: #60a5fa; font-size:11.5px;">🔑 独立账号: ${r.auth_user || '未设'}</span>`;
                 }
 
                 let boundBadges = [];
-                // Dynamic Groups
                 if (r.bound_group_ids && r.bound_group_ids.length > 0) {
                     r.bound_group_ids.forEach(gid => {
                         const g = currentDynamicGroups.find(item => item.id === gid);
@@ -1823,7 +1807,6 @@
                         boundBadges.push(`<span class="badge" style="background: rgba(2, 132, 199, 0.2); color: #38bdf8; font-size:11px;">⚡ 动态池: ${gName}</span>`);
                     });
                 }
-                // Static Tunnels
                 if (r.bound_tunnel_ids && r.bound_tunnel_ids.length > 0) {
                     r.bound_tunnel_ids.forEach(id => {
                         const t = tunnels.find(item => item.id === id);
@@ -1886,10 +1869,7 @@
 
         function showAddPortForm() {
             editingPort = null;
-            document.getElementById('port-edit-title').innerHTML = `
-                <svg style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                新增代理监听端口与分流绑定
-            `;
+            document.getElementById('port-edit-title').innerHTML = `新增代理监听端口与分流绑定`;
             document.getElementById('rule-port').value = '';
             document.getElementById('rule-port').disabled = false;
             selectPolicy('round_robin');
@@ -1907,10 +1887,7 @@
             const rule = currentPortRules.find(r => r.port === port);
             if (!rule) return;
             editingPort = port;
-            document.getElementById('port-edit-title').innerHTML = `
-                <svg style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                编辑端口 [${port}] 绑定与调度规则
-            `;
+            document.getElementById('port-edit-title').innerHTML = `编辑端口 [${port}] 绑定与调度规则`;
             document.getElementById('rule-port').value = rule.port;
             document.getElementById('rule-port').disabled = true;
             selectPolicy(rule.policy || 'round_robin');
@@ -1923,9 +1900,7 @@
             document.getElementById('port-edit-card').scrollIntoView({ behavior: 'smooth' });
         }
 
-        function hideEditPortForm() {
-            document.getElementById('port-edit-card').style.display = 'none';
-        }
+        function hideEditPortForm() { document.getElementById('port-edit-card').style.display = 'none'; }
 
         function selectPolicy(pol) {
             document.getElementById('rule-policy').value = pol;
@@ -1954,20 +1929,13 @@
         function suggestNextPort() {
             let max = 7927;
             if (currentPortRules && currentPortRules.length > 0) {
-                currentPortRules.forEach(r => {
-                    if (r.port > max) max = r.port;
-                });
+                currentPortRules.forEach(r => { if (r.port > max) max = r.port; });
             }
             document.getElementById('rule-port').value = max + 1;
         }
 
-        function setPortVal(val) {
-            document.getElementById('rule-port').value = val;
-        }
-
-        function setIntervalVal(sec) {
-            document.getElementById('rule-interval').value = sec;
-        }
+        function setPortVal(val) { document.getElementById('rule-port').value = val; }
+        function setIntervalVal(sec) { document.getElementById('rule-interval').value = sec; }
 
         function renderTunnelCheckboxes(selectedTunnelIds, selectedGroupIds) {
             const container = document.getElementById('rule-tunnels-checkboxes');
@@ -1988,9 +1956,8 @@
                 </label>
             `;
 
-            // Render Dynamic Groups
             if (currentDynamicGroups && currentDynamicGroups.length > 0) {
-                html += `<div style="font-size: 11px; font-weight: 600; color: #38bdf8; margin: 8px 0 3px 18px;">⚡ 动态自适应组出口 (自动按指标维持Top N并在后台定期轮换):</div>`;
+                html += `<div style="font-size: 11px; font-weight: 600; color: #38bdf8; margin: 8px 0 3px 18px;">⚡ 动态自适应组出口 (自动维持Top N并定期轮换):</div>`;
                 currentDynamicGroups.forEach(g => {
                     const isChecked = !isAllChecked && selGrpMap[g.id];
                     let metricText = g.sort_by === 'speed' ? '最大带宽' : (g.sort_by === 'score' ? '最高评分' : '最低延迟');
@@ -2005,7 +1972,6 @@
                 });
             }
 
-            // Render Static Active Tunnels
             if (tunnels.length > 0) {
                 html += `<div style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin: 8px 0 3px 18px;">固定独立在线隧道:</div>`;
                 tunnels.forEach(t => {
@@ -2082,11 +2048,8 @@
 
             let updatedRules = currentPortRules ? [...currentPortRules] : [];
             const idx = updatedRules.findIndex(r => r.port === port);
-            if (idx >= 0) {
-                updatedRules[idx] = newRule;
-            } else {
-                updatedRules.push(newRule);
-            }
+            if (idx >= 0) updatedRules[idx] = newRule;
+            else updatedRules.push(newRule);
 
             try {
                 const res = await fetch('/api/proxy/ports', {
@@ -2119,10 +2082,7 @@
                     body: JSON.stringify({ rules: updatedRules })
                 });
                 const ret = await res.json();
-                if (!res.ok) {
-                    alert('删除失败: ' + (ret.error || '未知错误'));
-                    return;
-                }
+                if (!res.ok) { alert('删除失败: ' + (ret.error || '未知错误')); return; }
                 currentPortRules = ret.rules || updatedRules;
                 renderPortRules();
                 fetchStatus();
