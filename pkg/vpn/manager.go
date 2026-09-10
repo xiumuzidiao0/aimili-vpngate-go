@@ -164,6 +164,17 @@ func (m *Manager) Connect(target *nodes.Node) error {
 
 				t := m.tunnelPool.GetTunnel(pID)
 				if t == nil {
+					m.mu.Lock()
+					if m.epoch == currentEpoch {
+						m.status = StatusFailed
+						m.isConnecting = false
+						m.lastMessage = "连接异常中断 (进程已退出)"
+						if m.activeNode != nil {
+							m.pool.Blacklist().Mark(m.activeNode, "握手失败或认证拒绝", 1800*time.Second)
+						}
+					}
+					m.mu.Unlock()
+					go m.TriggerAutoFailover()
 					return
 				}
 
@@ -184,6 +195,9 @@ func (m *Manager) Connect(target *nodes.Node) error {
 						m.status = StatusFailed
 						m.isConnecting = false
 						m.lastMessage = t.Message
+						if m.activeNode != nil {
+							m.pool.Blacklist().Mark(m.activeNode, t.Message, 1800*time.Second)
+						}
 					}
 					m.mu.Unlock()
 					go m.TriggerAutoFailover()
