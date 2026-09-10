@@ -128,3 +128,71 @@ func TestBasicAuthMiddleware(t *testing.T) {
 		t.Fatalf("expected 200 ok, got %d", w2.Code)
 	}
 }
+
+func TestSecurityHeaders(t *testing.T) {
+	mw := NewMiddleware(&config.Config{})
+	dummy := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := mw.SecurityHeaders(dummy)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Errorf("missing nosniff header")
+	}
+	if w.Header().Get("X-Frame-Options") != "DENY" {
+		t.Errorf("missing frame options header")
+	}
+	if w.Header().Get("Referrer-Policy") != "no-referrer" {
+		t.Errorf("missing referrer policy header")
+	}
+}
+
+func TestSecretPathStealth404(t *testing.T) {
+	cfg := &config.Config{
+		UIPath:     "mysecret",
+		UIUsername: "admin",
+		UIPassword: "secretpassword",
+	}
+	mw := NewMiddleware(cfg)
+	dummy := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("inside"))
+	})
+	handler := mw.SecretPathGuard(dummy)
+
+	// 1. Random scanner accessing root -> 404
+	reqRoot := httptest.NewRequest("GET", "/", nil)
+	wRoot := httptest.NewRecorder()
+	handler.ServeHTTP(wRoot, reqRoot)
+	if wRoot.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for unauthenticated root scanner, got %d", wRoot.Code)
+	}
+
+	// 2. Unauthenticated scanner probing direct /api/status -> stealth 404 (zero leak of AimiliVPN)
+	reqAPI := httptest.NewRequest("GET", "/api/status", nil)
+	wAPI := httptest.NewRecorder()
+	handler.ServeHTTP(wAPI, reqAPI)
+	if wAPI.Code != http.StatusNotFound {
+		t.Fatalf("expected stealth 404 for unauthenticated API scanner, got %d", wAPI.Code)
+	}
+
+	// 3. Exact secret without slash -> 302 redirect to /mysecret/
+	reqExact := httptest.NewRequest("GET", "/mysecret", nil)
+	wExact := httptest.NewRecorder()
+	handler.ServeHTTP(wExact, reqExact)
+	if wExact.Code != http.StatusFound || wExact.Header().Get("Location") != "/mysecret/" {
+		t.Fatalf("expected 302 redirect to /mysecret/, got %d", wExact.Code)
+	}
+
+	// 4. Scoped secret path /mysecret/ -> 200
+	reqSecret := httptest.NewRequest("GET", "/mysecret/", nil)
+	wSecret := httptest.NewRecorder()
+	handler.ServeHTTP(wSecret, reqSecret)
+	if wSecret.Code != http.StatusOK || wSecret.Body.String() != "inside" {
+		t.Fatalf("expected 200 inside secret path, got %d", wSecret.Code)
+	}
+}

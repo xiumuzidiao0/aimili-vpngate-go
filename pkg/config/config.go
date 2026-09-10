@@ -2,6 +2,7 @@ package config
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -195,6 +196,25 @@ func (c *Config) GetSettings() SettingsDTO {
 		TelegramBotToken:   c.TelegramBotToken,
 		TelegramChatID:     c.TelegramChatID,
 	}
+}
+
+func (c *Config) VerifyUICredentials(user, pass string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.UIUsername == "" && c.UIPassword == "" {
+		return true
+	}
+
+	userMatch := subtle.ConstantTimeCompare([]byte(user), []byte(c.UIUsername)) == 1
+	passMatch := subtle.ConstantTimeCompare([]byte(pass), []byte(c.UIPassword)) == 1
+	return userMatch && passMatch
+}
+
+func (c *Config) IsUIAuthEnabled() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.UIUsername != "" || c.UIPassword != ""
 }
 
 func (c *Config) UpdateSettings(dto SettingsDTO) error {

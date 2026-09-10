@@ -94,6 +94,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mw := NewMiddleware(s.cfg)
 	handler := mw.BasicAuth(mux)
 	handler = mw.SecretPathGuard(handler)
+	handler = mw.SecurityHeaders(handler)
 
 	addr := net.JoinHostPort(s.cfg.UIHost, fmt.Sprintf("%d", s.cfg.UIPort))
 	lc := net.ListenConfig{}

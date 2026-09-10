@@ -174,7 +174,7 @@ func (t *TelegramNotifier) StartPolling(ctx context.Context, handler CommandHand
 
 				// Only allow configured chat ID to execute commands for safety
 				chatIDStr := strconv.FormatInt(up.Message.Chat.ID, 10)
-				if configuredChatID != "" && chatIDStr != configuredChatID {
+				if configuredChatID == "" || chatIDStr != configuredChatID {
 					continue
 				}
 
