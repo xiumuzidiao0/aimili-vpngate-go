@@ -63,6 +63,7 @@
 
 html {
     scroll-behavior: smooth;
+    scrollbar-gutter: stable;
 }
 
         body {
@@ -354,14 +355,14 @@ button {
         /* View Pages Container */
         .view-page {
             display: none;
-            animation: fadeIn 0.18s ease-in-out;
         }
         .view-page.active {
             display: block;
+            animation: fadeIn 0.12s ease-in-out;
         }
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(4px); }
-            to { opacity: 1; transform: translateY(0); }
+            from { opacity: 0.85; }
+            to { opacity: 1; }
         }
 
         /* Mobile Bottom Nav */
@@ -1423,13 +1424,7 @@ button {
             transform: translateX(0);
         }
         .editor-drawer[hidden] {
-            display: block;
-            visibility: hidden;
-            pointer-events: none;
-        }
-        .editor-drawer.open[hidden] {
-            visibility: visible;
-            pointer-events: auto;
+            display: none !important;
         }
         .drawer-header {
             display: flex;

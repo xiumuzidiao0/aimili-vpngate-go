@@ -484,97 +484,6 @@
                 <div id="port-rules-cards"  class="scroll-list ports">
                     <div  class="loading-copy">加载端口规则中...</div>
                 </div>
-
-                <!-- Port Edit Drawer -->
-                <div id="port-edit-card" class="editor-drawer" hidden>
-                    <div class="drawer-header">
-                        <div class="drawer-title" id="port-edit-title">新增/编辑端口分流规则</div>
-                        <button type="button" class="btn btn-outline btn-icon" data-drawer-close aria-label="关闭端口规则编辑">×</button>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">本地监听端口号 [1-65535]</label>
-                        <div  class="row items-center gap-2">
-                            <input id="rule-port" class="input-field input-port-sm mono"  type="number" placeholder="例如: 7928" required>
-                            <button type="button" class="btn btn-outline btn-xs"  data-action="suggestNextPort">+1 建议</button>
-                            <button type="button" class="btn btn-outline btn-xs"  data-action="setPortVal" data-args="[1080]">1080</button>
-                            <button type="button" class="btn btn-outline btn-xs"  data-action="setPortVal" data-args="[7890]">7890</button>
-                            <button type="button" class="btn btn-outline btn-xs"  data-action="setPortVal" data-args="[8080]">8080</button>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">分流调度策略</label>
-                        <input type="hidden" id="rule-policy" value="round_robin">
-                        <div class="choice-grid">
-                            <div id="card-policy-round_robin" class="choice-card selected" data-action="selectPolicy" data-args="[&quot;round_robin&quot;]">
-                                <div class="choice-card-title">单连接轮询 (Round-Robin)</div>
-                                <div class="choice-card-desc">每发起一次新连接自动交替使用不同绑定的出口节点</div>
-                            </div>
-                            <div id="card-policy-random" class="choice-card" data-action="selectPolicy" data-args="[&quot;random&quot;]">
-                                <div class="choice-card-title">随机分发 (Random)</div>
-                                <div class="choice-card-desc">每次连接随机选取绑定的任一健康隧道出网</div>
-                            </div>
-                            <div id="card-policy-interval" class="choice-card" data-action="selectPolicy" data-args="[&quot;interval&quot;]">
-                                <div class="choice-card-title">定时锁定轮换 (Interval)</div>
-                                <div class="choice-card-desc">固定时间内走同一出口，到期后平滑切换到下一出口</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-group field-panel hidden" id="rule-interval-group" >
-                        <label class="form-label">定时锁定轮换时间间隔</label>
-                        <div  class="row items-center gap-2 wrap">
-                            <input id="rule-interval" class="input-field input-interval mono"  type="number" value="300">
-                            <span  class="text-sm text-muted">秒</span>
-                            <button type="button" class="btn btn-outline btn-xs"  data-action="setIntervalVal" data-args="[60]">1分钟</button>
-                            <button type="button" class="btn btn-outline btn-xs"  data-action="setIntervalVal" data-args="[300]">5分钟</button>
-                            <button type="button" class="btn btn-outline btn-xs"  data-action="setIntervalVal" data-args="[900]">15分钟</button>
-                            <button type="button" class="btn btn-outline btn-xs"  data-action="setIntervalVal" data-args="[3600]">1小时</button>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">代理账密鉴权设置</label>
-                        <input type="hidden" id="rule-auth-mode" value="default_web">
-                        <div class="choice-grid">
-                            <div id="card-auth-default_web" class="choice-card selected" data-action="selectAuthMode" data-args="[&quot;default_web&quot;]">
-                                <div class="choice-card-title">跟随管理密码 (推荐)</div>
-                                <div class="choice-card-desc">自动同步 Web 控制台管理员用户名和密码</div>
-                            </div>
-                            <div id="card-auth-none" class="choice-card" data-action="selectAuthMode" data-args="[&quot;none&quot;]">
-                                <div class="choice-card-title">免密直接连接</div>
-                                <div class="choice-card-desc">关闭认证，无需输入账号密码即可使用代理</div>
-                            </div>
-                            <div id="card-auth-custom" class="choice-card" data-action="selectAuthMode" data-args="[&quot;custom&quot;]">
-                                <div class="choice-card-title">自定义独立账密</div>
-                                <div class="choice-card-desc">为当前端口单独设置独立的专用账号与密码</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="rule-custom-auth-group"  class="auth-fields field-panel hidden">
-                        <div  class="flex-1">
-                            <label class="form-label">代理用户名</label>
-                            <input id="rule-auth-user" class="input-field w-full"  type="text" placeholder="设置代理账号">
-                        </div>
-                        <div  class="flex-1">
-                            <label class="form-label">代理密码 (留空视为免密)</label>
-                            <input id="rule-auth-pass" class="input-field w-full"  type="text" placeholder="设置代理密码">
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">绑定出口隧道 (勾选此端口允许使用的出网出口或动态组)</label>
-                        <div id="rule-tunnels-checkboxes"  class="check-list">
-                            <!-- Dynamic checkboxes -->
-                        </div>
-                    </div>
-
-                    <div  class="form-actions-sm">
-                        <button type="button" class="btn btn-outline" data-action="hideEditPortForm">取消</button>
-                        <button type="button" class="btn" data-action="savePortRule">确认保存规则</button>
-                    </div>
-                </div>
             </div>
 
             <!-- Tab 2: Dynamic Pool Groups -->
@@ -589,81 +498,6 @@
 
                 <div id="dynamic-groups-container"  class="scroll-list groups">
                     <div  class="loading-copy">加载自适应组中...</div>
-                </div>
-
-                <!-- Dynamic Group Edit Drawer -->
-                <div id="dynamic-group-edit-card" class="editor-drawer" hidden>
-                    <div class="drawer-header">
-                        <div class="drawer-title" id="dynamic-group-edit-title">新增动态自适应组</div>
-                        <button type="button" class="btn btn-outline btn-icon" data-drawer-close aria-label="关闭自适应组编辑">×</button>
-                    </div>
-                    <div  class="form-grid-auto">
-                        <div>
-                            <label class="form-label">自适应组名称</label>
-                            <input id="dg-name" class="input-field w-full"  type="text" placeholder="例如: 日本Top3住宅组" required>
-                        </div>
-                        <div>
-                            <label class="form-label">目标国家/地区</label>
-                            <select id="dg-country" class="input-field w-full" >
-                                <option value="">全部国家/地区</option>
-                                <option value="JP" selected>日本 (JP)</option>
-                                <option value="US">美国 (US)</option>
-                                <option value="KR">韩国 (KR)</option>
-                                <option value="TW">台湾 (TW)</option>
-                                <option value="HK">香港 (HK)</option>
-                                <option value="SG">新加坡 (SG)</option>
-                                <option value="GB">英国 (GB)</option>
-                                <option value="DE">德国 (DE)</option>
-                                <option value="CA">加拿大 (CA)</option>
-                                <option value="AU">澳大利亚 (AU)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="form-label">目标网络类型</label>
-                            <select id="dg-iptype" class="input-field w-full" >
-                                <option value="all">不限类型</option>
-                                <option value="residential" selected>住宅宽带 IP (家宽)</option>
-                                <option value="hosting">机房/数据中心 IP</option>
-                                <option value="mobile">移动蜂窝网络</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="form-label">择优筛选指标</label>
-                            <select id="dg-sortby" class="input-field w-full" >
-                                <option value="latency" selected>最低延迟优先 (TCP测速)</option>
-                                <option value="speed">最大带宽优先 (Mbps)</option>
-                                <option value="score">综合评分最高优先</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="form-label">节点解锁能力要求</label>
-                            <select id="dg-unlock" class="input-field w-full" >
-                                <option value="none" selected>不限解锁能力</option>
-                                <option value="ai">必须支持 AI 模型 (ChatGPT / Claude)</option>
-                                <option value="streaming">必须支持流媒体 (Netflix / Google)</option>
-                                <option value="full">全解锁 (AI模型 + 主流流媒体)</option>
-                            </select>
-                        </div>
-                        <div id="dg-count-container">
-                            <label class="form-label">维持并发在线出口数 [1-10]</label>
-                            <input id="dg-count" class="input-field w-full"  type="number" min="1" max="10" value="3">
-                        </div>
-                        <div>
-                            <label class="form-label">自动重评与轮换周期</label>
-                            <select id="dg-interval" class="input-field w-full" >
-                                <option value="5">每 5 分钟重评轮换</option>
-                                <option value="10">每 10 分钟重评轮换</option>
-                                <option value="15" selected>每 15 分钟重评轮换</option>
-                                <option value="30">每 30 分钟重评轮换</option>
-                                <option value="60">每 1 小时重评轮换</option>
-                                <option value="120">每 2 小时重评轮换</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div  class="form-actions-sm">
-                        <button type="button" class="btn btn-outline btn-sm"  data-action="hideDynamicGroupForm">取消</button>
-                        <button type="button" class="btn btn-sm"  data-action="saveDynamicGroup">保存自适应组</button>
-                    </div>
                 </div>
             </div>
 
@@ -854,6 +688,172 @@
         <svg aria-hidden="true"  viewBox="0 0 24 24" class="icon-sm icon-success"><polyline points="20 6 9 17 4 12"/></svg>
         <span id="toast-msg">已复制到剪贴板</span>
     </div>
+    <!-- Port Edit Drawer (Slide-over) -->
+    <div id="port-edit-card" class="editor-drawer" hidden>
+        <div class="drawer-header">
+            <div class="drawer-title" id="port-edit-title">新增/编辑端口分流规则</div>
+            <button type="button" class="btn btn-outline btn-icon" data-drawer-close aria-label="关闭端口规则编辑">×</button>
+        </div>
+        <div class="form-group">
+            <label class="form-label">本地监听端口号 [1-65535]</label>
+            <div  class="row items-center gap-2">
+                <input id="rule-port" class="input-field input-port-sm mono"  type="number" placeholder="例如: 7928" required>
+                <button type="button" class="btn btn-outline btn-xs"  data-action="suggestNextPort">+1 建议</button>
+                <button type="button" class="btn btn-outline btn-xs"  data-action="setPortVal" data-args="[1080]">1080</button>
+                <button type="button" class="btn btn-outline btn-xs"  data-action="setPortVal" data-args="[7890]">7890</button>
+                <button type="button" class="btn btn-outline btn-xs"  data-action="setPortVal" data-args="[8080]">8080</button>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">分流调度策略</label>
+            <input type="hidden" id="rule-policy" value="round_robin">
+            <div class="choice-grid">
+                <div id="card-policy-round_robin" class="choice-card selected" data-action="selectPolicy" data-args="[&quot;round_robin&quot;]">
+                    <div class="choice-card-title">单连接轮询 (Round-Robin)</div>
+                    <div class="choice-card-desc">每发起一次新连接自动交替使用不同绑定的出口节点</div>
+                </div>
+                <div id="card-policy-random" class="choice-card" data-action="selectPolicy" data-args="[&quot;random&quot;]">
+                    <div class="choice-card-title">随机分发 (Random)</div>
+                    <div class="choice-card-desc">每次连接随机选取绑定的任一健康隧道出网</div>
+                </div>
+                <div id="card-policy-interval" class="choice-card" data-action="selectPolicy" data-args="[&quot;interval&quot;]">
+                    <div class="choice-card-title">定时锁定轮换 (Interval)</div>
+                    <div class="choice-card-desc">固定时间内走同一出口，到期后平滑切换到下一出口</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-group field-panel hidden" id="rule-interval-group" >
+            <label class="form-label">定时锁定轮换时间间隔</label>
+            <div  class="row items-center gap-2 wrap">
+                <input id="rule-interval" class="input-field input-interval mono"  type="number" value="300">
+                <span  class="text-sm text-muted">秒</span>
+                <button type="button" class="btn btn-outline btn-xs"  data-action="setIntervalVal" data-args="[60]">1分钟</button>
+                <button type="button" class="btn btn-outline btn-xs"  data-action="setIntervalVal" data-args="[300]">5分钟</button>
+                <button type="button" class="btn btn-outline btn-xs"  data-action="setIntervalVal" data-args="[900]">15分钟</button>
+                <button type="button" class="btn btn-outline btn-xs"  data-action="setIntervalVal" data-args="[3600]">1小时</button>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">代理账密鉴权设置</label>
+            <input type="hidden" id="rule-auth-mode" value="default_web">
+            <div class="choice-grid">
+                <div id="card-auth-default_web" class="choice-card selected" data-action="selectAuthMode" data-args="[&quot;default_web&quot;]">
+                    <div class="choice-card-title">跟随管理密码 (推荐)</div>
+                    <div class="choice-card-desc">自动同步 Web 控制台管理员用户名和密码</div>
+                </div>
+                <div id="card-auth-none" class="choice-card" data-action="selectAuthMode" data-args="[&quot;none&quot;]">
+                    <div class="choice-card-title">免密直接连接</div>
+                    <div class="choice-card-desc">关闭认证，无需输入账号密码即可使用代理</div>
+                </div>
+                <div id="card-auth-custom" class="choice-card" data-action="selectAuthMode" data-args="[&quot;custom&quot;]">
+                    <div class="choice-card-title">自定义独立账密</div>
+                    <div class="choice-card-desc">为当前端口单独设置独立的专用账号与密码</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="rule-custom-auth-group"  class="auth-fields field-panel hidden">
+            <div  class="flex-1">
+                <label class="form-label">代理用户名</label>
+                <input id="rule-auth-user" class="input-field w-full"  type="text" placeholder="设置代理账号">
+            </div>
+            <div  class="flex-1">
+                <label class="form-label">代理密码 (留空视为免密)</label>
+                <input id="rule-auth-pass" class="input-field w-full"  type="text" placeholder="设置代理密码">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">绑定出口隧道 (勾选此端口允许使用的出网出口或动态组)</label>
+            <div id="rule-tunnels-checkboxes"  class="check-list">
+                <!-- Dynamic checkboxes -->
+            </div>
+        </div>
+
+        <div  class="form-actions-sm">
+            <button type="button" class="btn btn-outline" data-action="hideEditPortForm">取消</button>
+            <button type="button" class="btn" data-action="savePortRule">确认保存规则</button>
+        </div>
+    </div>
+
+    <!-- Dynamic Group Edit Drawer (Slide-over) -->
+    <div id="dynamic-group-edit-card" class="editor-drawer" hidden>
+        <div class="drawer-header">
+            <div class="drawer-title" id="dynamic-group-edit-title">新增动态自适应组</div>
+            <button type="button" class="btn btn-outline btn-icon" data-drawer-close aria-label="关闭自适应组编辑">×</button>
+        </div>
+        <div  class="form-grid-auto">
+            <div>
+                <label class="form-label">自适应组名称</label>
+                <input id="dg-name" class="input-field w-full"  type="text" placeholder="例如: 日本Top3住宅组" required>
+            </div>
+            <div>
+                <label class="form-label">目标国家/地区</label>
+                <select id="dg-country" class="input-field w-full" >
+                    <option value="">全部国家/地区</option>
+                    <option value="JP" selected>日本 (JP)</option>
+                    <option value="US">美国 (US)</option>
+                    <option value="KR">韩国 (KR)</option>
+                    <option value="TW">台湾 (TW)</option>
+                    <option value="HK">香港 (HK)</option>
+                    <option value="SG">新加坡 (SG)</option>
+                    <option value="GB">英国 (GB)</option>
+                    <option value="DE">德国 (DE)</option>
+                    <option value="CA">加拿大 (CA)</option>
+                    <option value="AU">澳大利亚 (AU)</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label">目标网络类型</label>
+                <select id="dg-iptype" class="input-field w-full" >
+                    <option value="all">不限类型</option>
+                    <option value="residential" selected>住宅宽带 IP (家宽)</option>
+                    <option value="hosting">机房/数据中心 IP</option>
+                    <option value="mobile">移动蜂窝网络</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label">择优筛选指标</label>
+                <select id="dg-sortby" class="input-field w-full" >
+                    <option value="latency" selected>最低延迟优先 (TCP测速)</option>
+                    <option value="speed">最大带宽优先 (Mbps)</option>
+                    <option value="score">综合评分最高优先</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label">节点解锁能力要求</label>
+                <select id="dg-unlock" class="input-field w-full" >
+                    <option value="none" selected>不限解锁能力</option>
+                    <option value="ai">必须支持 AI 模型 (ChatGPT / Claude)</option>
+                    <option value="streaming">必须支持流媒体 (Netflix / Google)</option>
+                    <option value="full">全解锁 (AI模型 + 主流流媒体)</option>
+                </select>
+            </div>
+            <div id="dg-count-container">
+                <label class="form-label">维持并发在线出口数 [1-10]</label>
+                <input id="dg-count" class="input-field w-full"  type="number" min="1" max="10" value="3">
+            </div>
+            <div>
+                <label class="form-label">自动重评与轮换周期</label>
+                <select id="dg-interval" class="input-field w-full" >
+                    <option value="5">每 5 分钟重评轮换</option>
+                    <option value="10">每 10 分钟重评轮换</option>
+                    <option value="15" selected>每 15 分钟重评轮换</option>
+                    <option value="30">每 30 分钟重评轮换</option>
+                    <option value="60">每 1 小时重评轮换</option>
+                    <option value="120">每 2 小时重评轮换</option>
+                </select>
+            </div>
+        </div>
+        <div  class="form-actions-sm">
+            <button type="button" class="btn btn-outline btn-sm"  data-action="hideDynamicGroupForm">取消</button>
+            <button type="button" class="btn btn-sm"  data-action="saveDynamicGroup">保存自适应组</button>
+        </div>
+    </div>
+
     <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
 
         <script src="app.js" defer></script>

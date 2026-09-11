@@ -1573,15 +1573,17 @@
             // 6. 按需触发视图专项数据刷新
             if (viewName === 'singbox') fetchSingBoxOverview();
             if (viewName === 'matrix') {
-                hideEditPortForm();
-                hideDynamicGroupForm();
+                if (currentPortRules && currentPortRules.length > 0) renderPortRules();
+                if (currentDynamicGroups && currentDynamicGroups.length > 0) renderDynamicGroups();
                 fetchPortRules();
                 fetchDynamicGroups();
             }
             if (viewName === 'settings') loadSettingsForm();
             if (viewName === 'nodes') { updateCountryFilter(); renderNodes(); }
 
-            window.scrollTo({ top: 0, behavior: 'auto' });
+            if (window.scrollY > 0) {
+                window.scrollTo({ top: 0, behavior: 'instant' });
+            }
         }
 
         let activeEditorDrawer = null;
@@ -1609,6 +1611,7 @@
             const drawer = typeof id === 'string' ? document.getElementById(id) : id;
             const backdrop = document.getElementById('drawer-backdrop');
             if (!drawer) return;
+            if (!drawer.classList.contains('open') && drawer.hidden) return;
             drawer.classList.remove('open');
             backdrop?.classList.remove('open');
             activeEditorDrawer = null;
