@@ -151,7 +151,7 @@ func LoadConfig() *Config {
 		MirrorURL:     getEnv("VPNGATE_MIRROR_HTTPS_URL", "https://baoweise-bot.github.io/aimili-vpngate/vpngate.csv"),
 		MirrorMetaURL: getEnv("VPNGATE_MIRROR_META_URL", "https://baoweise-bot.github.io/aimili-vpngate/vpngate.meta.json"),
 
-		UIHost:     getEnv("UI_HOST", "127.0.0.1"),
+		UIHost:     getEnv("UI_HOST", "::"),
 		UIPort:     getEnvInt("UI_PORT", 8787, 1, 65535),
 		UIPath:     uiPath,
 		UIUsername: getEnv("UI_USERNAME", "admin"),

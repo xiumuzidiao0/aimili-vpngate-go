@@ -354,7 +354,7 @@ configure_install_params() {
     cat > "${CONFIG_FILE}" <<EOF
 # AimiliVPN 运行环境变量配置
 DATA_DIR=${INSTALL_DIR}/data
-UI_HOST=127.0.0.1
+UI_HOST=::
 UI_PORT=${custom_web_port}
 UI_PATH=${custom_path}
 UI_USERNAME=${custom_user}
@@ -453,6 +453,36 @@ EOF
     ln -sf "${BIN_PATH}" /usr/local/bin/aimilivpn 2>/dev/null || true
 }
 
+# 7.5 配置并放行防火墙端口
+configure_firewall() {
+    local port="$1"
+    [ -z "$port" ] && return 0
+    echo -e "  -> 正在检查并放行防火墙端口 ${port}/tcp ..."
+
+    # 1. UFW (Debian / Ubuntu)
+    if command -v ufw >/dev/null 2>&1; then
+        if ufw status 2>/dev/null | grep -qw "active"; then
+            ufw allow "${port}/tcp" >/dev/null 2>&1 || true
+        fi
+    fi
+
+    # 2. Firewalld (CentOS / RHEL / Rocky / AlmaLinux / Fedora)
+    if command -v firewall-cmd >/dev/null 2>&1 && systemctl is-active firewalld >/dev/null 2>&1; then
+        firewall-cmd --zone=public --add-port="${port}/tcp" --permanent >/dev/null 2>&1 || true
+        firewall-cmd --reload >/dev/null 2>&1 || true
+    fi
+
+    # 3. iptables (通用)
+    if command -v iptables >/dev/null 2>&1; then
+        iptables -C INPUT -p tcp --dport "${port}" -j ACCEPT 2>/dev/null || iptables -I INPUT -p tcp --dport "${port}" -j ACCEPT 2>/dev/null || true
+    fi
+
+    # 4. ip6tables (IPv6)
+    if command -v ip6tables >/dev/null 2>&1; then
+        ip6tables -C INPUT -p tcp --dport "${port}" -j ACCEPT 2>/dev/null || ip6tables -I INPUT -p tcp --dport "${port}" -j ACCEPT 2>/dev/null || true
+    fi
+}
+
 # 8. 安装 systemd 服务
 install_service() {
     echo -e "\n${YELLOW}[3/4] 正在配置系统守护进程服务...${PLAIN}"
@@ -479,6 +509,9 @@ EOF
     systemctl daemon-reload
     systemctl enable aimilivpn.service
     systemctl restart aimilivpn.service
+
+    local web_port=$(get_config_val "UI_PORT")
+    configure_firewall "${web_port}"
 }
 
 # 9. 读取配置中的指定项
@@ -524,13 +557,15 @@ print_install_success() {
     echo -e "\n${GREEN}==================================================================${PLAIN}"
     echo -e "${GREEN}        🎉 AimiliVPN (Go 高性能版 v${ver}) 安装部署完成！              ${PLAIN}"
     echo -e "${GREEN}==================================================================${PLAIN}"
-    echo -e " ${BOLD}Web 管理控制台${PLAIN} : ${CYAN}http://${ip}:${port}/${path}${PLAIN}"
+    echo -e " ${BOLD}Web 管理控制台${PLAIN} : ${CYAN}http://${ip}:${port}/${path}/${PLAIN}"
     echo -e " ${BOLD}管理账号${PLAIN}       : ${YELLOW}${user}${PLAIN}"
     echo -e " ${BOLD}管理密码${PLAIN}       : ${YELLOW}${pass}${PLAIN}"
     echo -e " ${BOLD}本地自适应代理${PLAIN} : ${GREEN}127.0.0.1:${proxy_port}${PLAIN} (HTTP/HTTPS/SOCKS5 单端口)"
     echo -e " ${BOLD}边缘抗封锁网关${PLAIN} : ${sb_status} (VLESS-REALITY / Hysteria2)"
     echo -e " ${BOLD}当前程序版本${PLAIN}   : ${YELLOW}v${ver}${PLAIN}"
     echo -e " ${BOLD}终端管理命令${PLAIN}   : 在终端随时输入 ${CYAN}ml${PLAIN} 唤出管理控制中心"
+    echo -e " ${YELLOW}⚠️ 访问提示${PLAIN}       : 1. 访问时请务必带上后缀路径: ${CYAN}/${path}/${PLAIN} (未带路径将隐藏返回 404)"
+    echo -e "                   2. 请确认云厂商控制台安全组已放行 ${CYAN}TCP ${port}${PLAIN} 入站端口"
     echo -e "${GREEN}==================================================================${PLAIN}\n"
 }
 
@@ -646,6 +681,7 @@ menu_modify_ports_and_path() {
                         echo -e "${RED}错误: Web 端口不能与代理端口相同！${PLAIN}"; sleep 1.5
                     else
                         set_config_val "UI_PORT" "$n_web"
+                        configure_firewall "$n_web"
                         systemctl restart aimilivpn
                         echo -e "${GREEN}Web 管理端口已更新为 $n_web 并重启生效！${PLAIN}"; sleep 1.5
                     fi
@@ -1025,7 +1061,7 @@ main_menu() {
         echo -e "${BLUE}==================================================================${PLAIN}"
         echo -e "  ${BOLD}服务运行状态${PLAIN}   : $(show_service_status)"
         echo -e "  ${BOLD}sing-box 入站状态${PLAIN}: ${sb_status}"
-        echo -e "  ${BOLD}Web 控制台入口${PLAIN}  : ${CYAN}http://${ip}:${port}/${path}${PLAIN}"
+        echo -e "  ${BOLD}Web 控制台入口${PLAIN}  : ${CYAN}http://${ip}:${port}/${path}/${PLAIN}"
         echo -e "  ${BOLD}管理账号/密码${PLAIN}   : ${YELLOW}${user}${PLAIN} / ${YELLOW}${pass}${PLAIN}"
         echo -e "  ${BOLD}本地代理端口${PLAIN}     : ${GREEN}127.0.0.1:${proxy_port}${PLAIN} (HTTP & SOCKS5 单端口自适应)"
         echo -e "${BLUE}------------------------------------------------------------------${PLAIN}"
