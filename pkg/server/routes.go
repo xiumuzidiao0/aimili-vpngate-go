@@ -520,7 +520,7 @@ func (s *Server) handleProbeTunnelUnlock(w http.ResponseWriter, r *http.Request)
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		res := s.tunnelPool.UnlockDetector().ProbeTunnel(ctx, t.DevName, t.Node.IP)
-		t.Unlock = res
+		t.SetUnlock(res)
 	}()
 
 	s.writeJSON(w, http.StatusOK, map[string]string{

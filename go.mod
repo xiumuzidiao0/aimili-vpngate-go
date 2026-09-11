@@ -1,3 +1,3 @@
 module aimili-vpngate-go
 
-go 1.22.6
+go 1.25.13

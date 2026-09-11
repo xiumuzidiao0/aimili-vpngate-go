@@ -2,7 +2,10 @@ package tunnel
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"aimili-vpngate-go/pkg/config"
 	"aimili-vpngate-go/pkg/nodes"
@@ -45,8 +48,11 @@ func TestDevIndexRecyclingOnDeadTunnels(t *testing.T) {
 	pool.tunnels["tun-1"] = &Tunnel{ID: "tun-1", DevName: "tun1", DevIndex: 1, Status: StatusConnected}
 	pool.usedDevs[2] = true
 	pool.tunnels["tun-2"] = &Tunnel{ID: "tun-2", DevName: "tun2", DevIndex: 2, Status: StatusStopped}
+	pool.mu.Unlock()
 
-	// allocConcurrentDevIndexLocked should reap dead tunnels 0 and 2, and return 2 (since 1 is connected, 0 is reserved for primary)
+	// Cleanup dead tunnels 0 and 2, then alloc should reuse 2 (0 is reserved for primary).
+	pool.ReapStaleTunnels()
+	pool.mu.Lock()
 	devIdx := pool.allocConcurrentDevIndexLocked()
 	pool.mu.Unlock()
 
@@ -119,4 +125,87 @@ func TestPrimaryTunnelReservation(t *testing.T) {
 	// Clean up
 	_ = pool.StopTunnel(tun1.ID)
 	_ = pool.StopTunnel(tunPrimary.ID)
+}
+
+func TestCleanupTunnelIsIdempotentAndReleasesDevice(t *testing.T) {
+	cfg := &config.Config{DataDir: t.TempDir()}
+	pool := NewPool(cfg, nil)
+	tun := &Tunnel{
+		ID:       "tun-cleanup",
+		DevName:  "tun2",
+		DevIndex: 2,
+		Status:   StatusFailed,
+		done:     make(chan struct{}),
+	}
+
+	pool.mu.Lock()
+	pool.tunnels[tun.ID] = tun
+	pool.usedDevs[tun.DevIndex] = true
+	pool.mu.Unlock()
+
+	pool.cleanupTunnel(tun, tun.ID)
+	pool.cleanupTunnel(tun, tun.ID)
+
+	select {
+	case <-tun.done:
+	default:
+		t.Fatal("cleanup did not close the completion channel")
+	}
+
+	pool.mu.RLock()
+	_, exists := pool.tunnels[tun.ID]
+	used := pool.usedDevs[tun.DevIndex]
+	pool.mu.RUnlock()
+	if exists || used {
+		t.Fatalf("cleanup did not release tunnel state: exists=%v used=%v", exists, used)
+	}
+}
+
+func TestTunnelSnapshotCopiesUnlock(t *testing.T) {
+	tun := &Tunnel{ID: "tun-unlock", Status: StatusConnected}
+	result := &UnlockResult{OpenAI: StatusUnlocked, CheckedAt: time.Now()}
+	tun.SetUnlock(result)
+
+	snapshot := tun.Snapshot()
+	result.OpenAI = StatusBlocked
+	if snapshot.Unlock == nil || snapshot.Unlock.OpenAI != StatusUnlocked {
+		t.Fatal("snapshot retained a mutable unlock pointer")
+	}
+}
+
+func TestStopTunnelWaitsForCleanup(t *testing.T) {
+	cfg := &config.Config{DataDir: t.TempDir()}
+	scriptPath := filepath.Join(t.TempDir(), "fake-openvpn.sh")
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nsleep 30\n"), 0700); err != nil {
+		t.Fatalf("write fake openvpn: %v", err)
+	}
+	cfg.OpenVPNCommand = scriptPath
+
+	pool := NewPool(cfg, nil)
+	tun, err := pool.StartTunnel(&nodes.Node{
+		ID:           "node-stop",
+		IP:           "192.0.2.1",
+		CountryShort: "JP",
+		ConfigData:   "client\nremote 192.0.2.1 1194 udp\n",
+	})
+	if err != nil {
+		t.Fatalf("StartTunnel failed: %v", err)
+	}
+	if err := pool.StopTunnel(tun.ID); err != nil {
+		t.Fatalf("StopTunnel failed: %v", err)
+	}
+
+	pool.mu.RLock()
+	_, exists := pool.tunnels[tun.ID]
+	used := pool.usedDevs[tun.DevIndex]
+	pool.mu.RUnlock()
+	if exists || used {
+		t.Fatalf("tunnel resources not released: exists=%v used=%v", exists, used)
+	}
+
+	select {
+	case <-tun.done:
+	default:
+		t.Fatal("cleanup completion channel was not closed")
+	}
 }

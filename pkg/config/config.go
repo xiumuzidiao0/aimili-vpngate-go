@@ -113,7 +113,9 @@ func randomSecretPath() string {
 
 func LoadConfig() *Config {
 	dataDir := getEnv("DATA_DIR", "data")
-	_ = os.MkdirAll(dataDir, 0755)
+	_ = os.MkdirAll(dataDir, 0700)
+	// #nosec G302 -- 0700 is restrictive for a directory that contains config and credential files.
+	_ = os.Chmod(dataDir, 0700)
 
 	uiPath := getEnv("UI_PATH", "")
 	if uiPath == "" {
@@ -122,11 +124,13 @@ func LoadConfig() *Config {
 	if uiPath == "" {
 		// Check if saved before
 		secretFile := filepath.Join(dataDir, "admin_path.txt")
+		// #nosec G304 -- path is rooted in the operator-controlled data directory.
 		if data, err := os.ReadFile(secretFile); err == nil && len(strings.TrimSpace(string(data))) > 0 {
 			uiPath = strings.TrimSpace(string(data))
 		} else {
 			uiPath = randomSecretPath()
 			_ = os.WriteFile(secretFile, []byte(uiPath), 0600)
+			_ = os.Chmod(secretFile, 0600)
 		}
 	}
 	uiPath = strings.Trim(uiPath, "/")
@@ -147,7 +151,7 @@ func LoadConfig() *Config {
 		MirrorURL:     getEnv("VPNGATE_MIRROR_HTTPS_URL", "https://baoweise-bot.github.io/aimili-vpngate/vpngate.csv"),
 		MirrorMetaURL: getEnv("VPNGATE_MIRROR_META_URL", "https://baoweise-bot.github.io/aimili-vpngate/vpngate.meta.json"),
 
-		UIHost:     getEnv("UI_HOST", "::"),
+		UIHost:     getEnv("UI_HOST", "127.0.0.1"),
 		UIPort:     getEnvInt("UI_PORT", 8787, 1, 65535),
 		UIPath:     uiPath,
 		UIUsername: getEnv("UI_USERNAME", "admin"),
@@ -218,6 +222,20 @@ func (c *Config) IsUIAuthEnabled() bool {
 }
 
 func (c *Config) UpdateSettings(dto SettingsDTO) error {
+	for name, value := range map[string]string{
+		"ui_path":            dto.UIPath,
+		"ui_username":        dto.UIUsername,
+		"ui_password":        dto.UIPassword,
+		"proxy_user":         dto.ProxyUser,
+		"proxy_pass":         dto.ProxyPass,
+		"telegram_bot_token": dto.TelegramBotToken,
+		"telegram_chat_id":   dto.TelegramChatID,
+	} {
+		if strings.ContainsAny(value, "\r\n") {
+			return fmt.Errorf("%s 不能包含换行符", name)
+		}
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -308,10 +326,13 @@ TELEGRAM_CHAT_ID=%s
 				c.TelegramBotToken,
 				c.TelegramChatID,
 			)
-			_ = os.WriteFile(p, []byte(content), 0600)
-			break
+			if err := os.WriteFile(p, []byte(content), 0600); err != nil {
+				return fmt.Errorf("写入配置文件 %s 失败: %w", p, err)
+			}
+			_ = os.Chmod(p, 0600)
+			return nil
 		}
 	}
 
-	return nil
+	return fmt.Errorf("未找到可写的配置文件路径")
 }

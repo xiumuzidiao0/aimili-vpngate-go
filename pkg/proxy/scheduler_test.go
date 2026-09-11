@@ -8,27 +8,6 @@ import (
 	"aimili-vpngate-go/pkg/tunnel"
 )
 
-type mockPool struct {
-	tunnels []*tunnel.Tunnel
-}
-
-func (m *mockPool) GetHealthyTunnels(targetIDs []string) []*tunnel.Tunnel {
-	if len(targetIDs) == 0 {
-		return m.tunnels
-	}
-	idMap := make(map[string]bool)
-	for _, id := range targetIDs {
-		idMap[id] = true
-	}
-	var res []*tunnel.Tunnel
-	for _, t := range m.tunnels {
-		if idMap[t.ID] {
-			res = append(res, t)
-		}
-	}
-	return res
-}
-
 func TestScheduler(t *testing.T) {
 	node1 := &nodes.Node{ID: "node-1", IP: "1.1.1.1"}
 	node2 := &nodes.Node{ID: "node-2", IP: "2.2.2.2"}

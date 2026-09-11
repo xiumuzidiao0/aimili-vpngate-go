@@ -7,9 +7,9 @@ import (
 
 func TestCircuitBreaker(t *testing.T) {
 	tun := &Tunnel{
-		ID:       "tun-test",
-		DevName:  "tun0",
-		Status:   StatusConnected,
+		ID:      "tun-test",
+		DevName: "tun0",
+		Status:  StatusConnected,
 	}
 
 	// 1. Initial state: healthy and available

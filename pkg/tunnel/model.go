@@ -19,22 +19,26 @@ const (
 )
 
 type Tunnel struct {
-	ID          string       `json:"id"`           // e.g. "tunnel-0", "tunnel-1"
-	DevName     string       `json:"dev_name"`     // e.g. "tun0", "tun1"
-	DevIndex    int          `json:"dev_index"`    // 0, 1, 2...
-	Node        *nodes.Node  `json:"node"`         // VPNGate node information
-	Status      TunnelStatus `json:"status"`       // connecting, connected, failed, stopped
-	Message     string       `json:"message"`      // latest status description
-	ConnectedAt time.Time    `json:"connected_at"` // handshake completed time
-	Uptime        int64         `json:"uptime"`                  // seconds online
-	LatencyMs     int           `json:"latency_ms"`              // real-time probe latency
-	Unlock        *UnlockResult `json:"unlock,omitempty"`        // AI and Streaming unlock probe status
-	CircuitBroken bool          `json:"circuit_broken"`          // true if in cooldown due to consecutive failures
+	ID            string        `json:"id"`               // e.g. "tunnel-0", "tunnel-1"
+	DevName       string        `json:"dev_name"`         // e.g. "tun0", "tun1"
+	DevIndex      int           `json:"dev_index"`        // 0, 1, 2...
+	Node          *nodes.Node   `json:"node"`             // VPNGate node information
+	Status        TunnelStatus  `json:"status"`           // connecting, connected, failed, stopped
+	Message       string        `json:"message"`          // latest status description
+	ConnectedAt   time.Time     `json:"connected_at"`     // handshake completed time
+	Uptime        int64         `json:"uptime"`           // seconds online
+	LatencyMs     int           `json:"latency_ms"`       // real-time probe latency
+	Unlock        *UnlockResult `json:"unlock,omitempty"` // AI and Streaming unlock probe status
+	CircuitBroken bool          `json:"circuit_broken"`   // true if in cooldown due to consecutive failures
 
 	// Internal lifecycle management
 	mu                 sync.RWMutex
 	cmd                *exec.Cmd
 	cancelFunc         context.CancelFunc
+	done               chan struct{}
+	cleanupOnce        sync.Once
+	monitored          bool
+	interfaceReady     bool
 	confPath           string
 	authPath           string
 	consecutiveFails   int
@@ -70,6 +74,18 @@ func (t *Tunnel) IsCircuitBroken() bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return !t.circuitBrokenUntil.IsZero() && time.Now().Before(t.circuitBrokenUntil)
+}
+
+func (t *Tunnel) SetUnlock(result *UnlockResult) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if result == nil {
+		t.Unlock = nil
+		return
+	}
+	cp := *result
+	t.Unlock = &cp
 }
 
 func (t *Tunnel) RecordFailure() {

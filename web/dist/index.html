@@ -1718,6 +1718,25 @@
 
         function getCountryName(code) { return countryNames[code] || code; }
 
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, c => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[c]);
+        }
+
+        function jsArg(value) {
+            return escapeHtml(JSON.stringify(String(value ?? '')));
+        }
+
+        function safeLogLevel(level) {
+            const value = String(level || 'info').toLowerCase();
+            return ['info', 'warning', 'error'].includes(value) ? value : 'info';
+        }
+
         function formatBytes(bytes) {
             if (!bytes || bytes === 0) return '0 B';
             const k = 1024;
@@ -1733,7 +1752,7 @@
             const row = document.createElement('div');
             row.className = 'log-line';
             const timeStr = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
-            row.innerHTML = `<span class="log-time">[${timeStr}]</span> <span class="log-level-${entry.level}">[${entry.module || 'System'}]</span> ${entry.message}`;
+            row.innerHTML = `<span class="log-time">[${escapeHtml(timeStr)}]</span> <span class="log-level-${safeLogLevel(entry.level)}">[${escapeHtml(entry.module || 'System')}]</span> ${escapeHtml(entry.message)}`;
             term.appendChild(row);
             term.scrollTop = term.scrollHeight;
         }
@@ -1860,10 +1879,10 @@
                     } else if (vpn.active_node.ip_type === 'mobile') {
                         typeBadge = '<span class="badge badge-mobile">移动网络</span>';
                     }
-                    document.getElementById('vpn-node-type').innerHTML = `${typeBadge} ${vpn.active_node.isp || ''}`;
+                    document.getElementById('vpn-node-type').innerHTML = `${typeBadge} ${escapeHtml(vpn.active_node.isp || '')}`;
                     const loc = [getCountryName(vpn.active_node.country_short), vpn.active_node.region, vpn.active_node.city].filter(Boolean).join(' · ');
                     document.getElementById('vpn-node-country').innerHTML = `
-                        <span class="flag-box">${getCountryFlagSVG(vpn.active_node.country_short)} ${loc} (${vpn.active_node.country_short})</span>
+                        <span class="flag-box">${getCountryFlagSVG(vpn.active_node.country_short)} ${escapeHtml(loc)} (${escapeHtml(vpn.active_node.country_short)})</span>
                     `;
                 } else {
                     document.getElementById('vpn-node-type').innerText = '-';
@@ -1907,13 +1926,13 @@
                             const pingStr = t.node && t.node.latency_ms > 0 ? `<span style="color:#34d399; font-weight:600;">${t.node.latency_ms}ms</span>` : '';
                             return `
                                 <div style="display: inline-flex; align-items: center; gap: 8px; background: var(--bg-base); padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 12px; flex-wrap: wrap;">
-                                    <strong style="font-family: monospace; color: var(--primary);">${t.dev_name}</strong>
-                                    <span class="badge ${badgeClass}" style="padding: 1px 5px; font-size: 10px;"><span class="status-dot"></span> ${t.status === 'connected' ? '在线' : t.status}</span>
-                                    <span class="flag-box" style="font-size: 11.5px;">${flag} ${ip}</span>
+                                    <strong style="font-family: monospace; color: var(--primary);">${escapeHtml(t.dev_name)}</strong>
+                                    <span class="badge ${badgeClass}" style="padding: 1px 5px; font-size: 10px;"><span class="status-dot"></span> ${escapeHtml(t.status === 'connected' ? '在线' : t.status)}</span>
+                                    <span class="flag-box" style="font-size: 11.5px;">${flag} ${escapeHtml(ip)}</span>
                                     ${pingStr}
                                     <div style="display:flex; align-items:center; gap:3px;">${unlockBadges}</div>
-                                    <button class="btn btn-outline" style="padding: 2px 6px; font-size: 10px;" onclick="probeTunnelUnlock('${t.id}')" title="探测该出口的AI与流媒体解锁状态">⚡ 测解锁</button>
-                                    <button class="btn btn-danger" style="padding: 2px 7px; font-size: 10px;" onclick="stopTunnel('${t.id}')">断开</button>
+                                    <button class="btn btn-outline" style="padding: 2px 6px; font-size: 10px;" onclick="probeTunnelUnlock(${jsArg(t.id)})" title="探测该出口的AI与流媒体解锁状态">⚡ 测解锁</button>
+                                    <button class="btn btn-danger" style="padding: 2px 7px; font-size: 10px;" onclick="stopTunnel(${jsArg(t.id)})">断开</button>
                                 </div>
                             `;
                         }).join('');
@@ -1947,7 +1966,7 @@
             const countries = [...new Set(allNodes.map(n => n.country_short))].filter(Boolean).sort();
 
             select.innerHTML = '<option value="">全部国家/地区</option>' +
-                countries.map(c => `<option value="${c}">${getCountryName(c)} (${c})</option>`).join('');
+                countries.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(getCountryName(c))} (${escapeHtml(c)})</option>`).join('');
             select.value = curr;
         }
 
@@ -2074,8 +2093,8 @@
                     typeTag = '<span class="badge badge-mobile">移动网络</span>';
                 }
 
-                const ispInfo = n.isp ? `<div style="font-size: 11px; color: var(--text-muted); max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${n.isp}">${n.isp}</div>` : '';
-                const cityInfo = n.city ? `<span style="color: var(--text-muted); font-size: 11.5px;"> · ${n.city}</span>` : '';
+                const ispInfo = n.isp ? `<div style="font-size: 11px; color: var(--text-muted); max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(n.isp)}">${escapeHtml(n.isp)}</div>` : '';
+                const cityInfo = n.city ? `<span style="color: var(--text-muted); font-size: 11.5px;"> · ${escapeHtml(n.city)}</span>` : '';
 
                 let repColor = '#34d399';
                 const repVal = n.reputation_score !== undefined ? n.reputation_score : 60;
@@ -2089,20 +2108,20 @@
                 return `
                     <tr style="${isCurrent ? 'background: rgba(59, 130, 246, 0.12);' : (activeTun ? 'background: rgba(16, 185, 129, 0.08);' : '')}">
                         <td style="text-align: center;">
-                            <button class="star-btn ${n.is_favorite ? 'active' : ''}" onclick="toggleFavorite('${n.id}')" title="${n.is_favorite ? '取消收藏' : '加入收藏'}">
+                            <button class="star-btn ${n.is_favorite ? 'active' : ''}" onclick="toggleFavorite(${jsArg(n.id)})" title="${n.is_favorite ? '取消收藏' : '加入收藏'}">
                                 ${n.is_favorite ? '★' : '☆'}
                             </button>
                         </td>
                         <td>
                             <div class="flag-box">
                                 ${getCountryFlagSVG(n.country_short)}
-                                <span>${getCountryName(n.country_short)}</span>
+                                <span>${escapeHtml(getCountryName(n.country_short))}</span>
                                 ${cityInfo}
                             </div>
                         </td>
                         <td>
-                            <div style="font-family: ui-monospace, monospace; font-weight: 600; font-size: 12.5px;">${n.ip}:${n.port}</div>
-                            <span class="badge badge-proto" style="margin-top: 2px;">${n.proto.toUpperCase()}</span>
+                            <div style="font-family: ui-monospace, monospace; font-weight: 600; font-size: 12.5px;">${escapeHtml(n.ip)}:${escapeHtml(n.port)}</div>
+                            <span class="badge badge-proto" style="margin-top: 2px;">${escapeHtml(String(n.proto || '').toUpperCase())}</span>
                         </td>
                         <td>${typeTag}${ispInfo}</td>
                         <td>${latencyBadge}</td>
@@ -2117,13 +2136,13 @@
                                 '<span class="badge connected"><span class="status-dot"></span> 当前主连</span>' :
                                 (activeTun ?
                                     `<div style="display:inline-flex; align-items:center; gap:4px;">
-                                        <span class="badge connected" style="background:rgba(59,130,246,0.15); color:#60a5fa;"><span class="status-dot" style="background:#3b82f6;"></span> ${activeTun.dev_name}</span>
-                                        <button class="btn btn-danger" style="padding: 2px 6px; font-size: 10px;" onclick="stopTunnel('${activeTun.id}')">断开</button>
+                                        <span class="badge connected" style="background:rgba(59,130,246,0.15); color:#60a5fa;"><span class="status-dot" style="background:#3b82f6;"></span> ${escapeHtml(activeTun.dev_name)}</span>
+                                        <button class="btn btn-danger" style="padding: 2px 6px; font-size: 10px;" onclick="stopTunnel(${jsArg(activeTun.id)})">断开</button>
                                     </div>` :
                                     `<div style="display:inline-flex; gap:4px; align-items:center;">
-                                        <button class="btn" style="padding: 4px 9px; font-size: 11.5px;" onclick="connectToNode('${n.id}')" title="设置为主网关出口">主连</button>
-                                        <button class="btn btn-outline" style="padding: 4px 8px; font-size: 11.5px;" onclick="startNewTunnel('${n.id}')" title="启动为新的独立并发出口">+并发</button>
-                                        <button class="btn btn-outline" style="padding: 4px 6px; font-size: 11.5px; color:#f87171;" onclick="addNodeToBlacklist('${n.id}', '${n.ip}', '${n.country_short}')" title="屏蔽/拉黑此节点24小时">🚫</button>
+                                        <button class="btn" style="padding: 4px 9px; font-size: 11.5px;" onclick="connectToNode(${jsArg(n.id)})" title="设置为主网关出口">主连</button>
+                                        <button class="btn btn-outline" style="padding: 4px 8px; font-size: 11.5px;" onclick="startNewTunnel(${jsArg(n.id)})" title="启动为新的独立并发出口">+并发</button>
+                                        <button class="btn btn-outline" style="padding: 4px 6px; font-size: 11.5px; color:#f87171;" onclick="addNodeToBlacklist(${jsArg(n.id)}, ${jsArg(n.ip)}, ${jsArg(n.country_short)})" title="屏蔽/拉黑此节点24小时">🚫</button>
                                     </div>`
                                 )
                             }
@@ -2446,7 +2465,7 @@
 
                 const isSys = g.is_system || g.id === 'system-primary';
                 const sysBadge = isSys ? `<span class="badge" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.35); font-size: 11px;">👑 系统主连网关 (tun0)</span>` : `<span class="badge" style="background: rgba(2, 132, 199, 0.15); color: #38bdf8; font-size: 11px;">Top ${g.target_count} 隧道</span>`;
-                const deleteBtn = isSys ? '' : `<button class="btn btn-danger" style="padding: 3px 8px; font-size: 11px;" onclick="deleteDynamicGroup('${g.id}')">删除</button>`;
+                const deleteBtn = isSys ? '' : `<button class="btn btn-danger" style="padding: 3px 8px; font-size: 11px;" onclick="deleteDynamicGroup(${jsArg(g.id)})">删除</button>`;
                 const editLabel = isSys ? '配置主连策略' : '编辑';
 
                 const countryStr = g.country ? `${getCountryName(g.country)} (${g.country})` : '全部国家/地区';
@@ -2457,20 +2476,20 @@
                     <div style="background: var(--bg-card); border: 1px solid ${isSys ? 'rgba(99, 102, 241, 0.35)' : 'var(--border)'}; border-radius: 8px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                         <div>
                             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                                <span class="badge ${statusClass}"><span class="status-dot"></span> ${g.status_text || '正常'}</span>
-                                <strong style="color: #fff; font-size: 13px;">${g.name}</strong>
+                                <span class="badge ${statusClass}"><span class="status-dot"></span> ${escapeHtml(g.status_text || '正常')}</span>
+                                <strong style="color: #fff; font-size: 13px;">${escapeHtml(g.name)}</strong>
                                 ${sysBadge}
                             </div>
                             <div style="font-size: 11.5px; color: var(--text-muted); display: flex; gap: 12px; flex-wrap: wrap;">
-                                <span>目标: <strong style="color:#e2e8f0;">${countryStr}</strong></span>
-                                <span>类型: <strong style="color:#e2e8f0;">${ipTypeText}</strong></span>
+                                <span>目标: <strong style="color:#e2e8f0;">${escapeHtml(countryStr)}</strong></span>
+                                <span>类型: <strong style="color:#e2e8f0;">${escapeHtml(ipTypeText)}</strong></span>
                                 ${unlockText}
                                 <span>指标: <strong style="color:#34d399;">${metricText}</strong></span>
                                 <span>周期: <strong style="color:#e2e8f0;">${g.interval_minutes}分钟</strong></span>
                             </div>
                         </div>
                         <div style="display: flex; gap: 6px;">
-                            <button class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="editDynamicGroup('${g.id}')">${editLabel}</button>
+                            <button class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="editDynamicGroup(${jsArg(g.id)})">${editLabel}</button>
                             ${deleteBtn}
                         </div>
                     </div>
@@ -2633,7 +2652,7 @@
                     showToast('屏蔽库列表已刷新');
                 }
             } catch (err) {
-                container.innerHTML = '<div style="text-align: center; color: var(--danger); padding: 30px;">加载屏蔽库失败: ' + err + '</div>';
+                container.innerHTML = '<div style="text-align: center; color: var(--danger); padding: 30px;">加载屏蔽库失败: ' + escapeHtml(err && err.message ? err.message : err) + '</div>';
             }
         }
 
@@ -2677,10 +2696,10 @@
                                     <span class="flag-box" style="font-size: 12px;">${flag}</span>
                                     <div>
                                         <div style="font-family: ui-monospace, monospace; font-size: 13px; font-weight: 600; color: #fff;">
-                                            ${item.id || item.ip}
+                                            ${escapeHtml(item.id || item.ip)}
                                         </div>
                                         <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                                            <span>原因: <strong style="color: #fca5a5;">${item.reason || '故障断线'}</strong></span>
+                                            <span>原因: <strong style="color: #fca5a5;">${escapeHtml(item.reason || '故障断线')}</strong></span>
                                             <span>·</span>
                                             <span>状态: <span style="color: #fbbf24;">${leftStr}</span></span>
                                             ${failBadge}
@@ -2688,7 +2707,7 @@
                                     </div>
                                 </div>
                                 <div>
-                                    <button class="btn btn-outline" style="padding: 3px 9px; font-size: 11px;" onclick="removeNodeFromBlacklist('${item.id}')">
+                                    <button class="btn btn-outline" style="padding: 3px 9px; font-size: 11px;" onclick="removeNodeFromBlacklist(${jsArg(item.id)})">
                                         解除屏蔽
                                     </button>
                                 </div>
@@ -2819,7 +2838,7 @@
                 if (r.auth_mode === 'none') {
                     authBadge = '<span style="color: #34d399; font-weight:600; font-size:11.5px;">🔓 免密直连</span>';
                 } else if (r.auth_mode === 'custom') {
-                    authBadge = `<span style="color: #60a5fa; font-size:11.5px;">🔑 独立账号: ${r.auth_user || '未设'}</span>`;
+                    authBadge = `<span style="color: #60a5fa; font-size:11.5px;">🔑 独立账号: ${escapeHtml(r.auth_user || '未设')}</span>`;
                 }
 
                 let boundBadges = [];
@@ -2827,7 +2846,7 @@
                     r.bound_group_ids.forEach(gid => {
                         const g = currentDynamicGroups.find(item => item.id === gid);
                         const gName = g ? g.name : gid;
-                        boundBadges.push(`<span class="badge" style="background: rgba(2, 132, 199, 0.2); color: #38bdf8; font-size:11px;">⚡ 动态池: ${gName}</span>`);
+                        boundBadges.push(`<span class="badge" style="background: rgba(2, 132, 199, 0.2); color: #38bdf8; font-size:11px;">⚡ 动态池: ${escapeHtml(gName)}</span>`);
                     });
                 }
                 if (r.bound_tunnel_ids && r.bound_tunnel_ids.length > 0) {
@@ -2835,9 +2854,9 @@
                         const t = tunnels.find(item => item.id === id);
                         if (t && t.node) {
                             const flag = getCountryFlagSVG(t.node.country_short);
-                            boundBadges.push(`<span class="badge badge-proto" style="font-size:11px;">${flag} ${t.dev_name} (${t.node.ip})</span>`);
+                            boundBadges.push(`<span class="badge badge-proto" style="font-size:11px;">${flag} ${escapeHtml(t.dev_name)} (${escapeHtml(t.node.ip)})</span>`);
                         } else {
-                            boundBadges.push(`<span class="badge badge-proto" style="font-size:11px;">${id}</span>`);
+                            boundBadges.push(`<span class="badge badge-proto" style="font-size:11px;">${escapeHtml(id)}</span>`);
                         }
                     });
                 }
@@ -2859,11 +2878,11 @@
                                 <span class="badge badge-proto" style="font-size:10px;">HTTP / SOCKS5</span>
                             </div>
                             <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                                <span class="copy-pill" onclick="copyText('${httpUrl}', 'HTTP 代理地址')">
+                                <span class="copy-pill" onclick="copyText(${jsArg(httpUrl)}, 'HTTP 代理地址')">
                                     <svg style="width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:2;" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                                     http://127.0.0.1:${r.port}
                                 </span>
-                                <span class="copy-pill" onclick="copyText('${socksUrl}', 'SOCKS5 代理地址')">
+                                <span class="copy-pill" onclick="copyText(${jsArg(socksUrl)}, 'SOCKS5 代理地址')">
                                     <svg style="width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:2;" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                                     socks5://127.0.0.1:${r.port}
                                 </span>
@@ -2986,10 +3005,10 @@
                     let metricText = g.sort_by === 'speed' ? '最大带宽' : (g.sort_by === 'score' ? '最高评分' : '最低延迟');
                     html += `
                         <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; padding: 3px 0 3px 20px;">
-                            <input type="checkbox" class="chk-dynamic-group" value="${g.id}" ${isChecked ? 'checked' : ''} onchange="onSpecificTunnelCheckChanged()">
+                            <input type="checkbox" class="chk-dynamic-group" value="${escapeHtml(g.id)}" ${isChecked ? 'checked' : ''} onchange="onSpecificTunnelCheckChanged()">
                             <span class="badge" style="background: rgba(2, 132, 199, 0.2); color: #38bdf8; font-size: 10px;">自适应组</span>
-                            <strong style="color: #fff;">${g.name}</strong>
-                            <span style="color: var(--text-muted); font-size: 11px;">(${g.country || '全部'} · ${g.ip_type === 'residential' ? '家宽' : (g.ip_type === 'hosting' ? '机房' : '不限')} · ${metricText} Top${g.target_count})</span>
+                            <strong style="color: #fff;">${escapeHtml(g.name)}</strong>
+                            <span style="color: var(--text-muted); font-size: 11px;">(${escapeHtml(g.country || '全部')} · ${escapeHtml(g.ip_type === 'residential' ? '家宽' : (g.ip_type === 'hosting' ? '机房' : '不限'))} · ${escapeHtml(metricText)} Top${escapeHtml(g.target_count)})</span>
                         </label>
                     `;
                 });
@@ -3005,10 +3024,10 @@
                     const pingStr = t.node && t.node.latency_ms > 0 ? `(${t.node.latency_ms}ms)` : '';
                     html += `
                         <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; padding: 3px 0 3px 20px;">
-                            <input type="checkbox" class="chk-single-tunnel" value="${t.id}" ${isChecked ? 'checked' : ''} onchange="onSpecificTunnelCheckChanged()">
+                            <input type="checkbox" class="chk-single-tunnel" value="${escapeHtml(t.id)}" ${isChecked ? 'checked' : ''} onchange="onSpecificTunnelCheckChanged()">
                             <span class="flag-box">${flag}</span>
-                            <strong style="font-family: monospace; color: var(--primary);">${t.dev_name}</strong>
-                            <span>${cName} (${ip})</span>
+                            <strong style="font-family: monospace; color: var(--primary);">${escapeHtml(t.dev_name)}</strong>
+                            <span>${escapeHtml(cName)} (${escapeHtml(ip)})</span>
                             ${pingStr ? `<span style="color:#34d399; font-size:11px;">${pingStr}</span>` : ''}
                         </label>
                     `;
@@ -3249,10 +3268,10 @@
                 const coreVer = (data.status && data.status.core && data.status.core.version) || '已安装';
                 if (isRunning) {
                     statusBadge.className = 'badge connected';
-                    statusBadge.innerHTML = `<span class="status-dot"></span> 运行中 (${coreVer})`;
+                    statusBadge.innerHTML = `<span class="status-dot"></span> 运行中 (${escapeHtml(coreVer)})`;
                 } else {
                     statusBadge.className = 'badge connecting';
-                    statusBadge.innerHTML = `<span class="status-dot"></span> 服务就绪 (${coreVer})`;
+                    statusBadge.innerHTML = `<span class="status-dot"></span> 服务就绪 (${escapeHtml(coreVer)})`;
                 }
                 if (addBtn) addBtn.disabled = false;
             } else {
@@ -3336,7 +3355,7 @@
                     } else if (n.outbound) {
                         isSelected = n.outbound.includes(ob.addr);
                     }
-                    return `<option value="${ob.addr}" ${isSelected ? 'selected' : ''}>${ob.label}</option>`;
+                    return `<option value="${escapeHtml(ob.addr)}" ${isSelected ? 'selected' : ''}>${escapeHtml(ob.label)}</option>`;
                 }).join('');
 
                 const isChained = n.outbound && n.outbound !== 'direct';
@@ -3349,7 +3368,7 @@
                     <div class="sb-node-card">
                         <div class="sb-node-header">
                             <div style="display: flex; align-items: center; gap: 8px;">
-                                <span class="sb-proto-pill ${protoPillClass}">${n.protocol}</span>
+                                <span class="sb-proto-pill ${protoPillClass}">${escapeHtml(n.protocol)}</span>
                                 <strong style="color: #fff; font-size: 14px; font-family: ui-monospace, monospace;">:${n.port}</strong>
                             </div>
                             <span class="badge connected" style="font-size: 10.5px; padding: 2px 6px;"><span class="status-dot"></span> 在网监听</span>
@@ -3361,7 +3380,7 @@
                                 <svg style="width:13px;height:13px;stroke:currentColor;fill:none;" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                                 链式出口路由 (Forwarding Exit)
                             </div>
-                            <select class="${chainSelectClass}" onchange="updateNodeOutbound('${n.name}', this.value)">
+                            <select class="${chainSelectClass}" onchange="updateNodeOutbound(${jsArg(n.name)}, this.value)">
                                 ${outboundOptions}
                             </select>
                         </div>
@@ -3370,38 +3389,33 @@
                         <div class="sb-node-info">
                             <div class="sb-info-item">
                                 <span class="sb-info-lbl">SNI / 伪装域名</span>
-                                <span class="sb-info-val" title="${sniText}">${sniText}</span>
+                                <span class="sb-info-val" title="${escapeHtml(sniText)}">${escapeHtml(sniText)}</span>
                             </div>
                             <div class="sb-info-item">
                                 <span class="sb-info-lbl">传输层 / 流控</span>
-                                <span class="sb-info-val" title="${networkText}">${networkText}</span>
+                                <span class="sb-info-val" title="${escapeHtml(networkText)}">${escapeHtml(networkText)}</span>
                             </div>
                         </div>
 
                         <!-- 卡片底部快捷操作 -->
                         <div class="sb-action-bar">
                             <div style="display: flex; gap: 6px;">
-                                <button class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="copyNodeShareLink('${escapeJSStr(n.url)}', '${n.protocol}')">
+                                <button class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="copyNodeShareLink(${jsArg(n.url)}, ${jsArg(n.protocol)})">
                                     <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                                     复制链接
                                 </button>
-                                <button class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="showNodeQRCode('${escapeJSStr(n.url)}', '${n.protocol} :${n.port}')">
+                                <button class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="showNodeQRCode(${jsArg(n.url)}, ${jsArg(`${n.protocol} :${n.port}`)})">
                                     <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                                     二维码
                                 </button>
                             </div>
-                            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" title="删除此入站配置" onclick="deleteSingBoxNode('${n.name}')">
+                            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" title="删除此入站配置" onclick="deleteSingBoxNode(${jsArg(n.name)})">
                                 <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                             </button>
                         </div>
                     </div>
                 `;
             }).join('');
-        }
-
-        function escapeJSStr(str) {
-            if (!str) return '';
-            return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
         }
 
         function openAddSingBoxModal() {
@@ -3413,7 +3427,7 @@
             const sel = document.getElementById('sb-add-outbound');
             const outbounds = singBoxOverview.available_outbounds || [];
             sel.innerHTML = outbounds.map(ob => {
-                return `<option value="${ob.addr}" ${ob.is_default ? 'selected' : ''}>${ob.label}</option>`;
+                return `<option value="${escapeHtml(ob.addr)}" ${ob.is_default ? 'selected' : ''}>${escapeHtml(ob.label)}</option>`;
             }).join('');
 
             selectSingBoxProto('reality');

@@ -69,7 +69,8 @@ func (d *UnlockDetector) saveLocked() {
 		return
 	}
 	tmp := d.cachePath + ".tmp"
-	if err := os.WriteFile(tmp, data, 0644); err == nil {
+	if err := os.WriteFile(tmp, data, 0600); err == nil {
+		_ = os.Chmod(tmp, 0600)
 		_ = os.Rename(tmp, d.cachePath)
 	}
 }

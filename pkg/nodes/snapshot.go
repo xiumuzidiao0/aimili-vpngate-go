@@ -11,11 +11,11 @@ import (
 )
 
 type SnapshotMeta struct {
-	Source      string    `json:"source"`
-	CachedAt    time.Time `json:"cached_at"`
-	RowCount    int       `json:"row_count"`
-	ByteCount   int       `json:"byte_count"`
-	SHA256      string    `json:"sha256"`
+	Source    string    `json:"source"`
+	CachedAt  time.Time `json:"cached_at"`
+	RowCount  int       `json:"row_count"`
+	ByteCount int       `json:"byte_count"`
+	SHA256    string    `json:"sha256"`
 }
 
 type SnapshotManager struct {
@@ -48,17 +48,19 @@ func (sm *SnapshotManager) Save(data []byte, source string, rowCount int) error 
 	}
 
 	tmpData := sm.cachePath + ".tmp"
-	if err := os.WriteFile(tmpData, data, 0644); err != nil {
+	if err := os.WriteFile(tmpData, data, 0600); err != nil {
 		return err
 	}
+	_ = os.Chmod(tmpData, 0600)
 	if err := os.Rename(tmpData, sm.cachePath); err != nil {
 		return err
 	}
 
 	tmpMeta := sm.metaPath + ".tmp"
-	if err := os.WriteFile(tmpMeta, metaBytes, 0644); err != nil {
+	if err := os.WriteFile(tmpMeta, metaBytes, 0600); err != nil {
 		return err
 	}
+	_ = os.Chmod(tmpMeta, 0600)
 	_ = os.Rename(tmpMeta, sm.metaPath)
 
 	return nil
@@ -81,6 +83,7 @@ func (sm *SnapshotManager) Load() ([]byte, *SnapshotMeta, error) {
 		"../mirror/vpngate.csv",
 	}
 	for _, p := range fallbackPaths {
+		// #nosec G304 -- fallback paths are fixed application-provided locations.
 		if fbData, err := os.ReadFile(p); err == nil && len(fbData) > 0 {
 			meta := SnapshotMeta{
 				Source:    fmt.Sprintf("安装包内置镜像 (%s)", p),

@@ -19,19 +19,19 @@ import (
 const SystemPrimaryGroupID = "system-primary"
 
 type DynamicGroup struct {
-	ID              string    `json:"id"`               // e.g. "dg-1" or "system-primary"
-	Name            string    `json:"name"`             // e.g. "日本Top3住宅隧道组"
-	Enabled         bool      `json:"enabled"`          // 是否启用自动自适应维护
-	IsSystem        bool      `json:"is_system"`        // 是否为系统主出口专用组
-	Country         string    `json:"country"`          // "JP", "US", or "" for 全部
-	IPType          string    `json:"ip_type"`          // "residential", "hosting", "all"
-	UnlockFilter    string    `json:"unlock_filter"`    // "none" (不限), "ai" (OpenAI/Claude), "streaming" (Netflix/Google), "all" (全解锁)
-	SortBy          string    `json:"sort_by"`          // "latency" (延迟优先), "speed" (带宽优先), "score" (评分优先)
-	TargetCount     int       `json:"target_count"`     // 维持并发隧道数 (主网关固定为 1, 其余组例如 3)
-	IntervalMinutes int       `json:"interval_minutes"` // 重新评估与动态轮换周期 (分钟, 例如 15)
-	ActiveTunnelIDs []string  `json:"active_tunnel_ids"`// 当前此组维护的隧道 ID 列表
-	LastEvaluatedAt time.Time `json:"last_evaluated_at"`// 上次重新评估并轮换的时间
-	StatusText      string    `json:"status_text"`      // 状态摘要
+	ID              string    `json:"id"`                // e.g. "dg-1" or "system-primary"
+	Name            string    `json:"name"`              // e.g. "日本Top3住宅隧道组"
+	Enabled         bool      `json:"enabled"`           // 是否启用自动自适应维护
+	IsSystem        bool      `json:"is_system"`         // 是否为系统主出口专用组
+	Country         string    `json:"country"`           // "JP", "US", or "" for 全部
+	IPType          string    `json:"ip_type"`           // "residential", "hosting", "all"
+	UnlockFilter    string    `json:"unlock_filter"`     // "none" (不限), "ai" (OpenAI/Claude), "streaming" (Netflix/Google), "all" (全解锁)
+	SortBy          string    `json:"sort_by"`           // "latency" (延迟优先), "speed" (带宽优先), "score" (评分优先)
+	TargetCount     int       `json:"target_count"`      // 维持并发隧道数 (主网关固定为 1, 其余组例如 3)
+	IntervalMinutes int       `json:"interval_minutes"`  // 重新评估与动态轮换周期 (分钟, 例如 15)
+	ActiveTunnelIDs []string  `json:"active_tunnel_ids"` // 当前此组维护的隧道 ID 列表
+	LastEvaluatedAt time.Time `json:"last_evaluated_at"` // 上次重新评估并轮换的时间
+	StatusText      string    `json:"status_text"`       // 状态摘要
 }
 
 type PrimaryConnector interface {
@@ -124,7 +124,8 @@ func (m *DynamicGroupManager) saveLocked() {
 	}
 
 	tmp := m.filePath + ".tmp"
-	if err := os.WriteFile(tmp, data, 0644); err == nil {
+	if err := os.WriteFile(tmp, data, 0600); err == nil {
+		_ = os.Chmod(tmp, 0600)
 		_ = os.Rename(tmp, m.filePath)
 	}
 }

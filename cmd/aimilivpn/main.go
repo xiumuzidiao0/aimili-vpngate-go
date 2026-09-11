@@ -41,7 +41,6 @@ func main() {
 	if err := vpn.CheckTUNDevice(); err != nil {
 		stats.LogWarn("Main", "警告: %v", err)
 	}
-	vpn.KillStrayOpenVPN()
 
 	// Initialize components
 	nodePool := nodes.NewNodePool(cfg)

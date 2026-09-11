@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"strconv"
 	"strings"
 )
@@ -77,9 +78,7 @@ func ParseVPNGateCSV(data []byte, maxRows int) ([]*Node, error) {
 		if trimmed == "" || strings.HasPrefix(trimmed, "*") {
 			continue
 		}
-		if strings.HasPrefix(trimmed, "#") {
-			trimmed = strings.TrimPrefix(trimmed, "#")
-		}
+		trimmed = strings.TrimPrefix(trimmed, "#")
 		buf.WriteString(trimmed)
 		buf.WriteString("\n")
 	}
@@ -97,9 +96,14 @@ func ParseVPNGateCSV(data []byte, maxRows int) ([]*Node, error) {
 		colIdx[strings.TrimSpace(h)] = i
 	}
 
+	maxRequiredIndex := -1
 	for _, col := range requiredColumns {
-		if _, ok := colIdx[col]; !ok {
+		idx, ok := colIdx[col]
+		if !ok {
 			return nil, fmt.Errorf("missing required column '%s'", col)
+		}
+		if idx > maxRequiredIndex {
+			maxRequiredIndex = idx
 		}
 	}
 
@@ -112,6 +116,9 @@ func ParseVPNGateCSV(data []byte, maxRows int) ([]*Node, error) {
 			break
 		}
 		if err != nil {
+			continue
+		}
+		if len(record) <= maxRequiredIndex {
 			continue
 		}
 
@@ -166,7 +173,7 @@ func ParseVPNGateCSV(data []byte, maxRows int) ([]*Node, error) {
 			message = strings.TrimSpace(record[idx])
 		}
 
-		nodeID := fmt.Sprintf("%s:%d", ip, port)
+		nodeID := net.JoinHostPort(ip, strconv.Itoa(port))
 
 		node := &Node{
 			ID:             nodeID,

@@ -69,7 +69,8 @@ func (bm *BlacklistManager) saveLocked() {
 		return
 	}
 	tmpFile := bm.filePath + ".tmp"
-	if err := os.WriteFile(tmpFile, data, 0644); err == nil {
+	if err := os.WriteFile(tmpFile, data, 0600); err == nil {
+		_ = os.Chmod(tmpFile, 0600)
 		_ = os.Rename(tmpFile, bm.filePath)
 	}
 }

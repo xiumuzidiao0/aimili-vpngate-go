@@ -112,15 +112,20 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// Apply Middlewares
 	mw := NewMiddleware(s.cfg)
-	handler := mw.BasicAuth(mux)
+	handler := mw.LimitRequestBody(mux)
+	handler = mw.BasicAuth(handler)
 	handler = mw.SecretPathGuard(handler)
 	handler = mw.SecurityHeaders(handler)
 
-	addr := net.JoinHostPort(s.cfg.UIHost, fmt.Sprintf("%d", s.cfg.UIPort))
+	uiHost := strings.Trim(strings.TrimSpace(s.cfg.UIHost), "[]")
+	if uiHost == "" {
+		uiHost = "127.0.0.1"
+	}
+	addr := net.JoinHostPort(uiHost, fmt.Sprintf("%d", s.cfg.UIPort))
 	lc := net.ListenConfig{}
 	ln, err := lc.Listen(ctx, "tcp", addr)
 	if err != nil {
-		if s.cfg.UIHost == "::" {
+		if uiHost == "::" {
 			fallbackAddr := net.JoinHostPort("0.0.0.0", fmt.Sprintf("%d", s.cfg.UIPort))
 			ln, err = lc.Listen(ctx, "tcp", fallbackAddr)
 		}
@@ -132,14 +137,20 @@ func (s *Server) Start(ctx context.Context) error {
 	s.mu.Lock()
 	s.listener = ln
 	s.httpServer = &http.Server{
-		Handler:      handler,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 0, // 0 allows SSE long streaming
+		Handler:           handler,
+		ReadTimeout:       30 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+		WriteTimeout:      0, // 0 allows SSE long streaming
 	}
 	s.mu.Unlock()
 
 	adminURL := fmt.Sprintf("http://%s/%s", ln.Addr().String(), strings.Trim(s.cfg.UIPath, "/"))
 	stats.LogInfo("Server", "Web 控制台已启动，访问入口: %s (用户名: %s)", adminURL, s.cfg.UIUsername)
+	if !isLoopbackHost(uiHost) && s.cfg.IsUIAuthEnabled() {
+		stats.LogWarn("Server", "Web 控制台正在非回环地址上使用明文 HTTP，请务必通过 TLS 反向代理或防火墙限制访问")
+	}
 
 	// Start sing-box self-healing watchdog
 	watchdog := NewSingBoxWatchdog(s, 30*time.Second)
@@ -148,6 +159,7 @@ func (s *Server) Start(ctx context.Context) error {
 	// Start 3-hour blacklisted nodes probe & resurrection loop
 	s.pool.StartRevivalLoop(ctx)
 
+	// #nosec G118 -- shutdown context must remain valid after the server context is canceled.
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -160,4 +172,13 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func isLoopbackHost(host string) bool {
+	clean := strings.Trim(strings.TrimSpace(host), "[]")
+	if clean == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(clean)
+	return ip != nil && ip.IsLoopback()
 }

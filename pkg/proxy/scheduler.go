@@ -122,7 +122,8 @@ func (s *DefaultScheduler) SelectTunnel(port int, boundIDs []string, boundGroupI
 	case PolicyRoundRobin:
 		fallthrough
 	default:
-		idx := s.counter.Add(1) % uint64(n)
-		return healthy[int(idx)]
+		// #nosec G115 -- modulo bounds the result to the slice length.
+		idx := int(s.counter.Add(1) % uint64(n))
+		return healthy[idx]
 	}
 }

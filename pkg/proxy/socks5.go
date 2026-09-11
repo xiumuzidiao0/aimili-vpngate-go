@@ -193,6 +193,7 @@ func handleSocks5(client net.Conn, auth *Authenticator, devName string, tun *tun
 	}
 
 	// 5. Bidirectional forward
+	clearDeadline(client)
 	relay(client, upstream)
 	return nil
 }

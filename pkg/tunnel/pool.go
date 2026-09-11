@@ -3,11 +3,13 @@ package tunnel
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -28,6 +30,14 @@ type Pool struct {
 	nextIDSeq      int
 }
 
+var rpFilterState = struct {
+	sync.Mutex
+	allOriginal string
+	iface       map[string]string
+}{
+	iface: make(map[string]string),
+}
+
 func NewPool(cfg *config.Config, np *nodes.NodePool) *Pool {
 	return &Pool{
 		cfg:            cfg,
@@ -42,32 +52,7 @@ func (p *Pool) UnlockDetector() *UnlockDetector {
 	return p.unlockDetector
 }
 
-func (p *Pool) reapDeadTunnelsLocked() {
-	for id, t := range p.tunnels {
-		t.mu.RLock()
-		status := t.Status
-		devIndex := t.DevIndex
-		authPath := t.authPath
-		confPath := t.confPath
-		t.mu.RUnlock()
-
-		if status == StatusFailed || status == StatusStopped {
-			p.freeDevIndexLocked(devIndex)
-			delete(p.tunnels, id)
-			go func(a, c string) {
-				if a != "" {
-					_ = os.Remove(a)
-				}
-				if c != "" {
-					_ = os.Remove(c)
-				}
-			}(authPath, confPath)
-		}
-	}
-}
-
 func (p *Pool) allocConcurrentDevIndexLocked() int {
-	p.reapDeadTunnelsLocked()
 	// Concurrent and dynamic tunnels strictly allocate from 1 to 63,
 	// keeping 0 exclusively reserved for the primary connection.
 	for i := 1; i < 64; i++ {
@@ -86,12 +71,12 @@ func (p *Pool) freeDevIndexLocked(idx int) {
 // StartPrimaryTunnel starts or replaces the dedicated Primary Connection tunnel, strictly bound to devIndex 0 (tun0).
 func (p *Pool) StartPrimaryTunnel(node *nodes.Node) (*Tunnel, error) {
 	p.mu.Lock()
-	p.reapDeadTunnelsLocked()
 
 	// 1. If this node is already running on the primary tunnel (tun0), return it
 	for _, t := range p.tunnels {
 		if t.Node != nil && t.Node.ID == node.ID && t.DevIndex == 0 {
-			if t.Status == StatusConnected || t.Status == StatusConnecting {
+			status := t.GetStatus()
+			if status == StatusConnected || status == StatusConnecting {
 				p.mu.Unlock()
 				return t, nil
 			}
@@ -110,7 +95,6 @@ func (p *Pool) StartPrimaryTunnel(node *nodes.Node) (*Tunnel, error) {
 		p.mu.Unlock()
 		_ = p.StopTunnel(prevPrimaryID)
 		p.mu.Lock()
-		p.reapDeadTunnelsLocked()
 	}
 
 	// 3. If this node is already running on a concurrent devIndex (> 0), stop that concurrent tunnel
@@ -126,7 +110,6 @@ func (p *Pool) StartPrimaryTunnel(node *nodes.Node) (*Tunnel, error) {
 		p.mu.Unlock()
 		_ = p.StopTunnel(concurrentID)
 		p.mu.Lock()
-		p.reapDeadTunnelsLocked()
 	}
 
 	p.usedDevs[0] = true
@@ -136,11 +119,11 @@ func (p *Pool) StartPrimaryTunnel(node *nodes.Node) (*Tunnel, error) {
 // StartTunnel starts a concurrent or dynamic group tunnel, strictly allocating from devIndex 1 upwards (tun1, tun2...).
 func (p *Pool) StartTunnel(node *nodes.Node) (*Tunnel, error) {
 	p.mu.Lock()
-	p.reapDeadTunnelsLocked()
 
 	// Check if already connecting or connected to this node
 	for _, t := range p.tunnels {
-		if t.Node != nil && t.Node.ID == node.ID && (t.Status == StatusConnected || t.Status == StatusConnecting) {
+		status := t.GetStatus()
+		if t.Node != nil && t.Node.ID == node.ID && (status == StatusConnected || status == StatusConnecting) {
 			p.mu.Unlock()
 			return t, fmt.Errorf("节点 %s 已经在运行中 (设备: %s)", node.ID, t.DevName)
 		}
@@ -167,10 +150,16 @@ func (p *Pool) startTunnelInternalLocked(node *nodes.Node, devIdx int) (*Tunnel,
 		Node:     node,
 		Status:   StatusConnecting,
 		Message:  fmt.Sprintf("正在发起对节点 %s 的连接...", node.ID),
+		done:     make(chan struct{}),
 	}
 	p.tunnels[tunnelID] = t
 	p.mu.Unlock()
 
+	t.mu.Lock()
+	if t.Status == StatusStopped {
+		t.mu.Unlock()
+		return nil, fmt.Errorf("隧道 %s 在启动阶段被停止", tunnelID)
+	}
 	stats.LogInfo("TunnelPool", "开始创建新隧道 [%s] -> 设备 %s -> 节点: %s (%s)",
 		tunnelID, devName, node.ID, node.CountryShort)
 
@@ -181,7 +170,8 @@ func (p *Pool) startTunnelInternalLocked(node *nodes.Node, devIdx int) (*Tunnel,
 	authPath := filepath.Join(dir, fmt.Sprintf("%s_auth.txt", tunnelID))
 	authData := fmt.Sprintf("%s\n%s\n", p.cfg.OpenVPNAuthUser, p.cfg.OpenVPNAuthPass)
 	if err := os.WriteFile(authPath, []byte(authData), 0600); err != nil {
-		p.StopTunnel(tunnelID)
+		t.mu.Unlock()
+		p.cleanupTunnel(t, tunnelID)
 		return nil, fmt.Errorf("写入认证文件失败: %w", err)
 	}
 
@@ -225,34 +215,36 @@ func (p *Pool) startTunnelInternalLocked(node *nodes.Node, devIdx int) (*Tunnel,
 	)
 
 	if err := os.WriteFile(confPath, []byte(strings.Join(modified, "\n")), 0600); err != nil {
-		p.StopTunnel(tunnelID)
+		t.mu.Unlock()
+		p.cleanupTunnel(t, tunnelID)
 		return nil, fmt.Errorf("写入配置文件失败: %w", err)
 	}
 
-	t.mu.Lock()
 	t.authPath = authPath
 	t.confPath = confPath
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.cancelFunc = cancel
 
+	// #nosec G204 -- no shell is used; the executable is operator-configured and the config path is generated internally.
 	cmd := exec.CommandContext(ctx, p.cfg.OpenVPNCommand, "--config", confPath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.mu.Unlock()
-		p.StopTunnel(tunnelID)
+		p.cleanupTunnel(t, tunnelID)
 		return nil, err
 	}
 	cmd.Stderr = cmd.Stdout
 
 	if err := cmd.Start(); err != nil {
 		t.mu.Unlock()
-		p.StopTunnel(tunnelID)
+		p.cleanupTunnel(t, tunnelID)
 		return nil, fmt.Errorf("启动 OpenVPN 进程失败: %w", err)
 	}
 	t.cmd = cmd
+	t.monitored = true
 	t.mu.Unlock()
 
 	// Monitor subprocess
@@ -269,9 +261,6 @@ func (p *Pool) startTunnelInternalLocked(node *nodes.Node, devIdx int) (*Tunnel,
 				t.Message = "进程退出"
 			}
 			node := t.Node
-			authPath := t.authPath
-			confPath := t.confPath
-			devIdx := t.DevIndex
 			t.mu.Unlock()
 
 			if p.nodePool != nil && node != nil {
@@ -301,22 +290,7 @@ func (p *Pool) startTunnelInternalLocked(node *nodes.Node, devIdx int) (*Tunnel,
 
 			_ = cmd.Wait()
 
-			// Clean up auth/config files
-			if authPath != "" {
-				_ = os.Remove(authPath)
-			}
-			if confPath != "" {
-				_ = os.Remove(confPath)
-			}
-
-			teardownTunnelInterface(devName, devIdx)
-
-			// Immediately recycle device index and remove dead tunnel so it doesn't leak virtual NICs
-			p.mu.Lock()
-			p.freeDevIndexLocked(devIdx)
-			delete(p.tunnels, tunnelID)
-			p.mu.Unlock()
-
+			p.cleanupTunnel(t, tunnelID)
 			stats.LogInfo("TunnelPool", "隧道 [%s] (%s) 进程已终止，已回收虚拟网卡和设备槽位", tunnelID, devName)
 		}()
 
@@ -326,9 +300,26 @@ func (p *Pool) startTunnelInternalLocked(node *nodes.Node, devIdx int) (*Tunnel,
 			stats.LogInfo(fmt.Sprintf("VPN:%s", devName), "%s", line)
 
 			if strings.Contains(line, "Initialization Sequence Completed") {
-				setupTunnelInterface(devName, devIdx)
+				if err := setupTunnelInterface(devName, devIdx); err != nil {
+					stats.LogError("TunnelPool", "隧道 [%s] (%s) 路由初始化失败: %v", tunnelID, devName, err)
+					t.mu.Lock()
+					if t.Status != StatusStopped {
+						t.Status = StatusFailed
+						t.Message = fmt.Sprintf("路由初始化失败: %v", err)
+					}
+					if t.cancelFunc != nil {
+						t.cancelFunc()
+					}
+					t.mu.Unlock()
+					return
+				}
 
 				t.mu.Lock()
+				t.interfaceReady = true
+				if t.Status == StatusStopped {
+					t.mu.Unlock()
+					return
+				}
 				t.Status = StatusConnected
 				t.ConnectedAt = time.Now()
 				t.Message = "已连接并就绪"
@@ -389,9 +380,7 @@ func (p *Pool) probeUnlock(tunnelID string) {
 	}
 
 	if cached := p.unlockDetector.GetUnlock(t.Node.IP); cached != nil {
-		t.mu.Lock()
-		t.Unlock = cached
-		t.mu.Unlock()
+		t.SetUnlock(cached)
 		return
 	}
 
@@ -399,23 +388,33 @@ func (p *Pool) probeUnlock(tunnelID string) {
 	defer cancel()
 
 	res := p.unlockDetector.ProbeTunnel(ctx, t.DevName, t.Node.IP)
-	t.mu.Lock()
-	t.Unlock = res
-	t.mu.Unlock()
+	t.SetUnlock(res)
 }
 
 func (p *Pool) StopTunnel(tunnelID string) error {
-	p.mu.Lock()
+	p.mu.RLock()
 	t, ok := p.tunnels[tunnelID]
+	p.mu.RUnlock()
 	if !ok {
-		p.mu.Unlock()
 		return fmt.Errorf("隧道 %s 不存在", tunnelID)
 	}
-	delete(p.tunnels, tunnelID)
-	devIdx := t.DevIndex
-	p.mu.Unlock()
 
 	t.mu.Lock()
+	if t.Status == StatusStopped {
+		done := t.done
+		monitored := t.monitored
+		t.mu.Unlock()
+		if monitored && done != nil {
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				return fmt.Errorf("隧道 %s 等待清理超时", tunnelID)
+			}
+		} else {
+			p.cleanupTunnel(t, tunnelID)
+		}
+		return nil
+	}
 	t.Status = StatusStopped
 	t.Message = "已手动停止"
 
@@ -424,58 +423,212 @@ func (p *Pool) StopTunnel(tunnelID string) error {
 		t.cancelFunc = nil
 	}
 
-	if t.cmd != nil && t.cmd.Process != nil {
-		_ = syscall.Kill(-t.cmd.Process.Pid, syscall.SIGTERM)
-		time.Sleep(300 * time.Millisecond)
-		_ = syscall.Kill(-t.cmd.Process.Pid, syscall.SIGKILL)
-		t.cmd = nil
-	}
+	cmd := t.cmd
+	done := t.done
+	monitored := t.monitored
 
-	if t.authPath != "" {
-		_ = os.Remove(t.authPath)
-	}
-	if t.confPath != "" {
-		_ = os.Remove(t.confPath)
+	if cmd != nil && cmd.Process != nil {
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 	}
 	t.mu.Unlock()
 
-	teardownTunnelInterface(t.DevName, devIdx)
+	if !monitored || done == nil {
+		p.cleanupTunnel(t, tunnelID)
+		return nil
+	}
 
-	// Free dev index only after the process has completely terminated
-	p.mu.Lock()
-	p.freeDevIndexLocked(devIdx)
-	p.mu.Unlock()
+	select {
+	case <-done:
+		return nil
+	case <-time.After(500 * time.Millisecond):
+	}
 
-	stats.LogInfo("TunnelPool", "隧道 [%s] (%s) 已关闭释放", tunnelID, t.DevName)
-	return nil
+	if cmd != nil && cmd.Process != nil {
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
+
+	select {
+	case <-done:
+		return nil
+	case <-time.After(5 * time.Second):
+		return fmt.Errorf("隧道 %s 进程退出超时", tunnelID)
+	}
 }
 
-func setupTunnelInterface(devName string, devIndex int) {
+func (p *Pool) cleanupTunnel(t *Tunnel, tunnelID string) {
+	t.cleanupOnce.Do(func() {
+		t.mu.Lock()
+		authPath := t.authPath
+		confPath := t.confPath
+		devName := t.DevName
+		devIdx := t.DevIndex
+		interfaceReady := t.interfaceReady
+		t.interfaceReady = false
+		done := t.done
+		t.mu.Unlock()
+
+		if authPath != "" {
+			_ = os.Remove(authPath)
+		}
+		if confPath != "" {
+			_ = os.Remove(confPath)
+		}
+		if interfaceReady {
+			if err := teardownTunnelInterface(devName, devIdx); err != nil {
+				stats.LogWarn("TunnelPool", "清理隧道 %s 路由失败: %v", tunnelID, err)
+			}
+		}
+
+		p.mu.Lock()
+		if current, exists := p.tunnels[tunnelID]; exists && current == t {
+			delete(p.tunnels, tunnelID)
+		}
+		p.freeDevIndexLocked(devIdx)
+		p.mu.Unlock()
+
+		if done != nil {
+			close(done)
+		}
+	})
+}
+
+func setupTunnelInterface(devName string, devIndex int) error {
 	if devName == "" {
-		return
+		return nil
 	}
 	tableID := 100 + devIndex
 
-	// 1. Enable loose reverse path filtering on the tunnel device to allow responses
-	_ = exec.Command("sysctl", "-w", fmt.Sprintf("net.ipv4.conf.%s.rp_filter=2", devName)).Run()
-	_ = exec.Command("sysctl", "-w", "net.ipv4.conf.all.rp_filter=2").Run()
+	// 1. Enable loose reverse path filtering while retaining the original values.
+	if err := enableLooseRPFilter(devName); err != nil {
+		return fmt.Errorf("设置 rp_filter 失败: %w", err)
+	}
 
 	// 2. Add policy routing rule and default route STRICTLY inside isolated tableID
 	// NEVER touch the main routing table so eth0 default gateway and SSH port 22 are 100% untouched
-	_ = exec.Command("ip", "route", "replace", "default", "dev", devName, "table", fmt.Sprintf("%d", tableID)).Run()
+	table := strconv.Itoa(tableID)
+	// #nosec G204 -- no shell is used and all arguments are generated internally.
+	if out, err := exec.Command("ip", "route", "replace", "default", "dev", devName, "table", table).CombinedOutput(); err != nil {
+		_ = disableLooseRPFilter(devName)
+		return fmt.Errorf("创建隔离默认路由失败: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	// #nosec G204 -- no shell is used and all arguments are generated internally.
 	_ = exec.Command("ip", "rule", "del", "oif", devName, "table", fmt.Sprintf("%d", tableID)).Run()
-	_ = exec.Command("ip", "rule", "add", "oif", devName, "table", fmt.Sprintf("%d", tableID), "priority", "1000").Run()
+	// #nosec G204 -- no shell is used and all arguments are generated internally.
+	if out, err := exec.Command("ip", "rule", "add", "oif", devName, "table", table, "priority", "1000").CombinedOutput(); err != nil {
+		// #nosec G204 -- no shell is used and all arguments are generated internally.
+		_ = exec.Command("ip", "route", "del", "default", "dev", devName, "table", table).Run()
+		_ = disableLooseRPFilter(devName)
+		return fmt.Errorf("创建策略路由规则失败: %w: %s", err, strings.TrimSpace(string(out)))
+	}
 
 	stats.LogInfo("TunnelPool", "已为接口 %s 配置独立隔离策略路由 (Table %d) 与 rp_filter", devName, tableID)
+	return nil
 }
 
-func teardownTunnelInterface(devName string, devIndex int) {
+func teardownTunnelInterface(devName string, devIndex int) error {
 	if devName == "" {
-		return
+		return nil
 	}
 	tableID := 100 + devIndex
-	_ = exec.Command("ip", "rule", "del", "oif", devName, "table", fmt.Sprintf("%d", tableID)).Run()
-	_ = exec.Command("ip", "route", "del", "default", "dev", devName, "table", fmt.Sprintf("%d", tableID)).Run()
+	table := strconv.Itoa(tableID)
+
+	var errs []string
+	// #nosec G204 -- no shell is used and all arguments are generated internally.
+	if out, err := exec.Command("ip", "rule", "del", "oif", devName, "table", table).CombinedOutput(); err != nil {
+		errs = append(errs, fmt.Sprintf("删除策略路由失败: %v: %s", err, strings.TrimSpace(string(out))))
+	}
+	// #nosec G204 -- no shell is used and all arguments are generated internally.
+	if out, err := exec.Command("ip", "route", "del", "default", "dev", devName, "table", table).CombinedOutput(); err != nil {
+		errs = append(errs, fmt.Sprintf("删除隔离默认路由失败: %v: %s", err, strings.TrimSpace(string(out))))
+	}
+	if err := disableLooseRPFilter(devName); err != nil {
+		errs = append(errs, fmt.Sprintf("恢复 rp_filter 失败: %v", err))
+	}
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+func enableLooseRPFilter(devName string) error {
+	rpFilterState.Lock()
+	defer rpFilterState.Unlock()
+
+	if _, ok := rpFilterState.iface[devName]; ok {
+		return nil
+	}
+
+	allPath := "/proc/sys/net/ipv4/conf/all/rp_filter"
+	ifacePath := filepath.Join("/proc/sys/net/ipv4/conf", devName, "rp_filter")
+
+	if rpFilterState.allOriginal == "" {
+		original, err := readProcSysctl(allPath)
+		if err != nil {
+			return err
+		}
+		rpFilterState.allOriginal = original
+	}
+	ifaceOriginal, err := readProcSysctl(ifacePath)
+	if err != nil {
+		return err
+	}
+	if err := writeProcSysctl(ifacePath, "2"); err != nil {
+		return err
+	}
+	if err := writeProcSysctl(allPath, "2"); err != nil {
+		_ = writeProcSysctl(ifacePath, ifaceOriginal)
+		return err
+	}
+	rpFilterState.iface[devName] = ifaceOriginal
+	return nil
+}
+
+func disableLooseRPFilter(devName string) error {
+	rpFilterState.Lock()
+	defer rpFilterState.Unlock()
+
+	original, ok := rpFilterState.iface[devName]
+	if !ok {
+		return nil
+	}
+	delete(rpFilterState.iface, devName)
+
+	var errs []string
+	ifacePath := filepath.Join("/proc/sys/net/ipv4/conf", devName, "rp_filter")
+	if err := writeProcSysctl(ifacePath, original); err != nil {
+		errs = append(errs, err.Error())
+	}
+	if len(rpFilterState.iface) == 0 && rpFilterState.allOriginal != "" {
+		if err := writeProcSysctl("/proc/sys/net/ipv4/conf/all/rp_filter", rpFilterState.allOriginal); err != nil {
+			errs = append(errs, err.Error())
+		} else {
+			rpFilterState.allOriginal = ""
+		}
+	}
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+func readProcSysctl(path string) (string, error) {
+	// #nosec G304 -- callers construct paths from fixed sysctl roots and validated device names.
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
+func writeProcSysctl(path, value string) error {
+	// #nosec G304 -- callers construct paths from fixed sysctl roots and validated device names.
+	f, err := os.OpenFile(path, os.O_WRONLY, 0)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString(value)
+	return err
 }
 
 func (p *Pool) ListTunnels() []*Tunnel {
@@ -500,9 +653,22 @@ func (p *Pool) ListTunnels() []*Tunnel {
 }
 
 func (p *Pool) ReapStaleTunnels() {
-	p.mu.Lock()
-	p.reapDeadTunnelsLocked()
-	p.mu.Unlock()
+	p.mu.RLock()
+	var stale []*Tunnel
+	for _, t := range p.tunnels {
+		t.mu.RLock()
+		status := t.Status
+		monitored := t.monitored
+		t.mu.RUnlock()
+		if (status == StatusFailed || status == StatusStopped) && !monitored {
+			stale = append(stale, t)
+		}
+	}
+	p.mu.RUnlock()
+
+	for _, t := range stale {
+		p.cleanupTunnel(t, t.ID)
+	}
 }
 
 func (p *Pool) GetTunnel(id string) *Tunnel {

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -107,7 +108,8 @@ func (np *NodePool) saveStoreLocked() {
 	}
 
 	tmp := np.storePath + ".tmp"
-	if err := os.WriteFile(tmp, data, 0644); err == nil {
+	if err := os.WriteFile(tmp, data, 0600); err == nil {
+		_ = os.Chmod(tmp, 0600)
 		_ = os.Rename(tmp, np.storePath)
 	}
 }
@@ -273,10 +275,10 @@ func (np *NodePool) Refresh(ctx context.Context) error {
 		newCount, updatedCount, evictedCount, len(np.allRawNodes), len(currentFiltered), result.Source)
 
 	// 后台并发测试候选节点的 TCP 连通性与真实延迟
-	go np.ProbeNodes(context.Background(), currentFiltered)
+	go np.ProbeNodes(ctx, currentFiltered)
 
 	// Async IP type classification (residential vs hosting) in background
-	go np.enricher.EnrichNodes(context.Background(), currentFiltered)
+	go np.enricher.EnrichNodes(ctx, currentFiltered)
 
 	return nil
 }
@@ -304,7 +306,7 @@ func (np *NodePool) ProbeNodes(ctx context.Context, nodeList []*Node) {
 			defer func() { <-sem }()
 
 			start := time.Now()
-			addr := fmt.Sprintf("%s:%d", target.IP, target.Port)
+			addr := net.JoinHostPort(target.IP, strconv.Itoa(target.Port))
 			conn, err := net.DialTimeout("tcp", addr, 2500*time.Millisecond)
 			if err == nil {
 				_ = conn.Close()
@@ -585,8 +587,8 @@ func (np *NodePool) ReviveBlacklistedNodes(ctx context.Context) int {
 	np.mu.Unlock()
 
 	if len(restoredNodes) > 0 {
-		go np.ProbeNodes(context.Background(), restoredNodes)
-		go np.enricher.EnrichNodes(context.Background(), restoredNodes)
+		go np.ProbeNodes(ctx, restoredNodes)
+		go np.enricher.EnrichNodes(ctx, restoredNodes)
 	}
 
 	return len(revived)

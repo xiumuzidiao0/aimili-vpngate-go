@@ -24,5 +24,8 @@ for TARGET in "${TARGETS[@]}"; do
     gzip -kf "$OUTPUT"
 done
 
+echo "-> 正在生成 SHA256 校验和清单..."
+(cd dist && sha256sum aimilivpn_* > SHA256SUMS.txt)
+
 echo "=== 编译完成，产物位于 dist/ 目录 ==="
 ls -lh dist/

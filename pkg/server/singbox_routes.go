@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -95,10 +96,18 @@ func (s *Server) resolveHTTPOutboundURL(outboundRaw string) string {
 	}
 
 	if (authMode == "default_web" || authMode == "custom") && authUser != "" {
-		return fmt.Sprintf("http://%s:%s@127.0.0.1:%d", authUser, authPass, targetPort)
+		proxyURL := &url.URL{
+			Scheme: "http",
+			User:   url.UserPassword(authUser, authPass),
+			Host:   net.JoinHostPort("127.0.0.1", strconv.Itoa(targetPort)),
+		}
+		return proxyURL.String()
 	}
 
-	return fmt.Sprintf("http://127.0.0.1:%d", targetPort)
+	return (&url.URL{
+		Scheme: "http",
+		Host:   net.JoinHostPort("127.0.0.1", strconv.Itoa(targetPort)),
+	}).String()
 }
 
 func (s *Server) getAvailableOutbounds() []AvailableOutbound {
@@ -387,7 +396,7 @@ func (s *Server) syncSingBoxOutboundCredentials(ctx context.Context) {
 
 		// If protocol or credentials changed, automatically update the node's outbound config
 		if n.Outbound != expectedOutbound {
-			stats.LogInfo("SingBoxSync", "正在自动同步更新节点 [%s] 链式出站凭据: %s -> %s", n.Name, n.Outbound, expectedOutbound)
+			stats.LogInfo("SingBoxSync", "正在自动同步更新节点 [%s] 的链式出口配置", n.Name)
 			_, _ = s.singboxClient.SetOutbound(ctx, n.Name, expectedOutbound)
 		}
 	}

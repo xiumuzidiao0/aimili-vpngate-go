@@ -13,6 +13,8 @@ type contextKey string
 
 const secretPathVerifiedKey contextKey = "secret_path_verified"
 
+const maxRequestBodyBytes = 1 << 20
+
 type Middleware struct {
 	cfg *config.Config
 }
@@ -28,6 +30,15 @@ func (m *Middleware) SecurityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
 		w.Header().Set("Referrer-Policy", "no-referrer")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (m *Middleware) LimitRequestBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Body != nil {
+			r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
+		}
 		next.ServeHTTP(w, r)
 	})
 }

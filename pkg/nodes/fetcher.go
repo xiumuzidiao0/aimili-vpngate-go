@@ -46,9 +46,12 @@ func (f *Fetcher) fetchURL(ctx context.Context, url string) ([]byte, error) {
 		return nil, fmt.Errorf("unexpected http status: %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, MaxSnapshotBytes))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, MaxSnapshotBytes+1))
 	if err != nil {
 		return nil, err
+	}
+	if len(body) > MaxSnapshotBytes {
+		return nil, fmt.Errorf("response exceeds max snapshot size %d bytes", MaxSnapshotBytes)
 	}
 
 	// Validate content is actually VPNGate CSV and not an ISP intercept error
@@ -88,8 +91,11 @@ func (f *Fetcher) FetchNodes(ctx context.Context) (*FetchResult, error) {
 		if src.url == "" {
 			continue
 		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		stats.LogInfo("Nodes", "正在尝试拉取节点列表 [%s]: %s", src.name, src.url)
-		fetchCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		fetchCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 		data, err := f.fetchURL(fetchCtx, src.url)
 		cancel()
 

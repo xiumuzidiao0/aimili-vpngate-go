@@ -50,7 +50,8 @@ func handleConnect(client net.Conn, req *http.Request, devName string, tun *tunn
 		if tun != nil {
 			tun.RecordFailure()
 		}
-		resp := fmt.Sprintf("HTTP/1.1 502 Bad Gateway\r\nContent-Length: %d\r\n\r\nFailed to connect to %s\n", len(targetAddr)+23, targetAddr)
+		body := fmt.Sprintf("Failed to connect to %s\n", targetAddr)
+		resp := fmt.Sprintf("HTTP/1.1 502 Bad Gateway\r\nContent-Length: %d\r\n\r\n%s", len(body), body)
 		_, _ = client.Write([]byte(resp))
 		return fmt.Errorf("dial %s failed: %w", targetAddr, err)
 	}
@@ -58,6 +59,7 @@ func handleConnect(client net.Conn, req *http.Request, devName string, tun *tunn
 		tun.RecordSuccess()
 	}
 
+	clearDeadline(client)
 	if _, err := client.Write([]byte(connectionEstablishedResponse)); err != nil {
 		_ = upstream.Close()
 		return err
@@ -81,11 +83,13 @@ func handlePlainHTTP(client net.Conn, req *http.Request, devName string, tun *tu
 		if tun != nil {
 			tun.RecordFailure()
 		}
-		resp := fmt.Sprintf("HTTP/1.1 502 Bad Gateway\r\nContent-Length: %d\r\n\r\nFailed to connect to %s\n", len(host)+23, host)
+		body := fmt.Sprintf("Failed to connect to %s\n", host)
+		resp := fmt.Sprintf("HTTP/1.1 502 Bad Gateway\r\nContent-Length: %d\r\n\r\n%s", len(body), body)
 		_, _ = client.Write([]byte(resp))
 		return fmt.Errorf("dial %s failed: %w", host, err)
 	}
 	defer upstream.Close()
+	clearDeadline(client)
 
 	if tun != nil {
 		tun.RecordSuccess()

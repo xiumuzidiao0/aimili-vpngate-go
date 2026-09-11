@@ -3,7 +3,6 @@ package vpn
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"runtime"
 	"time"
 
@@ -25,14 +24,6 @@ func CheckTUNDevice() error {
 	}
 
 	return nil
-}
-
-func KillStrayOpenVPN() {
-	if runtime.GOOS != "linux" {
-		return
-	}
-	// Try killall openvpn safely
-	_ = exec.Command("killall", "-9", "openvpn").Run()
 }
 
 func CheckExternalConnectivity(timeout time.Duration) bool {

@@ -5,13 +5,13 @@
 **面向 Linux VPS 的现代化 VPNGate 节点自适应管理、多出口流量调度与边缘抗封锁单端口代理网关**
 
 [![正式版本](https://img.shields.io/github/v/release/xiumuzidiao0/aimili-vpngate-go?style=flat-square&label=正式版&color=16a34a)](https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/latest)
-[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat-square&logo=go)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/Go-1.25.13+-00ADD8?style=flat-square&logo=go)](https://go.dev/)
 [![Platform](https://img.shields.io/badge/平台-amd64%20%7C%20arm64%20%7C%20386%20%7C%20arm-6366f1?style=flat-square)](https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/latest)
 [![License](https://img.shields.io/badge/License-GPL--3.0-334155?style=flat-square)](LICENSE)
 
 </div>
 
-采用 **Go 1.22+ 原生高并发模型与系统底层零拷贝技术** 对传统 VPN 代理系统进行工业级重构。编译后生成**单一可执行二进制文件**（内置 5 视图现代化响应式 SPA Web 控制台），内存常驻极低（< 15MB），专为资源受限的轻量级 Linux VPS（如 256MB / 512MB 内存机型）打造，同时具备高吞吐、零泄漏与强隔离能力。
+采用 **Go 1.25.13+ 原生高并发模型与系统底层零拷贝技术** 对传统 VPN 代理系统进行工业级重构。编译后生成**单一可执行二进制文件**（内置 5 视图现代化响应式 SPA Web 控制台），内存常驻极低（< 15MB），专为资源受限的轻量级 Linux VPS（如 256MB / 512MB 内存机型）打造，同时具备高吞吐、零泄漏与强隔离能力。
 
 ---
 
@@ -148,7 +148,7 @@ aimili-vpngate-go/
 
 ### 1. 本地直接编译运行
 
-确保机器已安装 Go 1.22+ 环境：
+确保机器已安装 Go 1.25.13+ 环境：
 
 ```bash
 # 编译当前架构二进制

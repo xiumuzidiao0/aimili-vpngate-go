@@ -21,6 +21,7 @@ CONFIG_FILE="${INSTALL_DIR}/config.env"
 SERVICE_FILE="/etc/systemd/system/aimilivpn.service"
 GITHUB_REPO="https://github.com/xiumuzidiao0/aimili-vpngate-go.git"
 DEFAULT_VERSION="2.5.0"
+REQUIRED_GO_VERSION="1.25.13"
 
 get_app_version() {
     if [ -f "${INSTALL_DIR}/VERSION" ]; then
@@ -110,11 +111,32 @@ download_release_binary() {
 
     for u in "${urls[@]}"; do
         echo -e "  -> 尝试从源拉取预编译程序: ${u} ..."
+        local checksum_url
+        if [[ "$u" == *"/latest/"* ]]; then
+            checksum_url="https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/latest/download/SHA256SUMS.txt"
+        else
+            checksum_url="https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/download/v${DEFAULT_VERSION}/SHA256SUMS.txt"
+        fi
+
+        local expected_hash
+        expected_hash=$(curl -sSL -f -m 20 "$checksum_url" 2>/dev/null | awk -v file="aimilivpn_linux_${GO_ARCH}" '$2 == file || $2 == "*" file {print $1; exit}' | tr '[:upper:]' '[:lower:]')
+        if [[ ! "$expected_hash" =~ ^[0-9a-fA-F]{64}$ ]]; then
+            echo -e "${YELLOW}  -> 无法获取可信 SHA256SUMS.txt，跳过该下载源${PLAIN}"
+            continue
+        fi
+
         if curl -sSL -f -m 30 "$u" -o "${target_file}.tmp" 2>/dev/null && [ -s "${target_file}.tmp" ]; then
             if head -c 4 "${target_file}.tmp" | grep -q 'ELF'; then
+                local actual_hash
+                actual_hash=$(sha256sum "${target_file}.tmp" | awk '{print $1}' | tr '[:upper:]' '[:lower:]')
+                if [ "$actual_hash" != "$expected_hash" ]; then
+                    echo -e "${RED}  -> 下载文件 SHA-256 校验失败，拒绝安装${PLAIN}"
+                    rm -f "${target_file}.tmp"
+                    continue
+                fi
                 mv -f "${target_file}.tmp" "${target_file}"
                 chmod +x "${target_file}"
-                echo -e "${GREEN}  -> 二进制预编译包下载成功并已校验 (${GO_ARCH})！${PLAIN}"
+                echo -e "${GREEN}  -> 二进制预编译包下载成功并通过 SHA-256 校验 (${GO_ARCH})！${PLAIN}"
                 return 0
             else
                 rm -f "${target_file}.tmp"
@@ -145,25 +167,54 @@ install_dependencies() {
 }
 
 # 5. 安装或确保 Go 编译环境
+version_ge() {
+    local current="${1#go}"
+    local required="${2#go}"
+    local c_major c_minor c_patch r_major r_minor r_patch
+    IFS=. read -r c_major c_minor c_patch <<< "$current"
+    IFS=. read -r r_major r_minor r_patch <<< "$required"
+    c_major=${c_major:-0}; c_minor=${c_minor:-0}; c_patch=${c_patch:-0}
+    r_major=${r_major:-0}; r_minor=${r_minor:-0}; r_patch=${r_patch:-0}
+    c_patch=${c_patch%%[^0-9]*}; r_patch=${r_patch%%[^0-9]*}
+    [ "$c_major" -gt "$r_major" ] || {
+        [ "$c_major" -eq "$r_major" ] &&
+        { [ "$c_minor" -gt "$r_minor" ] ||
+          { [ "$c_minor" -eq "$r_minor" ] && [ "$c_patch" -ge "$r_patch" ]; }; }
+    }
+}
+
+go_version_supported() {
+    local version
+    version=$(go env GOVERSION 2>/dev/null || true)
+    [ -n "$version" ] && version_ge "$version" "$REQUIRED_GO_VERSION"
+}
+
 ensure_go() {
     detect_arch
     if command -v go >/dev/null 2>&1; then
-        echo -e "${GREEN}检测到系统中已安装 Go: $(go version)${PLAIN}"
-        return 0
+        if go_version_supported; then
+            echo -e "${GREEN}检测到受支持的 Go: $(go version)${PLAIN}"
+            return 0
+        fi
+        echo -e "${YELLOW}检测到 Go 版本过低: $(go version)，需要 ${REQUIRED_GO_VERSION}+${PLAIN}"
     fi
 
     if [ -x "/usr/local/go/bin/go" ]; then
         export PATH="/usr/local/go/bin:$PATH"
-        return 0
+        if go_version_supported; then
+            return 0
+        fi
     fi
 
     if [ -x "$HOME/.local/go/bin/go" ]; then
         export PATH="$HOME/.local/go/bin:$PATH"
-        return 0
+        if go_version_supported; then
+            return 0
+        fi
     fi
 
-    echo -e "${YELLOW}正在安装 Go 1.22 编译环境 (架构: ${GO_ARCH})...${PLAIN}"
-    local go_tar="go1.22.6.linux-${GO_ARCH}.tar.gz"
+    echo -e "${YELLOW}正在安装 Go ${REQUIRED_GO_VERSION} 编译环境 (架构: ${GO_ARCH})...${PLAIN}"
+    local go_tar="go${REQUIRED_GO_VERSION}.linux-${GO_ARCH}.tar.gz"
     local go_urls=(
         "https://mirrors.aliyun.com/golang/${go_tar}"
         "https://golang.google.cn/dl/${go_tar}"
@@ -303,7 +354,7 @@ configure_install_params() {
     cat > "${CONFIG_FILE}" <<EOF
 # AimiliVPN 运行环境变量配置
 DATA_DIR=${INSTALL_DIR}/data
-UI_HOST=::
+UI_HOST=127.0.0.1
 UI_PORT=${custom_web_port}
 UI_PATH=${custom_path}
 UI_USERNAME=${custom_user}

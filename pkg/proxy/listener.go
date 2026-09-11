@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,6 +30,7 @@ type PortRule struct {
 type PortListener struct {
 	rule      PortRule
 	cfg       *config.Config
+	host      string
 	scheduler TunnelSelector
 	listener  net.Listener
 	sem       chan struct{}
@@ -41,10 +44,16 @@ func NewPortListener(rule PortRule, cfg *config.Config, scheduler TunnelSelector
 	if maxConn <= 0 {
 		maxConn = 512
 	}
+	host := strings.TrimSpace(cfg.ProxyHost)
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	host = strings.Trim(host, "[]")
 
 	return &PortListener{
 		rule:      rule,
 		cfg:       cfg,
+		host:      host,
 		scheduler: scheduler,
 		sem:       make(chan struct{}, maxConn),
 	}
@@ -64,9 +73,16 @@ func (l *PortListener) getAuthenticator() *Authenticator {
 
 func (l *PortListener) Start(ctx context.Context) error {
 	listenCtx, cancel := context.WithCancel(ctx)
+	l.mu.Lock()
+	if l.closed {
+		l.mu.Unlock()
+		cancel()
+		return nil
+	}
 	l.cancel = cancel
+	l.mu.Unlock()
 
-	addr := fmt.Sprintf(":%d", l.rule.Port)
+	addr := net.JoinHostPort(l.host, strconv.Itoa(l.rule.Port))
 	lc := net.ListenConfig{}
 	ln, err := lc.Listen(listenCtx, "tcp", addr)
 	if err != nil {
@@ -78,8 +94,8 @@ func (l *PortListener) Start(ctx context.Context) error {
 	l.closed = false
 	l.mu.Unlock()
 
-	stats.LogInfo("Proxy", "代理端口 [%d] 已就绪监听 (策略: %s, 绑定隧道数: %d)",
-		l.rule.Port, l.rule.Policy, len(l.rule.BoundTunnelIDs))
+	stats.LogInfo("Proxy", "代理端口 [%d] 已就绪监听于 %s (策略: %s, 绑定隧道数: %d)",
+		l.rule.Port, ln.Addr(), l.rule.Policy, len(l.rule.BoundTunnelIDs))
 
 	go func() {
 		<-listenCtx.Done()
@@ -102,6 +118,7 @@ func (l *PortListener) Start(ctx context.Context) error {
 		if tc, ok := client.(*net.TCPConn); ok {
 			_ = tc.SetNoDelay(true)
 		}
+		_ = client.SetDeadline(time.Now().Add(30 * time.Second))
 
 		select {
 		case l.sem <- struct{}{}:
@@ -121,7 +138,6 @@ func (l *PortListener) Start(ctx context.Context) error {
 }
 
 func (l *PortListener) dispatch(client net.Conn) {
-	_ = client.SetDeadline(time.Now().Add(60 * time.Second))
 	br := bufio.NewReader(client)
 
 	firstByte, err := br.Peek(1)
@@ -129,8 +145,6 @@ func (l *PortListener) dispatch(client net.Conn) {
 		_ = client.Close()
 		return
 	}
-	_ = client.SetDeadline(time.Time{})
-
 	bConn := &bufferedConn{
 		Conn: client,
 		br:   br,

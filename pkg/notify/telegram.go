@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"aimili-vpngate-go/pkg/config"
@@ -21,7 +20,6 @@ type CommandHandler func(cmd, args string) string
 type TelegramNotifier struct {
 	cfg    *config.Config
 	client *http.Client
-	mu     sync.RWMutex
 	lastID int64
 }
 

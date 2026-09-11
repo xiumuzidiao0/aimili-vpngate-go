@@ -11,11 +11,11 @@ import (
 
 // SingBoxWatchdog periodically inspects the sing-box core service and auto-heals unexpected terminations.
 type SingBoxWatchdog struct {
-	server             *Server
-	interval           time.Duration
-	consecutiveFails   int
-	cooldownUntil      time.Time
-	mu                 sync.Mutex
+	server           *Server
+	interval         time.Duration
+	consecutiveFails int
+	cooldownUntil    time.Time
+	mu               sync.Mutex
 }
 
 func NewSingBoxWatchdog(s *Server, interval time.Duration) *SingBoxWatchdog {

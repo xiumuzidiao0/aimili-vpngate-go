@@ -6,8 +6,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/usr/local/aimilivpn
-ExecStart=/usr/local/aimilivpn/aimilivpn
+WorkingDirectory=/opt/aimilivpn
+EnvironmentFile=-/opt/aimilivpn/config.env
+ExecStart=/opt/aimilivpn/aimilivpn
 Restart=always
 RestartSec=5
 LimitNOFILE=65535

@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 
 	"aimili-vpngate-go/pkg/stats"
 )
@@ -50,6 +51,10 @@ func closeWrite(c net.Conn) {
 	_ = c.Close()
 }
 
+func clearDeadline(conn net.Conn) {
+	_ = conn.SetDeadline(time.Time{})
+}
+
 func relay(client, upstream net.Conn) {
 	tracker := stats.GetTrafficTracker()
 	var wg sync.WaitGroup
@@ -63,7 +68,9 @@ func relay(client, upstream net.Conn) {
 		cr := &countingReader{
 			reader: upstream,
 			onRead: func(n int) {
-				tracker.AddDownload(uint64(n))
+				if n > 0 {
+					tracker.AddDownload(uint64(n))
+				}
 			},
 		}
 		buf := make([]byte, 64*1024)
@@ -78,7 +85,9 @@ func relay(client, upstream net.Conn) {
 		cr := &countingReader{
 			reader: client,
 			onRead: func(n int) {
-				tracker.AddUpload(uint64(n))
+				if n > 0 {
+					tracker.AddUpload(uint64(n))
+				}
 			},
 		}
 		buf := make([]byte, 64*1024)

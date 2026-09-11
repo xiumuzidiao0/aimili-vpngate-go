@@ -144,6 +144,7 @@ func (c *Client) IsInstalled() bool {
 
 func (c *Client) execAPI(ctx context.Context, args ...string) ([]byte, error) {
 	cmdArgs := append([]string{"api"}, args...)
+	// #nosec G204 -- no shell is used; the binary is resolved from a fixed allowlist.
 	cmd := exec.CommandContext(ctx, c.binaryPath, cmdArgs...)
 
 	var stdout, stderr bytes.Buffer

@@ -92,7 +92,7 @@ func (g *Gateway) Start(ctx context.Context) error {
 }
 
 func (g *Gateway) dispatch(client net.Conn) {
-	_ = client.SetDeadline(time.Now().Add(60 * time.Second))
+	_ = client.SetDeadline(time.Now().Add(30 * time.Second))
 	br := bufio.NewReader(client)
 
 	// Peek at the first byte
@@ -101,9 +101,6 @@ func (g *Gateway) dispatch(client net.Conn) {
 		_ = client.Close()
 		return
 	}
-
-	// Reset deadline for active proxying
-	_ = client.SetDeadline(time.Time{})
 
 	bConn := &bufferedConn{
 		Conn: client,
