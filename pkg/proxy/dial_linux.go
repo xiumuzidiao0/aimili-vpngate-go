@@ -9,6 +9,28 @@ import (
 	"time"
 )
 
+func getInterfaceIPv4(devName string) net.IP {
+	if devName == "" {
+		return nil
+	}
+	iface, err := net.InterfaceByName(devName)
+	if err != nil {
+		return nil
+	}
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return nil
+	}
+	for _, a := range addrs {
+		if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ip4 := ipnet.IP.To4(); ip4 != nil {
+				return ip4
+			}
+		}
+	}
+	return nil
+}
+
 func dialUpstream(targetAddr string, devName string, timeout time.Duration) (net.Conn, error) {
 	d := net.Dialer{
 		Timeout:   timeout,
@@ -31,6 +53,10 @@ func dialUpstream(targetAddr string, devName string, timeout time.Duration) (net
 	}
 
 	if devName != "" {
+		if ip4 := getInterfaceIPv4(devName); ip4 != nil {
+			d.LocalAddr = &net.TCPAddr{IP: ip4}
+		}
+
 		// Resolve DNS specifically over the target VPN tunnel device to prevent DNS leaks and host DNS pollution
 		d.Resolver = &net.Resolver{
 			PreferGo: true,
@@ -50,6 +76,10 @@ func dialUpstream(targetAddr string, devName string, timeout time.Duration) (net
 						return operr
 					},
 				}
+				if ip4 := getInterfaceIPv4(devName); ip4 != nil {
+					dnsDialer.LocalAddr = &net.UDPAddr{IP: ip4}
+				}
+
 				conn, err := dnsDialer.DialContext(ctx, "udp", "8.8.8.8:53")
 				if err != nil {
 					// Fallback to Cloudflare DNS

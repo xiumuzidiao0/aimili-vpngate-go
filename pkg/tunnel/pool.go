@@ -154,10 +154,12 @@ func (p *Pool) StartTunnel(node *nodes.Node) (*Tunnel, error) {
 		"pull-filter ignore \"route-gateway\"",
 		"pull-filter ignore \"route \"",
 		"nobind",
-		"connect-retry 1 3",
-		"connect-timeout 10",
+		"connect-retry 1 2",
+		"connect-retry-max 2",
+		"resolv-retry 2",
+		"connect-timeout 8",
 		"ping 5",
-		"ping-restart 15",
+		"ping-restart 12",
 	)
 
 	if err := os.WriteFile(confPath, []byte(strings.Join(modified, "\n")), 0600); err != nil {

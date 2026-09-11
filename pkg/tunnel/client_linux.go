@@ -10,6 +10,28 @@ import (
 	"time"
 )
 
+func getTunnelInterfaceIPv4(devName string) net.IP {
+	if devName == "" {
+		return nil
+	}
+	iface, err := net.InterfaceByName(devName)
+	if err != nil {
+		return nil
+	}
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return nil
+	}
+	for _, a := range addrs {
+		if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ip4 := ipnet.IP.To4(); ip4 != nil {
+				return ip4
+			}
+		}
+	}
+	return nil
+}
+
 func newTunnelHTTPClient(devName string, timeout time.Duration) *http.Client {
 	transport := &http.Transport{
 		Proxy: nil, // Do not use environment proxies
@@ -31,6 +53,10 @@ func newTunnelHTTPClient(devName string, timeout time.Duration) *http.Client {
 				},
 			}
 			if devName != "" {
+				if ip4 := getTunnelInterfaceIPv4(devName); ip4 != nil {
+					d.LocalAddr = &net.TCPAddr{IP: ip4}
+				}
+
 				d.Resolver = &net.Resolver{
 					PreferGo: true,
 					Dial: func(rctx context.Context, rnetw, raddr string) (net.Conn, error) {
@@ -46,6 +72,9 @@ func newTunnelHTTPClient(devName string, timeout time.Duration) *http.Client {
 								}
 								return err
 							},
+						}
+						if ip4 := getTunnelInterfaceIPv4(devName); ip4 != nil {
+							dnsDialer.LocalAddr = &net.UDPAddr{IP: ip4}
 						}
 						return dnsDialer.DialContext(rctx, "udp", "8.8.8.8:53")
 					},
