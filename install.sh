@@ -388,7 +388,11 @@ build_and_deploy() {
     # 创建全局快捷命令 ml 和 aimili 到 /usr/bin 与 /usr/local/bin
     cat > /usr/bin/ml <<'EOF'
 #!/usr/bin/env bash
-exec bash /opt/aimilivpn/install.sh menu "$@"
+if [ -n "$1" ]; then
+    exec bash /opt/aimilivpn/install.sh "$@"
+else
+    exec bash /opt/aimilivpn/install.sh menu
+fi
 EOF
     chmod +x /usr/bin/ml
     cp -f /usr/bin/ml /usr/local/bin/ml 2>/dev/null || true
