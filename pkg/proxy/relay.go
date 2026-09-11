@@ -66,7 +66,7 @@ func relay(client, upstream net.Conn) {
 				tracker.AddDownload(uint64(n))
 			},
 		}
-		buf := make([]byte, 32*1024)
+		buf := make([]byte, 64*1024)
 		_, _ = io.CopyBuffer(client, cr, buf)
 	}()
 
@@ -81,7 +81,7 @@ func relay(client, upstream net.Conn) {
 				tracker.AddUpload(uint64(n))
 			},
 		}
-		buf := make([]byte, 32*1024)
+		buf := make([]byte, 64*1024)
 		_, _ = io.CopyBuffer(upstream, cr, buf)
 	}()
 

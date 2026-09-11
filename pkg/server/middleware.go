@@ -1,12 +1,17 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
 
 	"aimili-vpngate-go/pkg/config"
 )
+
+type contextKey string
+
+const secretPathVerifiedKey contextKey = "secret_path_verified"
 
 type Middleware struct {
 	cfg *config.Config
@@ -34,6 +39,22 @@ func (m *Middleware) BasicAuth(next http.Handler) http.Handler {
 			return
 		}
 
+		// Allow subscription clients (Clash / Mihomo / Shadowrocket) to fetch subscription
+		// without HTTP Basic Auth if accessed via verified secret path or with a valid token.
+		if strings.HasPrefix(r.URL.Path, "/api/singbox/subscription") {
+			if v, ok := r.Context().Value(secretPathVerifiedKey).(bool); ok && v {
+				next.ServeHTTP(w, r)
+				return
+			}
+			token := r.URL.Query().Get("token")
+			settings := m.cfg.GetSettings()
+			secret := strings.Trim(settings.UIPath, "/")
+			if token != "" && (token == secret || token == settings.UIPassword) {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
 		user, pass, ok := r.BasicAuth()
 		if !ok || !m.cfg.VerifyUICredentials(user, pass) {
 			// Anti brute-force delay on invalid attempt
@@ -57,6 +78,14 @@ func (m *Middleware) SecretPathGuard(next http.Handler) http.Handler {
 		}
 
 		reqPath := r.URL.Path
+
+		// Direct subscription fetch with valid token bypasses secret path prefix
+		token := r.URL.Query().Get("token")
+		if strings.HasPrefix(reqPath, "/api/singbox/subscription") && token != "" && (token == secret || token == settings.UIPassword) {
+			ctx := context.WithValue(r.Context(), secretPathVerifiedKey, true)
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
 
 		// Direct /api/ or /metrics access without secret prefix:
 		// Only allow if caller already holds valid authentication credentials.
@@ -85,6 +114,8 @@ func (m *Middleware) SecretPathGuard(next http.Handler) http.Handler {
 			r2 := new(http.Request)
 			*r2 = *r
 			r2.URL.Path = "/" + strings.TrimPrefix(reqPath, prefix)
+			ctx := context.WithValue(r2.Context(), secretPathVerifiedKey, true)
+			*r2 = *r2.WithContext(ctx)
 			next.ServeHTTP(w, r2)
 			return
 		}

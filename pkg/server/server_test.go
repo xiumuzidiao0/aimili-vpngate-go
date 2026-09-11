@@ -277,3 +277,58 @@ func TestSecretPathStealth404(t *testing.T) {
 		t.Fatalf("expected 200 inside /mysecret/api/nodes, got %d", wSecretAPI.Code)
 	}
 }
+
+func TestSubscriptionBypassUnderSecretPath(t *testing.T) {
+	cfg := &config.Config{
+		UIPath:     "enter",
+		UIUsername: "admin",
+		UIPassword: "password123",
+	}
+	mw := NewMiddleware(cfg)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/singbox/subscription/clash", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("clash-yaml-content"))
+	})
+	mux.HandleFunc("GET /api/status", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("status-content"))
+	})
+
+	// Wrap middleware stack exactly as in server.go:
+	// BasicAuth wraps mux, SecretPathGuard wraps BasicAuth
+	handler := mw.SecretPathGuard(mw.BasicAuth(mux))
+
+	// 1. Clash client fetching /enter/api/singbox/subscription/clash without BasicAuth -> 200 OK!
+	reqClash := httptest.NewRequest("GET", "/enter/api/singbox/subscription/clash", nil)
+	wClash := httptest.NewRecorder()
+	handler.ServeHTTP(wClash, reqClash)
+	if wClash.Code != http.StatusOK || wClash.Body.String() != "clash-yaml-content" {
+		t.Fatalf("expected 200 for Clash subscription under secret path without BasicAuth, got %d, body: %s", wClash.Code, wClash.Body.String())
+	}
+
+	// 2. Direct /api/singbox/subscription/clash with valid token parameter -> 200 OK!
+	reqToken := httptest.NewRequest("GET", "/api/singbox/subscription/clash?token=enter", nil)
+	wToken := httptest.NewRecorder()
+	handler.ServeHTTP(wToken, reqToken)
+	if wToken.Code != http.StatusOK || wToken.Body.String() != "clash-yaml-content" {
+		t.Fatalf("expected 200 for Clash subscription with valid token, got %d", wToken.Code)
+	}
+
+	// 3. /enter/api/status WITHOUT BasicAuth -> MUST still be 401 Unauthorized!
+	reqStatus := httptest.NewRequest("GET", "/enter/api/status", nil)
+	wStatus := httptest.NewRecorder()
+	handler.ServeHTTP(wStatus, reqStatus)
+	if wStatus.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for admin status API without BasicAuth, got %d", wStatus.Code)
+	}
+
+	// 4. /api/status without secret path or BasicAuth -> MUST still be stealth 404!
+	reqScanner := httptest.NewRequest("GET", "/api/status", nil)
+	wScanner := httptest.NewRecorder()
+	handler.ServeHTTP(wScanner, reqScanner)
+	if wScanner.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for scanner probing /api/status, got %d", wScanner.Code)
+	}
+}

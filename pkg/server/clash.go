@@ -50,6 +50,7 @@ func GenerateClashYAML(nodes []singbox.Node, defaultServerHost string) string {
 		if baseName == "" {
 			baseName = strings.TrimSpace(n.Tag)
 		}
+		baseName = strings.TrimSuffix(baseName, ".json")
 		if baseName == "" {
 			baseName = fmt.Sprintf("Node-%s-%d", n.Protocol, n.Port)
 		}

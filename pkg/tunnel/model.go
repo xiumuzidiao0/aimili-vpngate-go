@@ -76,6 +76,11 @@ func (t *Tunnel) RecordFailure() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	// Sliding window: discard isolated failure older than 2 minutes
+	if !t.lastFailureTime.IsZero() && time.Since(t.lastFailureTime) > 2*time.Minute {
+		t.consecutiveFails = 0
+	}
+
 	t.consecutiveFails++
 	t.lastFailureTime = time.Now()
 	if t.consecutiveFails >= 3 {
