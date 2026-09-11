@@ -33,7 +33,7 @@ func GenerateClashYAML(nodes []singbox.Node, defaultServerHost string) string {
 	for _, n := range nodes {
 		// Clean server address
 		srv := strings.TrimSpace(n.Address)
-		if srv == "" || srv == "0.0.0.0" || srv == "127.0.0.1" || srv == "localhost" {
+		if srv == "" || srv == "0.0.0.0" || srv == "127.0.0.1" || srv == "localhost" || strings.EqualFold(srv, "auto") {
 			srv = defaultServerHost
 		}
 		if srv == "" {

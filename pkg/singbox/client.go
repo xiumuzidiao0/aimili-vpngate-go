@@ -259,7 +259,17 @@ func (c *Client) AddNode(ctx context.Context, protocol, port, uuidOrPass, sniOrH
 	ctxTimeout, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
 
-	args := []string{"add", protocol, port, uuidOrPass, sniOrHost}
+	pLower := strings.ToLower(protocol)
+	args := []string{"add", protocol, port, uuidOrPass}
+	if strings.Contains(pLower, "reality") || strings.HasPrefix(pLower, "r") {
+		if sniOrHost == "" {
+			sniOrHost = "auto"
+		}
+		args = append(args, sniOrHost)
+	} else if sniOrHost != "" && sniOrHost != "auto" {
+		args = append(args, sniOrHost)
+	}
+
 	if outbound != "" {
 		args = append(args, "--outbound", outbound)
 	}

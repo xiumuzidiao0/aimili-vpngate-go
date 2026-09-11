@@ -1959,7 +1959,10 @@
             btn.innerText = '正在生成并部署...';
 
             const portVal = document.getElementById('sb-add-port').value.trim() || 'auto';
-            const sniVal = document.getElementById('sb-add-sni').value.trim() || 'auto';
+            let sniVal = document.getElementById('sb-add-sni').value.trim() || 'auto';
+            if (currentSelectedProto === 'anytls' && (sniVal === 'auto' || !sniVal.includes('.'))) {
+                sniVal = '';
+            }
             const credVal = document.getElementById('sb-add-cred').value.trim() || 'auto';
             const outboundVal = document.getElementById('sb-add-outbound').value;
 
@@ -2127,7 +2130,14 @@
             showToast('已触发下载 singbox-clash.yaml');
         }
 
+        function sanitizeShareURL(url) {
+            if (!url) return '';
+            const host = window.location.hostname || '127.0.0.1';
+            return url.replace(/@auto(:|#)/g, `@${host}$1`).replace(/-auto$/g, `-${host}`);
+        }
+
         function copyNodeShareLink(url, proto) {
+            url = sanitizeShareURL(url);
             if (!url) {
                 alert('该节点暂无有效客户端分享链接');
                 return;
@@ -2136,6 +2146,7 @@
         }
 
         function showNodeQRCode(url, title) {
+            url = sanitizeShareURL(url);
             if (!url) {
                 alert('暂无分享链接');
                 return;
