@@ -120,6 +120,37 @@ func (bm *BlacklistManager) Remove(nodeID string) {
 	bm.saveLocked()
 }
 
+func (bm *BlacklistManager) Clear() {
+	bm.mu.Lock()
+	defer bm.mu.Unlock()
+
+	bm.entries = make(map[string]*BlacklistEntry)
+	bm.saveLocked()
+}
+
+func (bm *BlacklistManager) MarkManual(id, ip, country, reason string, duration time.Duration) {
+	bm.mu.Lock()
+	defer bm.mu.Unlock()
+
+	now := time.Now()
+	if duration <= 0 {
+		duration = 24 * time.Hour
+	}
+	if reason == "" {
+		reason = "用户手动屏蔽"
+	}
+	bm.entries[id] = &BlacklistEntry{
+		ID:        id,
+		IP:        ip,
+		Country:   country,
+		Reason:    reason,
+		MarkedAt:  now,
+		Until:     now.Add(duration),
+		FailCount: 1,
+	}
+	bm.saveLocked()
+}
+
 func (bm *BlacklistManager) Count() int {
 	bm.mu.RLock()
 	defer bm.mu.RUnlock()

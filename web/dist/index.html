@@ -934,13 +934,13 @@
                 <div id="stat-active-conns" class="stat-val">0</div>
                 <div id="stat-proxy-port" class="stat-sub">默认端口: 7928</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" style="cursor: pointer; transition: all 0.2s;" onclick="openBlacklistModal()" title="点击查看与管理故障隔离/已屏蔽的节点">
                 <div class="stat-header">
-                    <span class="stat-title">候选节点 / 屏蔽库</span>
+                    <span class="stat-title">候选节点 / 屏蔽库 <span style="color: #60a5fa; font-size: 11px; margin-left: 4px;">管理 ↗</span></span>
                     <svg class="stat-icon" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
                 </div>
                 <div id="stat-nodes-count" class="stat-val">0 / 0</div>
-                <div id="stat-node-source" class="stat-sub">数据源: 载入中</div>
+                <div id="stat-node-source" class="stat-sub">数据源: 载入中 (点击管理屏蔽库)</div>
             </div>
         </div>
 
@@ -1606,6 +1606,37 @@
         </div>
     </div>
 
+    <!-- 5. 屏蔽库与故障隔离管理模态弹窗 -->
+    <div id="blacklist-modal" class="modal-overlay">
+        <div class="modal-card" style="max-width: 760px;">
+            <div class="card-header" style="margin-bottom: 14px;">
+                <div class="card-title">
+                    <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                    屏蔽库与故障隔离管理 (Blacklist)
+                </div>
+                <button class="btn btn-outline" style="padding: 4px 8px;" onclick="closeBlacklistModal()">✕</button>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+                <div style="font-size: 12.5px; color: var(--text-muted);">
+                    展示当前处于故障隔离期的节点。隔离期过后自动解封，亦可手动解封或清空。
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-danger" style="padding: 5px 12px; font-size: 12px;" onclick="clearAllBlacklist()">🗑️ 清空全部屏蔽</button>
+                    <button class="btn btn-outline" style="padding: 5px 12px; font-size: 12px;" onclick="fetchBlacklist(true)">🔄 刷新</button>
+                </div>
+            </div>
+
+            <div id="blacklist-items-container" style="max-height: 420px; overflow-y: auto; padding-right: 4px;">
+                <div style="text-align: center; color: var(--text-muted); padding: 36px;">正在载入屏蔽库...</div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px;">
+                <button type="button" class="btn btn-outline" onclick="closeBlacklistModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div id="toast">
         <svg style="width: 16px; height: 16px; stroke: #34d399; fill: none; stroke-width: 2;" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
@@ -2070,9 +2101,10 @@
                                         <span class="badge connected" style="background:rgba(59,130,246,0.15); color:#60a5fa;"><span class="status-dot" style="background:#3b82f6;"></span> ${activeTun.dev_name}</span>
                                         <button class="btn btn-danger" style="padding: 2px 6px; font-size: 10px;" onclick="stopTunnel('${activeTun.id}')">断开</button>
                                     </div>` :
-                                    `<div style="display:inline-flex; gap:4px;">
+                                    `<div style="display:inline-flex; gap:4px; align-items:center;">
                                         <button class="btn" style="padding: 4px 9px; font-size: 11.5px;" onclick="connectToNode('${n.id}')" title="设置为主网关出口">主连</button>
                                         <button class="btn btn-outline" style="padding: 4px 8px; font-size: 11.5px;" onclick="startNewTunnel('${n.id}')" title="启动为新的独立并发出口">+并发</button>
+                                        <button class="btn btn-outline" style="padding: 4px 6px; font-size: 11.5px; color:#f87171;" onclick="addNodeToBlacklist('${n.id}', '${n.ip}', '${n.country_short}')" title="屏蔽/拉黑此节点24小时">🚫</button>
                                     </div>`
                                 )
                             }
@@ -2530,6 +2562,164 @@
                 document.body.removeChild(ta);
             }
             showToast(`已复制: ${label || text}`);
+        }
+
+        // ==========================================
+        //  屏蔽库与故障熔断隔离交互 (Blacklist Manager)
+        // ==========================================
+        let currentBlacklist = [];
+
+        async function openBlacklistModal() {
+            document.getElementById('blacklist-modal').style.display = 'flex';
+            await fetchBlacklist();
+        }
+
+        function closeBlacklistModal() {
+            document.getElementById('blacklist-modal').style.display = 'none';
+        }
+
+        async function fetchBlacklist(showNotice = false) {
+            const container = document.getElementById('blacklist-items-container');
+            if (!container) return;
+            try {
+                const res = await fetch('/api/blacklist');
+                if (!res.ok) return;
+                currentBlacklist = await res.json() || [];
+                renderBlacklist(currentBlacklist);
+                if (showNotice) {
+                    showToast('屏蔽库列表已刷新');
+                }
+            } catch (err) {
+                container.innerHTML = '<div style="text-align: center; color: var(--danger); padding: 30px;">加载屏蔽库失败: ' + err + '</div>';
+            }
+        }
+
+        function renderBlacklist(items) {
+            const container = document.getElementById('blacklist-items-container');
+            if (!container) return;
+
+            if (!items || items.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 36px; background: var(--bg-card-sub); border-radius: 10px; border: 1px dashed var(--border);">
+                        <div style="font-size: 26px; margin-bottom: 8px;">🛡️</div>
+                        <div style="font-size: 14px; font-weight: 600; color: #f8fafc; margin-bottom: 4px;">当前无任何被隔离屏蔽的节点</div>
+                        <div style="font-size: 12px; color: var(--text-muted); max-width: 480px; margin: 0 auto; line-height: 1.5;">
+                            当节点在连接时发生多次超时、认证拒绝或异常断线时，系统会自动临时隔离；目前所有节点运行正常。
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            const now = Date.now();
+            container.innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    ${items.map(item => {
+                        const untilTime = new Date(item.until).getTime();
+                        const diffSec = Math.max(0, Math.floor((untilTime - now) / 1000));
+                        let leftStr = '即将解封';
+                        if (diffSec > 3600) {
+                            leftStr = `${Math.floor(diffSec / 3600)}小时${Math.floor((diffSec % 3600) / 60)}分后解封`;
+                        } else if (diffSec > 0) {
+                            leftStr = `${Math.floor(diffSec / 60)}分${diffSec % 60}秒后解封`;
+                        }
+
+                        const cCode = item.country || '';
+                        const flag = cCode ? getCountryFlagSVG(cCode) : '';
+                        const failBadge = item.fail_count > 1 ? `<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #f87171; font-size: 10.5px;">失败 ${item.fail_count} 次</span>` : '';
+
+                        return `
+                            <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span class="flag-box" style="font-size: 12px;">${flag}</span>
+                                    <div>
+                                        <div style="font-family: ui-monospace, monospace; font-size: 13px; font-weight: 600; color: #fff;">
+                                            ${item.id || item.ip}
+                                        </div>
+                                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                            <span>原因: <strong style="color: #fca5a5;">${item.reason || '故障断线'}</strong></span>
+                                            <span>·</span>
+                                            <span>状态: <span style="color: #fbbf24;">${leftStr}</span></span>
+                                            ${failBadge}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <button class="btn btn-outline" style="padding: 3px 9px; font-size: 11px;" onclick="removeNodeFromBlacklist('${item.id}')">
+                                        解除屏蔽
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        async function removeNodeFromBlacklist(nodeId) {
+            try {
+                const res = await fetch('/api/blacklist/remove', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ node_id: nodeId })
+                });
+                const ret = await res.json();
+                if (!res.ok) {
+                    alert('解除失败: ' + (ret.error || '未知错误'));
+                    return;
+                }
+                showToast(`节点 [${nodeId}] 已成功移出屏蔽库`);
+                await fetchBlacklist();
+                fetchStatus();
+                fetchNodes();
+            } catch (err) {
+                alert('请求失败: ' + err);
+            }
+        }
+
+        async function clearAllBlacklist() {
+            if (!confirm('确定清空整个屏蔽库吗？所有被隔离的节点将被立即释放回候选池。')) return;
+            try {
+                const res = await fetch('/api/blacklist/clear', { method: 'POST' });
+                const ret = await res.json();
+                if (!res.ok) {
+                    alert('清空失败: ' + (ret.error || '未知错误'));
+                    return;
+                }
+                showToast('已清空全部屏蔽节点');
+                await fetchBlacklist();
+                fetchStatus();
+                fetchNodes();
+            } catch (err) {
+                alert('请求失败: ' + err);
+            }
+        }
+
+        async function addNodeToBlacklist(nodeId, ip, country) {
+            if (!confirm(`确定手动屏蔽节点 [${nodeId}] 吗？\n该节点将在 24 小时内不再被连接或调度。`)) return;
+            try {
+                const res = await fetch('/api/blacklist/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        node_id: nodeId,
+                        ip: ip,
+                        country: country,
+                        duration_minutes: 1440,
+                        reason: '用户手动屏蔽'
+                    })
+                });
+                const ret = await res.json();
+                if (!res.ok) {
+                    alert('屏蔽失败: ' + (ret.error || '未知错误'));
+                    return;
+                }
+                showToast(`已将节点 [${nodeId}] 屏蔽 24 小时`);
+                fetchStatus();
+                fetchNodes();
+            } catch (err) {
+                alert('请求失败: ' + err);
+            }
         }
 
         function renderPortRules() {

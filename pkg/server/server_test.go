@@ -126,6 +126,37 @@ func TestServerAPI(t *testing.T) {
 	if !overviewResp.OK || len(overviewResp.AvailableOutbounds) == 0 {
 		t.Fatalf("expected overview ok and outbounds > 0, got: %+v", overviewResp)
 	}
+
+	// Test Blacklist Add, List, Remove, Clear
+	addBody := `{"node_id":"1.2.3.4:443","ip":"1.2.3.4","country":"JP","reason":"测试屏蔽","duration_minutes":60}`
+	reqBLAdd := httptest.NewRequest("POST", "/api/blacklist/add", strings.NewReader(addBody))
+	wBLAdd := httptest.NewRecorder()
+	srv.handleBlacklistAdd(wBLAdd, reqBLAdd)
+	if wBLAdd.Code != http.StatusOK {
+		t.Fatalf("expected blacklist add 200, got %d", wBLAdd.Code)
+	}
+
+	reqBLList := httptest.NewRequest("GET", "/api/blacklist", nil)
+	wBLList := httptest.NewRecorder()
+	srv.handleBlacklist(wBLList, reqBLList)
+	if wBLList.Code != http.StatusOK || !strings.Contains(wBLList.Body.String(), "1.2.3.4:443") {
+		t.Fatalf("expected blacklist list contains 1.2.3.4:443, got %s", wBLList.Body.String())
+	}
+
+	rmBody := `{"node_id":"1.2.3.4:443"}`
+	reqBLRm := httptest.NewRequest("POST", "/api/blacklist/remove", strings.NewReader(rmBody))
+	wBLRm := httptest.NewRecorder()
+	srv.handleBlacklistRemove(wBLRm, reqBLRm)
+	if wBLRm.Code != http.StatusOK {
+		t.Fatalf("expected blacklist remove 200, got %d", wBLRm.Code)
+	}
+
+	reqBLClear := httptest.NewRequest("POST", "/api/blacklist/clear", nil)
+	wBLClear := httptest.NewRecorder()
+	srv.handleBlacklistClear(wBLClear, reqBLClear)
+	if wBLClear.Code != http.StatusOK {
+		t.Fatalf("expected blacklist clear 200, got %d", wBLClear.Code)
+	}
 }
 
 func TestBasicAuthMiddleware(t *testing.T) {

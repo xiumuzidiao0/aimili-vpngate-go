@@ -187,6 +187,61 @@ func (s *Server) handleBlacklist(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, list)
 }
 
+type BlacklistNodeReq struct {
+	NodeID          string `json:"node_id"`
+	IP              string `json:"ip,omitempty"`
+	Country         string `json:"country,omitempty"`
+	DurationMinutes int    `json:"duration_minutes,omitempty"`
+	Reason          string `json:"reason,omitempty"`
+}
+
+func (s *Server) handleBlacklistRemove(w http.ResponseWriter, r *http.Request) {
+	var req BlacklistNodeReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.NodeID == "" {
+		s.writeError(w, http.StatusBadRequest, "缺少 node_id 参数")
+		return
+	}
+	s.pool.Blacklist().Remove(req.NodeID)
+	stats.LogInfo("Server", "管理员解除了对节点 [%s] 的屏蔽", req.NodeID)
+	s.writeJSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"message": "已解除屏蔽",
+		"node_id": req.NodeID,
+	})
+}
+
+func (s *Server) handleBlacklistClear(w http.ResponseWriter, r *http.Request) {
+	s.pool.Blacklist().Clear()
+	stats.LogInfo("Server", "管理员一键清空了全部屏蔽库")
+	s.writeJSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"message": "已清空全部屏蔽节点",
+	})
+}
+
+func (s *Server) handleBlacklistAdd(w http.ResponseWriter, r *http.Request) {
+	var req BlacklistNodeReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.NodeID == "" {
+		s.writeError(w, http.StatusBadRequest, "缺少 node_id 参数")
+		return
+	}
+	dur := time.Duration(req.DurationMinutes) * time.Minute
+	if dur <= 0 {
+		dur = 24 * time.Hour
+	}
+	reason := req.Reason
+	if reason == "" {
+		reason = "用户手动屏蔽"
+	}
+	s.pool.Blacklist().MarkManual(req.NodeID, req.IP, req.Country, reason, dur)
+	stats.LogInfo("Server", "管理员手动将节点 [%s] (%s) 屏蔽 %v: %s", req.NodeID, req.Country, dur, reason)
+	s.writeJSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"message": "已成功加入屏蔽库",
+		"node_id": req.NodeID,
+	})
+}
+
 func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 	recent := stats.GetRingLog().Recent(100)
 	s.writeJSON(w, http.StatusOK, recent)
