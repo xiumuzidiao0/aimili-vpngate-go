@@ -6,14 +6,14 @@ import (
 )
 
 func TestIndexUsesEscapedDynamicRendering(t *testing.T) {
-	index, err := distFS.ReadFile("dist/index.html")
+	script, err := distFS.ReadFile("dist/app.js")
 	if err != nil {
-		t.Fatalf("read embedded index: %v", err)
+		t.Fatalf("read embedded script: %v", err)
 	}
 
 	required := []byte("function escapeHtml(value)")
-	if !bytes.Contains(index, required) {
-		t.Fatal("embedded index is missing escapeHtml")
+	if !bytes.Contains(script, required) {
+		t.Fatal("embedded script is missing escapeHtml")
 	}
 
 	unsafePatterns := [][]byte{
@@ -24,8 +24,22 @@ func TestIndexUsesEscapedDynamicRendering(t *testing.T) {
 		[]byte(`deleteSingBoxNode('${n.name}')`),
 	}
 	for _, pattern := range unsafePatterns {
-		if bytes.Contains(index, pattern) {
-			t.Fatalf("embedded index still contains unsafe HTML/JS interpolation: %q", pattern)
+		if bytes.Contains(script, pattern) {
+			t.Fatalf("embedded script still contains unsafe HTML/JS interpolation: %q", pattern)
+		}
+	}
+}
+
+func TestEmbeddedUIAssets(t *testing.T) {
+	for _, path := range []string{
+		"dist/index.html",
+		"dist/styles.css",
+		"dist/app.js",
+		"dist/favicon.svg",
+		"dist/fonts/geist-400.ttf",
+	} {
+		if _, err := distFS.ReadFile(path); err != nil {
+			t.Fatalf("embedded asset %s is unavailable: %v", path, err)
 		}
 	}
 }

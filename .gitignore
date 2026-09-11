@@ -16,5 +16,10 @@ admin_path.txt
 .vscode/
 *.swp
 
+# Web UI test dependencies and artifacts
+node_modules/
+web/node_modules/
+web/test-results/
+
 # CodeGraph
 .codegraph/
