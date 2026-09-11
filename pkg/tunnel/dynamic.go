@@ -103,6 +103,9 @@ func (m *DynamicGroupManager) load() {
 	if err := json.Unmarshal(data, &list); err == nil {
 		for _, g := range list {
 			if g.ID != "" {
+				// Reset runtime session state on startup: no tunnels exist yet at boot
+				g.ActiveTunnelIDs = nil
+				g.LastEvaluatedAt = time.Time{}
 				m.groups[g.ID] = g
 			}
 		}
@@ -471,14 +474,19 @@ func (m *DynamicGroupManager) EvaluateGroup(ctx context.Context, g *DynamicGroup
 		_ = m.pool.StopTunnel(tid)
 	}
 
-	// 9. Update group status
+	// 9. Update group status directly in manager map
 	m.mu.Lock()
-	g.ActiveTunnelIDs = chosenTunnelIDs
-	g.LastEvaluatedAt = time.Now()
-	if len(chosenTunnelIDs) >= g.TargetCount {
-		g.StatusText = fmt.Sprintf("正常运行 (在网出口: %d/%d)", len(chosenTunnelIDs), g.TargetCount)
-	} else {
-		g.StatusText = fmt.Sprintf("部分就绪 (在网出口: %d/%d)", len(chosenTunnelIDs), g.TargetCount)
+	if stored, ok := m.groups[g.ID]; ok {
+		stored.ActiveTunnelIDs = chosenTunnelIDs
+		stored.LastEvaluatedAt = time.Now()
+		if len(chosenTunnelIDs) >= stored.TargetCount {
+			stored.StatusText = fmt.Sprintf("正常运行 (在网出口: %d/%d)", len(chosenTunnelIDs), stored.TargetCount)
+		} else {
+			stored.StatusText = fmt.Sprintf("部分就绪 (在网出口: %d/%d)", len(chosenTunnelIDs), stored.TargetCount)
+		}
+		g.ActiveTunnelIDs = stored.ActiveTunnelIDs
+		g.LastEvaluatedAt = stored.LastEvaluatedAt
+		g.StatusText = stored.StatusText
 	}
 	m.saveLocked()
 	m.mu.Unlock()
@@ -508,11 +516,21 @@ func (m *DynamicGroupManager) StartEvaluationLoop(ctx context.Context) {
 }
 
 func (m *DynamicGroupManager) evaluateAll(ctx context.Context) {
-	groups := m.ListGroups()
-	now := time.Now()
+	m.mu.RLock()
+	var groupIDs []string
+	for id, g := range m.groups {
+		if g.Enabled {
+			groupIDs = append(groupIDs, id)
+		}
+	}
+	m.mu.RUnlock()
 
-	for _, g := range groups {
-		if !g.Enabled {
+	now := time.Now()
+	for _, gid := range groupIDs {
+		m.mu.RLock()
+		g, ok := m.groups[gid]
+		m.mu.RUnlock()
+		if !ok || !g.Enabled {
 			continue
 		}
 
@@ -540,6 +558,26 @@ func (m *DynamicGroupManager) evaluateAll(ctx context.Context) {
 
 		if needsEval {
 			m.EvaluateGroup(ctx, g)
+		}
+	}
+
+	// Automatic garbage collection: clean up any orphan tunnels that are not claimed
+	// by any active dynamic group and not the primary connection (tun0)
+	m.mu.RLock()
+	legitIDs := make(map[string]bool)
+	for _, g := range m.groups {
+		if g.Enabled {
+			for _, tid := range g.ActiveTunnelIDs {
+				legitIDs[tid] = true
+			}
+		}
+	}
+	m.mu.RUnlock()
+
+	for _, t := range m.pool.ListTunnels() {
+		if t.DevIndex > 0 && !legitIDs[t.ID] {
+			stats.LogWarn("DynamicGroup", "回收无归属孤儿出口网卡: %s (%s)", t.ID, t.DevName)
+			_ = m.pool.StopTunnel(t.ID)
 		}
 	}
 }
