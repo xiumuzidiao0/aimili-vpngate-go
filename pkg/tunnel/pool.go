@@ -325,26 +325,31 @@ func (p *Pool) startTunnelInternalLocked(node *nodes.Node, devIdx int) (*Tunnel,
 			line := scanner.Text()
 			stats.LogInfo(fmt.Sprintf("VPN:%s", devName), "%s", line)
 
-			t.mu.Lock()
 			if strings.Contains(line, "Initialization Sequence Completed") {
+				setupTunnelInterface(devName, devIdx)
+
+				t.mu.Lock()
 				t.Status = StatusConnected
 				t.ConnectedAt = time.Now()
 				t.Message = "已连接并就绪"
-				stats.LogInfo("TunnelPool", "隧道 [%s] (%s) 已成功连通！", tunnelID, devName)
+				t.mu.Unlock()
 
-				go setupTunnelInterface(devName, devIdx)
+				stats.LogInfo("TunnelPool", "隧道 [%s] (%s) 已成功连通并就绪路由！", tunnelID, devName)
 
 				if p.nodePool != nil && p.nodePool.Reputation() != nil && t.Node != nil {
 					p.nodePool.Reputation().RecordSuccess(t.Node.IP, t.Node.ID)
 				}
 				go p.probeUnlock(tunnelID)
 			} else if strings.Contains(line, "AUTH_FAILED") {
+				t.mu.Lock()
 				t.Status = StatusFailed
 				t.Message = "身份认证失败"
+				t.mu.Unlock()
 			} else if strings.Contains(line, "TLS Error") || strings.Contains(line, "Connection reset by peer") {
+				t.mu.Lock()
 				t.Message = line
+				t.mu.Unlock()
 			}
-			t.mu.Unlock()
 		}
 	}()
 

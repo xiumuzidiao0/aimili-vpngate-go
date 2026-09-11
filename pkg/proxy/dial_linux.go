@@ -80,12 +80,18 @@ func dialUpstream(targetAddr string, devName string, timeout time.Duration) (net
 					dnsDialer.LocalAddr = &net.UDPAddr{IP: ip4}
 				}
 
-				conn, err := dnsDialer.DialContext(ctx, "udp", "8.8.8.8:53")
-				if err != nil {
-					// Fallback to Cloudflare DNS
-					return dnsDialer.DialContext(ctx, "udp", "1.1.1.1:53")
+				dialProto := "udp"
+				if network == "tcp" {
+					dialProto = "tcp"
 				}
-				return conn, nil
+				conn, err := dnsDialer.DialContext(ctx, dialProto, "8.8.8.8:53")
+				if err != nil {
+					conn, err = dnsDialer.DialContext(ctx, dialProto, "1.1.1.1:53")
+				}
+				if err != nil && dialProto == "udp" {
+					conn, err = dnsDialer.DialContext(ctx, "tcp", "1.1.1.1:53")
+				}
+				return conn, err
 			},
 		}
 	}

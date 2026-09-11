@@ -236,6 +236,15 @@ func (m *DynamicGroupManager) GetTunnelsForGroups(groupIDs []string) []*Tunnel {
 	tunIDMap := make(map[string]bool)
 	for _, gid := range groupIDs {
 		if g, ok := m.groups[gid]; ok && g.Enabled {
+			if g.IsSystem || gid == SystemPrimaryGroupID {
+				// System primary group always reliably maps to the active primary tun0 tunnel
+				for _, t := range m.pool.ListTunnels() {
+					if t.DevIndex == 0 {
+						tunIDMap[t.ID] = true
+						break
+					}
+				}
+			}
 			for _, tid := range g.ActiveTunnelIDs {
 				tunIDMap[tid] = true
 			}
