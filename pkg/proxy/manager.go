@@ -169,6 +169,19 @@ func (m *MultiPortManager) GetRules() []PortRule {
 	return res
 }
 
+func (m *MultiPortManager) GetRule(port int) *PortRule {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	for _, r := range m.rules {
+		if r.Port == port {
+			cp := r
+			return &cp
+		}
+	}
+	return nil
+}
+
 func (m *MultiPortManager) StopAll() {
 	m.mu.Lock()
 	defer m.mu.Unlock()

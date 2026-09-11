@@ -281,6 +281,8 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	stats.LogInfo("Server", "管理员通过 Web 控制台更新了系统配置: 账号=%s, 路径=/%s, Web端口=%d, 代理端口=%d",
 		current.UIUsername, current.UIPath, current.UIPort, current.ProxyPort)
 
+	go s.syncSingBoxOutboundCredentials(context.Background())
+
 	s.writeJSON(w, http.StatusOK, map[string]any{
 		"message":  "配置修改成功并已持久化保存！",
 		"settings": current,
@@ -383,6 +385,8 @@ func (s *Server) handleSetPortRules(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+
+	go s.syncSingBoxOutboundCredentials(context.Background())
 
 	s.writeJSON(w, http.StatusOK, map[string]any{
 		"message": "端口分流规则已更新生效！",

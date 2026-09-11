@@ -1,13 +1,16 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"aimili-vpngate-go/pkg/singbox"
+	"aimili-vpngate-go/pkg/stats"
 )
 
 type AvailableOutbound struct {
@@ -30,6 +33,74 @@ type SingBoxOverviewResponse struct {
 	Error              string                  `json:"error,omitempty"`
 }
 
+// resolveHTTPOutboundURL converts an input port/address into a standard HTTP proxy URL with credentials if required.
+func (s *Server) resolveHTTPOutboundURL(outboundRaw string) string {
+	raw := strings.TrimSpace(outboundRaw)
+	if raw == "" || strings.EqualFold(raw, "direct") || strings.EqualFold(raw, "none") || strings.EqualFold(raw, "default") {
+		return "direct"
+	}
+
+	var targetPort int
+	clean := raw
+	if strings.Contains(clean, "://") {
+		parts := strings.SplitN(clean, "://", 2)
+		clean = parts[1]
+	}
+	if strings.Contains(clean, "@") {
+		parts := strings.SplitN(clean, "@", 2)
+		clean = parts[1]
+	}
+	clean = strings.Trim(clean, "/")
+
+	if strings.Contains(clean, ":") {
+		_, pStr, err := net.SplitHostPort(clean)
+		if err == nil {
+			targetPort, _ = strconv.Atoi(pStr)
+		}
+	} else if p, err := strconv.Atoi(clean); err == nil {
+		targetPort = p
+	}
+
+	if targetPort <= 0 {
+		targetPort = s.cfg.ProxyPort
+	}
+	if targetPort <= 0 {
+		targetPort = 7928
+	}
+
+	// Check authentication configuration for this port
+	authMode := "none"
+	authUser := ""
+	authPass := ""
+
+	if s.portMgr != nil {
+		if rule := s.portMgr.GetRule(targetPort); rule != nil {
+			authMode = rule.AuthMode
+			authUser = rule.AuthUser
+			authPass = rule.AuthPass
+		} else if targetPort == s.cfg.ProxyPort {
+			authMode = "default_web"
+		}
+	} else if targetPort == s.cfg.ProxyPort {
+		authMode = "default_web"
+	}
+
+	if authMode == "default_web" {
+		if s.cfg.IsUIAuthEnabled() {
+			authUser = s.cfg.UIUsername
+			authPass = s.cfg.UIPassword
+		} else {
+			authMode = "none"
+		}
+	}
+
+	if (authMode == "default_web" || authMode == "custom") && authUser != "" {
+		return fmt.Sprintf("http://%s:%s@127.0.0.1:%d", authUser, authPass, targetPort)
+	}
+
+	return fmt.Sprintf("http://127.0.0.1:%d", targetPort)
+}
+
 func (s *Server) getAvailableOutbounds() []AvailableOutbound {
 	var list []AvailableOutbound
 	seenPorts := make(map[int]bool)
@@ -39,11 +110,17 @@ func (s *Server) getAvailableOutbounds() []AvailableOutbound {
 	if defPort <= 0 {
 		defPort = 7928
 	}
+	defAddr := s.resolveHTTPOutboundURL(fmt.Sprintf("%d", defPort))
+	authNote := "免密"
+	if strings.Contains(defAddr, "@") {
+		authNote = "密码保护"
+	}
+
 	list = append(list, AvailableOutbound{
 		Port:      defPort,
-		Addr:      fmt.Sprintf("127.0.0.1:%d", defPort),
-		Type:      "socks5",
-		Label:     fmt.Sprintf("AimiliVPN 默认出口 (PORT %d)", defPort),
+		Addr:      defAddr,
+		Type:      "http",
+		Label:     fmt.Sprintf("AimiliVPN 默认出口 (PORT %d - HTTP %s)", defPort, authNote),
 		IsDefault: true,
 	})
 	seenPorts[defPort] = true
@@ -52,6 +129,12 @@ func (s *Server) getAvailableOutbounds() []AvailableOutbound {
 	if s.portMgr != nil {
 		for _, rule := range s.portMgr.GetRules() {
 			if !seenPorts[rule.Port] && rule.Port > 0 {
+				ruleAddr := s.resolveHTTPOutboundURL(fmt.Sprintf("%d", rule.Port))
+				ruleAuthNote := "免密"
+				if strings.Contains(ruleAddr, "@") {
+					ruleAuthNote = "密码保护"
+				}
+
 				boundDesc := ""
 				tCount := len(rule.BoundTunnelIDs)
 				gCount := len(rule.BoundGroupIDs)
@@ -64,9 +147,9 @@ func (s *Server) getAvailableOutbounds() []AvailableOutbound {
 				}
 				list = append(list, AvailableOutbound{
 					Port:      rule.Port,
-					Addr:      fmt.Sprintf("127.0.0.1:%d", rule.Port),
-					Type:      "socks5",
-					Label:     fmt.Sprintf("多端口出口 (PORT %d%s)", rule.Port, boundDesc),
+					Addr:      ruleAddr,
+					Type:      "http",
+					Label:     fmt.Sprintf("多端口出口 (PORT %d - HTTP %s%s)", rule.Port, ruleAuthNote, boundDesc),
 					IsDefault: false,
 				})
 				seenPorts[rule.Port] = true
@@ -229,7 +312,8 @@ func (s *Server) handleSingBoxAddNode(w http.ResponseWriter, r *http.Request) {
 		sni = "auto"
 	}
 
-	node, err := s.singboxClient.AddNode(r.Context(), proto, req.Port, cred, sni, req.Outbound)
+	resolvedOutbound := s.resolveHTTPOutboundURL(req.Outbound)
+	node, err := s.singboxClient.AddNode(r.Context(), proto, req.Port, cred, sni, resolvedOutbound)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -259,7 +343,8 @@ func (s *Server) handleSingBoxSetOutbound(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	resp, err := s.singboxClient.SetOutbound(r.Context(), req.Target, req.Outbound)
+	resolvedOutbound := s.resolveHTTPOutboundURL(req.Outbound)
+	resp, err := s.singboxClient.SetOutbound(r.Context(), req.Target, resolvedOutbound)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -269,6 +354,36 @@ func (s *Server) handleSingBoxSetOutbound(w http.ResponseWriter, r *http.Request
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// syncSingBoxOutboundCredentials automatically updates all sing-box chained inbounds
+// whenever local proxy port authentication rules or web credentials change.
+func (s *Server) syncSingBoxOutboundCredentials(ctx context.Context) {
+	if s.singboxClient == nil || !s.singboxClient.IsInstalled() {
+		return
+	}
+
+	nodes, err := s.singboxClient.ListNodes(ctx)
+	if err != nil || len(nodes) == 0 {
+		return
+	}
+
+	for _, n := range nodes {
+		if n.Outbound == "direct" || n.OutboundPort <= 0 {
+			continue
+		}
+
+		expectedOutbound := s.resolveHTTPOutboundURL(fmt.Sprintf("%d", n.OutboundPort))
+		if expectedOutbound == "direct" {
+			continue
+		}
+
+		// If protocol or credentials changed, automatically update the node's outbound config
+		if n.Outbound != expectedOutbound {
+			stats.LogInfo("SingBoxSync", "正在自动同步更新节点 [%s] 链式出站凭据: %s -> %s", n.Name, n.Outbound, expectedOutbound)
+			_, _ = s.singboxClient.SetOutbound(ctx, n.Name, expectedOutbound)
+		}
+	}
 }
 
 func (s *Server) handleSingBoxDeleteNode(w http.ResponseWriter, r *http.Request) {

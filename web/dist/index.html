@@ -3253,8 +3253,14 @@
 
                 // 生成出口下拉选单
                 const outboundOptions = outbounds.map(ob => {
-                    const isSelected = (n.outbound && n.outbound.includes(ob.addr)) ||
-                                       (ob.addr === 'direct' && (!n.outbound || n.outbound === 'direct'));
+                    let isSelected = false;
+                    if (ob.addr === 'direct') {
+                        isSelected = (!n.outbound || n.outbound === 'direct');
+                    } else if (ob.port && n.outbound_port) {
+                        isSelected = (ob.port === n.outbound_port);
+                    } else if (n.outbound) {
+                        isSelected = n.outbound.includes(ob.addr);
+                    }
                     return `<option value="${ob.addr}" ${isSelected ? 'selected' : ''}>${ob.label}</option>`;
                 }).join('');
 

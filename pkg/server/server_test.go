@@ -127,6 +127,17 @@ func TestServerAPI(t *testing.T) {
 		t.Fatalf("expected overview ok and outbounds > 0, got: %+v", overviewResp)
 	}
 
+	// Test resolveHTTPOutboundURL
+	directURL := srv.resolveHTTPOutboundURL("direct")
+	if directURL != "direct" {
+		t.Fatalf("expected direct, got %s", directURL)
+	}
+
+	httpURL := srv.resolveHTTPOutboundURL("7928")
+	if !strings.HasPrefix(httpURL, "http://") || !strings.Contains(httpURL, "7928") {
+		t.Fatalf("expected http proxy url with 7928, got %s", httpURL)
+	}
+
 	// Test Blacklist Add, List, Remove, Clear
 	addBody := `{"node_id":"1.2.3.4:443","ip":"1.2.3.4","country":"JP","reason":"测试屏蔽","duration_minutes":60}`
 	reqBLAdd := httptest.NewRequest("POST", "/api/blacklist/add", strings.NewReader(addBody))
