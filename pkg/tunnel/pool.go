@@ -66,9 +66,11 @@ func (p *Pool) reapDeadTunnelsLocked() {
 	}
 }
 
-func (p *Pool) allocDevIndexLocked() int {
+func (p *Pool) allocConcurrentDevIndexLocked() int {
 	p.reapDeadTunnelsLocked()
-	for i := 0; i < 64; i++ {
+	// Concurrent and dynamic tunnels strictly allocate from 1 to 63,
+	// keeping 0 exclusively reserved for the primary connection.
+	for i := 1; i < 64; i++ {
 		if !p.usedDevs[i] {
 			p.usedDevs[i] = true
 			return i
@@ -81,8 +83,61 @@ func (p *Pool) freeDevIndexLocked(idx int) {
 	delete(p.usedDevs, idx)
 }
 
+// StartPrimaryTunnel starts or replaces the dedicated Primary Connection tunnel, strictly bound to devIndex 0 (tun0).
+func (p *Pool) StartPrimaryTunnel(node *nodes.Node) (*Tunnel, error) {
+	p.mu.Lock()
+	p.reapDeadTunnelsLocked()
+
+	// 1. If this node is already running on the primary tunnel (tun0), return it
+	for _, t := range p.tunnels {
+		if t.Node != nil && t.Node.ID == node.ID && t.DevIndex == 0 {
+			if t.Status == StatusConnected || t.Status == StatusConnecting {
+				p.mu.Unlock()
+				return t, nil
+			}
+		}
+	}
+
+	// 2. If any previous tunnel is occupying tun0 (devIndex 0), stop it first
+	var prevPrimaryID string
+	for id, t := range p.tunnels {
+		if t.DevIndex == 0 {
+			prevPrimaryID = id
+			break
+		}
+	}
+	if prevPrimaryID != "" {
+		p.mu.Unlock()
+		_ = p.StopTunnel(prevPrimaryID)
+		p.mu.Lock()
+		p.reapDeadTunnelsLocked()
+	}
+
+	// 3. If this node is already running on a concurrent devIndex (> 0), stop that concurrent tunnel
+	// so it can be promoted to primary tun0
+	var concurrentID string
+	for id, t := range p.tunnels {
+		if t.Node != nil && t.Node.ID == node.ID {
+			concurrentID = id
+			break
+		}
+	}
+	if concurrentID != "" {
+		p.mu.Unlock()
+		_ = p.StopTunnel(concurrentID)
+		p.mu.Lock()
+		p.reapDeadTunnelsLocked()
+	}
+
+	p.usedDevs[0] = true
+	return p.startTunnelInternalLocked(node, 0)
+}
+
+// StartTunnel starts a concurrent or dynamic group tunnel, strictly allocating from devIndex 1 upwards (tun1, tun2...).
 func (p *Pool) StartTunnel(node *nodes.Node) (*Tunnel, error) {
 	p.mu.Lock()
+	p.reapDeadTunnelsLocked()
+
 	// Check if already connecting or connected to this node
 	for _, t := range p.tunnels {
 		if t.Node != nil && t.Node.ID == node.ID && (t.Status == StatusConnected || t.Status == StatusConnecting) {
@@ -91,12 +146,16 @@ func (p *Pool) StartTunnel(node *nodes.Node) (*Tunnel, error) {
 		}
 	}
 
-	devIdx := p.allocDevIndexLocked()
+	devIdx := p.allocConcurrentDevIndexLocked()
 	if devIdx < 0 {
 		p.mu.Unlock()
-		return nil, fmt.Errorf("并发隧道已达上限 (最多64个)")
+		return nil, fmt.Errorf("并发隧道已达上限 (最多63个并发出口)")
 	}
 
+	return p.startTunnelInternalLocked(node, devIdx)
+}
+
+func (p *Pool) startTunnelInternalLocked(node *nodes.Node, devIdx int) (*Tunnel, error) {
 	p.nextIDSeq++
 	tunnelID := fmt.Sprintf("tun-%d", p.nextIDSeq)
 	devName := fmt.Sprintf("tun%d", devIdx)

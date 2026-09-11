@@ -46,12 +46,12 @@ func TestDevIndexRecyclingOnDeadTunnels(t *testing.T) {
 	pool.usedDevs[2] = true
 	pool.tunnels["tun-2"] = &Tunnel{ID: "tun-2", DevName: "tun2", DevIndex: 2, Status: StatusStopped}
 
-	// allocDevIndexLocked should reap dead tunnels 0 and 2, and return 0
-	devIdx := pool.allocDevIndexLocked()
+	// allocConcurrentDevIndexLocked should reap dead tunnels 0 and 2, and return 2 (since 1 is connected, 0 is reserved for primary)
+	devIdx := pool.allocConcurrentDevIndexLocked()
 	pool.mu.Unlock()
 
-	if devIdx != 0 {
-		t.Fatalf("expected reaped devIdx 0 to be reused, got %d", devIdx)
+	if devIdx != 2 {
+		t.Fatalf("expected reaped concurrent devIdx 2 to be reused, got %d", devIdx)
 	}
 
 	// Only active tunnel 1 should remain in pool
@@ -83,4 +83,40 @@ func TestDynamicGroupFilteringDeadTunnels(t *testing.T) {
 	if len(groups) != 1 || groups[0].TargetCount != 3 {
 		t.Fatalf("expected 1 group with targetCount 3")
 	}
+}
+
+func TestPrimaryTunnelReservation(t *testing.T) {
+	cfg := &config.Config{
+		DataDir:        t.TempDir(),
+		OpenVPNCommand: "true",
+	}
+	pool := NewPool(cfg, nil)
+
+	// 1. Concurrent tunnel starts first
+	node1 := &nodes.Node{ID: "node-1", IP: "1.1.1.1", CountryShort: "JP", ConfigData: "client\n"}
+	tun1, err := pool.StartTunnel(node1)
+	if err != nil {
+		t.Fatalf("failed to start concurrent tunnel: %v", err)
+	}
+
+	// Concurrent tunnel MUST allocate tun1, NOT tun0!
+	if tun1.DevIndex != 1 || tun1.DevName != "tun1" {
+		t.Fatalf("expected concurrent tunnel to be tun1 (devIndex 1), got %s (devIndex %d)", tun1.DevName, tun1.DevIndex)
+	}
+
+	// 2. Primary tunnel starts second
+	nodePrimary := &nodes.Node{ID: "node-primary", IP: "2.2.2.2", CountryShort: "US", ConfigData: "client\n"}
+	tunPrimary, err := pool.StartPrimaryTunnel(nodePrimary)
+	if err != nil {
+		t.Fatalf("failed to start primary tunnel: %v", err)
+	}
+
+	// Primary tunnel MUST allocate tun0 (devIndex 0)!
+	if tunPrimary.DevIndex != 0 || tunPrimary.DevName != "tun0" {
+		t.Fatalf("expected primary tunnel to be tun0 (devIndex 0), got %s (devIndex %d)", tunPrimary.DevName, tunPrimary.DevIndex)
+	}
+
+	// Clean up
+	_ = pool.StopTunnel(tun1.ID)
+	_ = pool.StopTunnel(tunPrimary.ID)
 }

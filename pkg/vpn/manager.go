@@ -116,7 +116,7 @@ func (m *Manager) Connect(target *nodes.Node) error {
 		return fmt.Errorf("tunnel pool is nil")
 	}
 
-	tun, err := m.tunnelPool.StartTunnel(target)
+	tun, err := m.tunnelPool.StartPrimaryTunnel(target)
 	if err != nil {
 		m.mu.Lock()
 		if m.epoch == currentEpoch {

@@ -308,6 +308,17 @@ func (m *DynamicGroupManager) EvaluateGroup(ctx context.Context, g *DynamicGroup
 	chosenTunnelIDs := make([]string, 0, targetN)
 	usedNodeIDs := make(map[string]bool)
 
+	// Prevent collision with Primary Connection (tun0) and other running tunnels:
+	// Mark all nodes already in use outside this group as used so this group never steals or conflicts with them.
+	for _, t := range m.pool.ListTunnels() {
+		if t.Node != nil {
+			if _, isOwn := activeTunnels[t.ID]; !isOwn {
+				usedNodeIDs[t.Node.ID] = true
+				usedNodeIDs[t.Node.IP] = true
+			}
+		}
+	}
+
 	// Keep existing healthy tunnels whose nodes are in the matched list (ranked best)
 	for _, n := range matched {
 		if len(chosenTunnelIDs) >= targetN {
