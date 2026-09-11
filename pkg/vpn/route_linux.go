@@ -2,12 +2,12 @@ package vpn
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"runtime"
-	"syscall"
 	"time"
+
+	"aimili-vpngate-go/pkg/tunnel"
 )
 
 func CheckTUNDevice() error {
@@ -36,34 +36,5 @@ func KillStrayOpenVPN() {
 }
 
 func CheckExternalConnectivity(timeout time.Duration) bool {
-	return CheckTunnelConnectivity("tun0", timeout)
-}
-
-func CheckTunnelConnectivity(devName string, timeout time.Duration) bool {
-	targets := []string{"1.1.1.1:53", "8.8.8.8:53", "api.ipify.org:80"}
-	for _, target := range targets {
-		d := net.Dialer{
-			Timeout: timeout,
-			Control: func(network, address string, c syscall.RawConn) error {
-				var operr error
-				fn := func(fd uintptr) {
-					if devName != "" {
-						if err := syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, devName); err != nil {
-							operr = err
-						}
-					}
-				}
-				if err := c.Control(fn); err != nil {
-					return err
-				}
-				return operr
-			},
-		}
-		conn, err := d.Dial("tcp", target)
-		if err == nil {
-			_ = conn.Close()
-			return true
-		}
-	}
-	return false
+	return tunnel.CheckTunnelConnectivity("tun0", timeout)
 }

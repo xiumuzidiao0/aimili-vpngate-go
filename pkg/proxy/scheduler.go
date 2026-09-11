@@ -82,6 +82,21 @@ func (s *DefaultScheduler) SelectTunnel(port int, boundIDs []string, boundGroupI
 	}
 	if len(available) > 0 {
 		healthy = available
+	} else {
+		// All tunnels in the requested group/selection are currently circuit-broken or dead!
+		// Fallback to any available non-circuit-broken tunnel in the entire pool so requests never black-hole
+		poolTunnels := s.pool.GetHealthyTunnels(nil)
+		var poolAvailable []*tunnel.Tunnel
+		for _, t := range poolTunnels {
+			if t.IsAvailable() {
+				poolAvailable = append(poolAvailable, t)
+			}
+		}
+		if len(poolAvailable) > 0 {
+			healthy = poolAvailable
+		} else if len(poolTunnels) > 0 {
+			healthy = poolTunnels
+		}
 	}
 
 	n := len(healthy)

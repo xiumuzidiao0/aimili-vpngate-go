@@ -318,14 +318,15 @@ func (m *DynamicGroupManager) EvaluateGroup(ctx context.Context, g *DynamicGroup
 		a := matched[i]
 		b := matched[j]
 
+		// Reachable nodes (LatencyMs > 0) MUST ALWAYS come before unreachable (LatencyMs <= 0)
+		aAvail := a.LatencyMs > 0
+		bAvail := b.LatencyMs > 0
+		if aAvail != bAvail {
+			return aAvail
+		}
+
 		switch g.SortBy {
 		case "latency":
-			// Reachable nodes first (latency > 0)
-			aAvail := a.LatencyMs > 0
-			bAvail := b.LatencyMs > 0
-			if aAvail != bAvail {
-				return aAvail
-			}
 			if aAvail && bAvail {
 				if a.LatencyMs != b.LatencyMs {
 					return a.LatencyMs < b.LatencyMs
@@ -345,8 +346,10 @@ func (m *DynamicGroupManager) EvaluateGroup(ctx context.Context, g *DynamicGroup
 			if a.Score != b.Score {
 				return a.Score > b.Score
 			}
-			if a.LatencyMs > 0 && b.LatencyMs > 0 {
-				return a.LatencyMs < b.LatencyMs
+			if aAvail && bAvail {
+				if a.LatencyMs != b.LatencyMs {
+					return a.LatencyMs < b.LatencyMs
+				}
 			}
 			return a.Ping < b.Ping
 		}
@@ -402,7 +405,7 @@ func (m *DynamicGroupManager) EvaluateGroup(ctx context.Context, g *DynamicGroup
 			break
 		}
 		for tid, t := range activeTunnels {
-			if t.Node != nil && (t.Node.ID == n.ID || t.Node.IP == n.IP) && t.IsHealthy() {
+			if t.Node != nil && (t.Node.ID == n.ID || t.Node.IP == n.IP) && t.IsHealthy() && t.IsAvailable() {
 				chosenTunnelIDs = append(chosenTunnelIDs, tid)
 				usedNodeIDs[n.ID] = true
 				usedNodeIDs[n.IP] = true
@@ -415,8 +418,9 @@ func (m *DynamicGroupManager) EvaluateGroup(ctx context.Context, g *DynamicGroup
 	// 7. Replenish / backfill any missing slots from the sorted matched list
 	needed := targetN - len(chosenTunnelIDs)
 	if needed > 0 {
+		attemptCount := 0
 		for _, n := range matched {
-			if needed <= 0 {
+			if needed <= 0 || attemptCount >= 3 {
 				break
 			}
 			if usedNodeIDs[n.ID] || usedNodeIDs[n.IP] {
@@ -425,7 +429,12 @@ func (m *DynamicGroupManager) EvaluateGroup(ctx context.Context, g *DynamicGroup
 			if m.nodePool.Blacklist().IsBlacklisted(n.ID) {
 				continue
 			}
+			// Skip candidates that failed TCP connectivity probe
+			if n.LatencyMs < 0 {
+				continue
+			}
 
+			attemptCount++
 			stats.LogInfo("DynamicGroup", "[%s] 递补启动新出口 (目标: %d, 仍缺: %d): 节点 %s (%s, 延迟: %dms, 带宽: %.1fMbps)",
 				g.Name, targetN, needed, n.ID, n.CountryShort, n.LatencyMs, float64(n.Speed)/1000000.0)
 
@@ -453,10 +462,18 @@ func (m *DynamicGroupManager) EvaluateGroup(ctx context.Context, g *DynamicGroup
 			}
 
 			if connected {
-				chosenTunnelIDs = append(chosenTunnelIDs, newTun.ID)
-				usedNodeIDs[n.ID] = true
-				usedNodeIDs[n.IP] = true
-				needed--
+				// Verify genuine outbound Internet connectivity through this tunnel
+				time.Sleep(300 * time.Millisecond)
+				if CheckTunnelConnectivity(newTun.DevName, 3*time.Second) {
+					chosenTunnelIDs = append(chosenTunnelIDs, newTun.ID)
+					usedNodeIDs[n.ID] = true
+					usedNodeIDs[n.IP] = true
+					needed--
+				} else {
+					stats.LogWarn("DynamicGroup", "[%s] 候选节点 %s 握手成功但无法出网 (被对端阻断)，释放重试...", g.Name, n.ID)
+					_ = m.pool.StopTunnel(newTun.ID)
+					m.nodePool.Blacklist().Mark(n, "握手成功但无法出网", 600*time.Second)
+				}
 			} else {
 				st := newTun.GetStatus()
 				stats.LogWarn("DynamicGroup", "[%s] 候选节点 %s 握手超时或失败 (状态: %s)，释放该隧道并递补下一个候选...", g.Name, n.ID, st)
