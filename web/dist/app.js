@@ -1401,9 +1401,9 @@
             container.innerHTML = html;
         }
 
-        function onAllTunnelsCheckChanged(elOrEvent) {
-            const el = elOrEvent?.currentTarget || elOrEvent;
-            if (el.checked) {
+        function onAllTunnelsCheckChanged(event, element) {
+            const el = element || (event?.target?.closest ? event.target.closest('input') : null) || event?.target || this;
+            if (el && el.checked) {
                 document.querySelectorAll('.chk-single-tunnel').forEach(c => c.checked = false);
                 document.querySelectorAll('.chk-dynamic-group').forEach(c => c.checked = false);
             }
@@ -1940,8 +1940,9 @@
             }
         }
 
-        function updateNodeOutboundFromSelect(event) {
-            const select = event.currentTarget;
+        function updateNodeOutboundFromSelect(event, element) {
+            const select = element || (event?.target?.closest ? event.target.closest('select') : null) || event?.target || this;
+            if (!select || !select.dataset) return;
             updateNodeOutbound(select.dataset.nodeName, select.value);
         }
 
@@ -2155,7 +2156,8 @@
         };
 
         function runDataAction(element, dataKey, event) {
-            const actionName = element?.dataset?.[dataKey];
+            if (!element) return false;
+            const actionName = element.dataset?.[dataKey];
             const action = uiActions[actionName];
             if (!action) return false;
             let args = [];
@@ -2164,7 +2166,7 @@
             } catch (error) {
                 console.error('Invalid data-args', actionName, error);
             }
-            action(...args, event);
+            action.call(element, ...args, event, element);
             return true;
         }
 

@@ -96,6 +96,8 @@ const nodes = [{
   unlock: { openai: "unlocked", claude: "unlocked", netflix: "unlocked", google: "unlocked" },
 }];
 
+let lastOutboundPost = null;
+
 async function mockAPI(route) {
   const path = new URL(route.request().url()).pathname;
   if (path.endsWith("/api/events")) {
@@ -107,7 +109,20 @@ async function mockAPI(route) {
   else if (path.endsWith("/api/nodes")) body = nodes;
   else if (path.endsWith("/api/unlock")) body = {};
   else if (path.endsWith("/api/singbox/overview")) {
-    body = { ok: true, installed: false, nodes: [], available_outbounds: [] };
+    body = {
+      ok: true,
+      installed: true,
+      nodes: [{ name: "Hysteria2-62799.json", protocol: "Hysteria2", port: 62799, outbound: "direct" }],
+      available_outbounds: [
+        { addr: "direct", label: "直连", is_default: false },
+        { addr: "http://127.0.0.1:7928", label: "默认出口 7928", is_default: true }
+      ]
+    };
+  } else if (path.endsWith("/api/singbox/nodes/outbound")) {
+    try {
+      lastOutboundPost = JSON.parse(route.request().postData() || "{}");
+    } catch {}
+    body = { ok: true };
   } else if (path.endsWith("/api/proxy/ports")) body = status.port_rules;
   else if (path.endsWith("/api/tunnel-groups")) body = [];
   else if (path.endsWith("/api/blacklist")) body = [];
@@ -154,6 +169,22 @@ try {
     await page.locator('[data-action="switchSettingsTab"][data-args*="rotate"]').click();
     const rotateVisible = await page.locator("#tab-content-rotate").evaluate((element) => !element.classList.contains("hidden"));
     if (!rotateVisible) failures.push(`${viewport}px: settings tab switching failed`);
+
+    // Test sing-box outbound select switching
+    lastOutboundPost = null;
+    await page.evaluate(() => document.querySelector('[data-view="singbox"]').click());
+    await page.waitForTimeout(100);
+    const select = page.locator('.sb-chain-select');
+    if (await select.count() > 0) {
+      await select.selectOption("http://127.0.0.1:7928");
+      await page.waitForTimeout(100);
+      if (!lastOutboundPost || lastOutboundPost.outbound !== "http://127.0.0.1:7928" || lastOutboundPost.target !== "Hysteria2-62799.json") {
+        failures.push(`${viewport}px: singbox outbound select did not trigger POST /api/singbox/nodes/outbound with expected payload, got: ${JSON.stringify(lastOutboundPost)}`);
+      }
+    } else {
+      failures.push(`${viewport}px: singbox chain select element not found`);
+    }
+
     await page.locator('[data-view="nodes"]:visible').click();
     await page.locator("#chip-fav").click();
     const metrics = await page.evaluate(() => ({
