@@ -231,7 +231,7 @@
                 <div  class="row items-center gap-2 wrap">
                     <button id="btn-add-sb-node" class="btn" data-action="openAddSingBoxModal">
                         <svg aria-hidden="true" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        + 新建抗封锁入站
+                        新建抗封锁入站
                     </button>
                     <button class="btn btn-outline btn-sm"  data-action="batchSetSingBoxOutbound" data-args="[&quot;default&quot;]">
                         <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
@@ -539,7 +539,7 @@
 
     <!-- 3. 新建 sing-box 抗封锁入站模态弹窗 -->
     <div id="singbox-add-modal" class="modal-overlay">
-        <div class="modal-card modal-md" >
+        <div class="modal-card modal-xl" >
             <div class="card-header mb-4" >
                 <div class="card-title">
                     <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
@@ -551,23 +551,116 @@
             <form id="form-add-singbox" data-submit-action="submitAddSingBoxNode">
                 <!-- 协议选择卡片 Choice Cards -->
                 <div  class="mb-4">
-                    <label class="form-label mb-2" >选择抗封锁入站协议</label>
-                    <div class="choice-grid">
-                        <div class="choice-card selected" id="proto-card-reality" data-action="selectSingBoxProto" data-args="[&quot;reality&quot;]">
-                            <div class="choice-card-title">VLESS-REALITY</div>
-                            <div class="choice-card-desc">借用亚马逊/苹果 TLS 指纹，顶级伪装免配域名</div>
-                        </div>
-                        <div class="choice-card" id="proto-card-hy2" data-action="selectSingBoxProto" data-args="[&quot;hy2&quot;]">
-                            <div class="choice-card-title">Hysteria2</div>
-                            <div class="choice-card-desc">基于定制 QUIC 协议，针对恶劣网络与丢包极速狂飙</div>
-                        </div>
-                        <div class="choice-card" id="proto-card-tuic" data-action="selectSingBoxProto" data-args="[&quot;tuic&quot;]">
-                            <div class="choice-card-title">TUIC</div>
-                            <div class="choice-card-desc">基于 QUIC 拥塞控制 BBR 协议，低延迟抗抖动</div>
-                        </div>
-                        <div class="choice-card" id="proto-card-ss" data-action="selectSingBoxProto" data-args="[&quot;ss&quot;]">
-                            <div class="choice-card-title">Shadowsocks 2022</div>
-                            <div class="choice-card-desc">经典轻量加密协议，客户端兼容度极高</div>
+                    <div class="row items-center justify-between mb-2">
+                        <label class="form-label mb-0">选择抗封锁/抗风险入站协议</label>
+                        <span class="text-xs text-muted">全套 22 种脚本原生协议</span>
+                    </div>
+
+                    <div class="proto-filter-bar">
+                        <button type="button" class="pill-btn active" data-action="filterProtoGrid" data-args="[&quot;all&quot;]">全部 (22)</button>
+                        <button type="button" class="pill-btn" data-action="filterProtoGrid" data-args="[&quot;recommended&quot;]">⭐ 推荐免域名 (5)</button>
+                        <button type="button" class="pill-btn" data-action="filterProtoGrid" data-args="[&quot;popular&quot;]">🌐 经典穿透 (4)</button>
+                        <button type="button" class="pill-btn" data-action="filterProtoGrid" data-args="[&quot;cdn&quot;]">☁️ CDN/域名TLS (9)</button>
+                        <button type="button" class="pill-btn" data-action="filterProtoGrid" data-args="[&quot;raw&quot;]">⚡ 原生传输 (4)</button>
+                    </div>
+
+                    <div class="proto-choice-container">
+                        <div class="choice-grid">
+                            <!-- 1. 推荐免域名 -->
+                            <div class="choice-card selected" id="proto-card-reality" data-proto-cat="recommended" data-action="selectSingBoxProto" data-args="[&quot;reality&quot;]">
+                                <div class="choice-card-title">VLESS-REALITY <span class="badge badge-accent badge-mini">推荐</span></div>
+                                <div class="choice-card-desc">借用海外权威名站 TLS 指纹，顶级伪装免配域名</div>
+                            </div>
+                            <div class="choice-card" id="proto-card-rh2" data-proto-cat="recommended" data-action="selectSingBoxProto" data-args="[&quot;rh2&quot;]">
+                                <div class="choice-card-title">VLESS-H2-REALITY <span class="badge badge-accent badge-mini">推荐</span></div>
+                                <div class="choice-card-desc">HTTP/2 多路复用 + REALITY，高并发免配域名</div>
+                            </div>
+                            <div class="choice-card" id="proto-card-hy2" data-proto-cat="recommended" data-action="selectSingBoxProto" data-args="[&quot;hy2&quot;]">
+                                <div class="choice-card-title">Hysteria2 <span class="badge badge-accent badge-mini">极速</span></div>
+                                <div class="choice-card-desc">基于定制 QUIC 协议，跨洋恶劣网络与丢包克星</div>
+                            </div>
+                            <div class="choice-card" id="proto-card-tuic" data-proto-cat="recommended" data-action="selectSingBoxProto" data-args="[&quot;tuic&quot;]">
+                                <div class="choice-card-title">TUIC v5 <span class="badge badge-accent badge-mini">低延迟</span></div>
+                                <div class="choice-card-desc">基于 QUIC 拥塞控制 BBR 协议，低延迟抗抖动</div>
+                            </div>
+                            <div class="choice-card" id="proto-card-ss" data-proto-cat="recommended" data-action="selectSingBoxProto" data-args="[&quot;ss&quot;]">
+                                <div class="choice-card-title">Shadowsocks 2022</div>
+                                <div class="choice-card-desc">现代轻量对称加密规范，开销极小客户端支持广</div>
+                            </div>
+
+                            <!-- 2. 经典穿透 -->
+                            <div class="choice-card" id="proto-card-trojan" data-proto-cat="popular" data-action="selectSingBoxProto" data-args="[&quot;trojan&quot;]">
+                                <div class="choice-card-title">Trojan</div>
+                                <div class="choice-card-desc">经典伪装 HTTPS 网页浏览，保真度高</div>
+                            </div>
+                            <div class="choice-card" id="proto-card-anytls" data-proto-cat="popular" data-action="selectSingBoxProto" data-args="[&quot;anytls&quot;]">
+                                <div class="choice-card-title">AnyTLS</div>
+                                <div class="choice-card-desc">多路径自适应 TLS 传输，动态流量特征自愈</div>
+                            </div>
+                            <div class="choice-card" id="proto-card-socks" data-proto-cat="popular" data-action="selectSingBoxProto" data-args="[&quot;socks&quot;]">
+                                <div class="choice-card-title">Socks5</div>
+                                <div class="choice-card-desc">标准 Socks5 代理入站，局域网与前置分流首选</div>
+                            </div>
+                            <div class="choice-card" id="proto-card-direct" data-proto-cat="popular" data-action="selectSingBoxProto" data-args="[&quot;direct&quot;]">
+                                <div class="choice-card-title">Direct (端口转发)</div>
+                                <div class="choice-card-desc">透明 TCP 端口流量中继直通</div>
+                            </div>
+
+                            <!-- 3. CDN / 域名 TLS -->
+                            <div class="choice-card" id="proto-card-vws" data-proto-cat="cdn" data-action="selectSingBoxProto" data-args="[&quot;vws&quot;]">
+                                <div class="choice-card-title">VLESS-WS-TLS</div>
+                                <div class="choice-card-desc">VLESS + WebSocket + TLS，支持 Cloudflare CDN 优选反代</div>
+                            </div>
+                            <div class="choice-card" id="proto-card-wss" data-proto-cat="cdn" data-action="selectSingBoxProto" data-args="[&quot;wss&quot;]">
+                                <div class="choice-card-title">VMess-WS-TLS</div>
+                                <div class="choice-card-desc">VMess + WebSocket + TLS，经典 CDN 拯救被墙 IP 方案</div>
+                            </div>
+                            <div class="choice-card" id="proto-card-tws" data-proto-cat="cdn" data-action="selectSingBoxProto" data-args="[&quot;tws&quot;]">
+                                <div class="choice-card-title">Trojan-WS-TLS</div>
+                                <div class="choice-card-desc">Trojan + WebSocket + TLS，隐藏真实源站地址</div>
+                            </div>
+                            <div class="choice-card" id="proto-card-vhu" data-proto-cat="cdn" data-action="selectSingBoxProto" data-args="[&quot;vhu&quot;]">
+                                <div class="choice-card-title">VLESS-HTTPUpgrade-TLS</div>
+                                <div class="choice-card-desc">新一代 HTTPUpgrade 传输，性能优于传统 WS</div>
+                            </div>
+                            <div class="choice-card" id="proto-card-hu" data-proto-cat="cdn" data-action="selectSingBoxProto" data-args="[&quot;hu&quot;]">
+                                <div class="choice-card-title">VMess-HTTPUpgrade-TLS</div>
+                                <div class="choice-card-desc">VMess + HTTPUpgrade 现代化高性能传输</div>
+                            </div>
+                            <div class="choice-card" id="proto-card-thu" data-proto-cat="cdn" data-action="selectSingBoxProto" data-args="[&quot;thu&quot;]">
+                                <div class="choice-card-title">Trojan-HTTPUpgrade-TLS</div>
+                                <div class="choice-card-desc">Trojan + HTTPUpgrade 现代化加密传输</div>
+                            </div>
+                            <div class="choice-card" id="proto-card-vh2" data-proto-cat="cdn" data-action="selectSingBoxProto" data-args="[&quot;vh2&quot;]">
+                                <div class="choice-card-title">VLESS-H2-TLS</div>
+                                <div class="choice-card-desc">VLESS + HTTP/2 多路复用 + TLS</div>
+                            </div>
+                            <div class="choice-card" id="proto-card-h2" data-proto-cat="cdn" data-action="selectSingBoxProto" data-args="[&quot;h2&quot;]">
+                                <div class="choice-card-title">VMess-H2-TLS</div>
+                                <div class="choice-card-desc">VMess + HTTP/2 多路复用 + TLS</div>
+                            </div>
+                            <div class="choice-card" id="proto-card-th2" data-proto-cat="cdn" data-action="selectSingBoxProto" data-args="[&quot;th2&quot;]">
+                                <div class="choice-card-title">Trojan-H2-TLS</div>
+                                <div class="choice-card-desc">Trojan + HTTP/2 多路复用 + TLS</div>
+                            </div>
+
+                            <!-- 4. 原生 / 内网传输 -->
+                            <div class="choice-card" id="proto-card-ws" data-proto-cat="raw" data-action="selectSingBoxProto" data-args="[&quot;ws&quot;]">
+                                <div class="choice-card-title">VMess-WS (明文)</div>
+                                <div class="choice-card-desc">纯 WebSocket 传输，便于前置 Nginx/Caddy 自建反代</div>
+                            </div>
+                            <div class="choice-card" id="proto-card-tcp" data-proto-cat="raw" data-action="selectSingBoxProto" data-args="[&quot;tcp&quot;]">
+                                <div class="choice-card-title">VMess-TCP</div>
+                                <div class="choice-card-desc">原生 TCP 传输，开销极低</div>
+                            </div>
+                            <div class="choice-card" id="proto-card-http" data-proto-cat="raw" data-action="selectSingBoxProto" data-args="[&quot;http&quot;]">
+                                <div class="choice-card-title">VMess-HTTP</div>
+                                <div class="choice-card-desc">伪装 HTTP/1.1 明文请求头</div>
+                            </div>
+                            <div class="choice-card" id="proto-card-quic" data-proto-cat="raw" data-action="selectSingBoxProto" data-args="[&quot;quic&quot;]">
+                                <div class="choice-card-title">VMess-QUIC</div>
+                                <div class="choice-card-desc">基于原生 UDP QUIC 协议传输</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -602,12 +695,12 @@
                     <summary  class="advanced-summary">高级参数设置 (可选，支持自动生成)</summary>
                     <div  class="advanced-grid">
                         <div>
-                            <label class="form-label">自定义 SNI 伪装域名 (仅 REALITY 协议有效)</label>
-                            <input id="sb-add-sni" class="input-field w-full mono"  type="text" placeholder="auto (默认随机权威名站，如 www.amazon.com)" value="auto">
+                            <label class="form-label" id="sb-sni-label">自定义 SNI 伪装域名 / 主机名</label>
+                            <input id="sb-add-sni" class="input-field w-full mono"  type="text" placeholder="auto (默认知名权威站，如 www.amazon.com)" value="auto">
                         </div>
                         <div>
-                            <label class="form-label">自定义 UUID 或密码 (留空自动生成安全凭据)</label>
-                            <input id="sb-add-cred" class="input-field w-full mono"  type="text" placeholder="auto (自动生成标准 UUID 凭证)" value="auto">
+                            <label class="form-label" id="sb-cred-label">自定义 UUID 或连接密码 (留空自动生成)</label>
+                            <input id="sb-add-cred" class="input-field w-full mono"  type="text" placeholder="auto (自动生成标准安全凭据)" value="auto">
                         </div>
                     </div>
                 </details>

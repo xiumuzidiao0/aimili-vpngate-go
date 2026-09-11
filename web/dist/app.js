@@ -1870,6 +1870,7 @@
                 return `<option value="${escapeHtml(ob.addr)}" ${ob.is_default ? 'selected' : ''}>${escapeHtml(ob.label)}</option>`;
             }).join('');
 
+            filterProtoGrid('all');
             selectSingBoxProto('reality');
             document.getElementById('sb-add-port').value = 'auto';
             document.getElementById('sb-add-sni').value = 'auto';
@@ -1884,13 +1885,66 @@
 
         function selectSingBoxProto(proto) {
             currentSelectedProto = proto;
-            ['reality', 'hy2', 'tuic', 'ss'].forEach(p => {
-                const el = document.getElementById('proto-card-' + p);
-                if (el) {
-                    if (p === proto) el.classList.add('selected');
-                    else el.classList.remove('selected');
+            document.querySelectorAll('#singbox-add-modal .choice-card').forEach(el => {
+                let cardProto = '';
+                try {
+                    cardProto = JSON.parse(el.dataset.args || '[]')[0] || '';
+                } catch(e){}
+                el.classList.toggle('selected', cardProto === proto);
+            });
+            updateProtoHelpText(proto);
+        }
+
+        function filterProtoGrid(category) {
+            document.querySelectorAll('.proto-filter-bar .pill-btn').forEach(btn => {
+                let btnCat = '';
+                try {
+                    btnCat = JSON.parse(btn.dataset.args || '[]')[0] || '';
+                } catch(e){}
+                btn.classList.toggle('active', btnCat === category);
+            });
+            document.querySelectorAll('#singbox-add-modal .choice-card').forEach(card => {
+                if (category === 'all' || card.dataset.protoCat === category) {
+                    card.classList.remove('hidden');
+                } else {
+                    card.classList.add('hidden');
                 }
             });
+        }
+
+        function updateProtoHelpText(proto) {
+            const sniLabel = document.getElementById('sb-sni-label');
+            const sniInput = document.getElementById('sb-add-sni');
+            const credLabel = document.getElementById('sb-cred-label');
+            const credInput = document.getElementById('sb-add-cred');
+            if (!sniLabel || !credLabel) return;
+
+            const isReality = proto.includes('reality') || proto === 'r' || proto === 'rh2';
+            const isTLS = proto.endsWith('tls') || proto === 'trojan' || ['vws', 'wss', 'tws', 'vhu', 'hu', 'thu', 'vh2', 'h2', 'th2'].includes(proto);
+            const isPassword = ['hy2', 'tuic', 'ss', 'trojan', 'anytls'].includes(proto) || proto.includes('trojan') || proto.includes('hysteria');
+            const isSocks = proto === 'socks';
+
+            if (isReality) {
+                sniLabel.innerText = '自定义 SNI 伪装域名 (借用权威名站)';
+                if (sniInput) sniInput.placeholder = 'auto (知名权威站，如 www.amazon.com)';
+            } else if (isTLS) {
+                sniLabel.innerText = '域名 / SNI 证书配置 (需已解析域名)';
+                if (sniInput) sniInput.placeholder = 'auto (或输入域名，如 your-domain.com)';
+            } else {
+                sniLabel.innerText = '自定义 SNI / 伪装域名 (当前协议免配置)';
+                if (sniInput) sniInput.placeholder = 'auto (当前协议无需配置)';
+            }
+
+            if (isPassword) {
+                credLabel.innerText = '自定义连接密码 (Password)';
+                if (credInput) credInput.placeholder = 'auto (自动生成高强度随机密码)';
+            } else if (isSocks) {
+                credLabel.innerText = 'Socks 认证密码 (留空免密)';
+                if (credInput) credInput.placeholder = '留空免密直连';
+            } else {
+                credLabel.innerText = '自定义客户端 UUID 凭据';
+                if (credInput) credInput.placeholder = 'auto (自动生成标准 UUID 凭证)';
+            }
         }
 
         function setSingBoxPortAuto() {
@@ -2143,6 +2197,7 @@
             saveDynamicGroup,
             closeAddSingBoxModal,
             selectSingBoxProto,
+            filterProtoGrid,
             setSingBoxPortAuto,
             closeSingBoxQRModal,
             copyFromElement,

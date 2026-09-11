@@ -223,10 +223,36 @@ try {
     const groupCardVisible = await page.locator(".dynamic-group-card").first().isVisible();
     if (!groupCardVisible) failures.push(`${viewport}px: dynamic group card is not visible in matrix tab`);
 
-    // Test sing-box outbound select switching
+    // Test sing-box outbound select switching and add modal
     lastOutboundPost = null;
     await page.evaluate(() => document.querySelector('[data-view="singbox"]').click());
     await page.waitForTimeout(100);
+
+    const btnText = await page.locator("#btn-add-sb-node").innerText();
+    if (btnText.trim().startsWith("+")) {
+      failures.push(`${viewport}px: singbox add button still has duplicate plus sign: "${btnText}"`);
+    }
+
+    await page.locator("#btn-add-sb-node").click();
+    await page.waitForTimeout(100);
+    const modalOpen = await page.locator("#singbox-add-modal").isVisible();
+    if (!modalOpen) failures.push(`${viewport}px: singbox add modal did not open`);
+
+    const totalCards = await page.locator("#singbox-add-modal .choice-card").count();
+    if (totalCards !== 22) failures.push(`${viewport}px: expected 22 protocol cards, got ${totalCards}`);
+
+    await page.locator('[data-action="filterProtoGrid"][data-args*="recommended"]').click();
+    await page.waitForTimeout(60);
+    const visibleRec = await page.locator("#singbox-add-modal .choice-card:visible").count();
+    if (visibleRec !== 5) failures.push(`${viewport}px: expected 5 recommended cards, got ${visibleRec}`);
+
+    await page.locator('#proto-card-rh2').click();
+    const rh2Selected = await page.locator('#proto-card-rh2').evaluate(el => el.classList.contains('selected'));
+    if (!rh2Selected) failures.push(`${viewport}px: rh2 protocol card was not selected`);
+
+    await page.locator('[data-action="closeAddSingBoxModal"]').first().click();
+    await page.waitForTimeout(100);
+
     const select = page.locator('.sb-chain-select');
     if (await select.count() > 0) {
       await select.selectOption("http://127.0.0.1:7928");

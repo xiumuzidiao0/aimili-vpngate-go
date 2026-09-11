@@ -1502,8 +1502,44 @@ button {
         }
         .copy-pill:hover { border-color: var(--primary); color: var(--primary); }
 
-        /* Choice Tile Cards */
-        .choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 6px; }
+        /* Choice Tile Cards & Protocol Filter */
+        .proto-filter-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+        .pill-btn {
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            border-radius: 9999px;
+            padding: 3px 10px;
+            font-size: 11.5px;
+            font-weight: 500;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .pill-btn:hover {
+            color: #fff;
+            border-color: var(--primary);
+            background: var(--bg-hover);
+        }
+        .pill-btn.active {
+            background: var(--primary);
+            color: var(--primary-ink);
+            border-color: var(--primary);
+            font-weight: 600;
+        }
+        .proto-choice-container {
+            max-height: 260px;
+            overflow-y: auto;
+            padding: 6px 8px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--bg-card-sub);
+        }
+        .choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 2px; }
         .choice-card {
             background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius-md);
             padding: 10px 12px; cursor: pointer; transition: all 0.15s; display: flex; flex-direction: column; gap: 4px; user-select: none;
