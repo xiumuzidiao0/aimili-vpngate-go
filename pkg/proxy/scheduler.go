@@ -64,13 +64,9 @@ func (s *DefaultScheduler) SelectTunnel(port int, boundIDs []string, boundGroupI
 		}
 	}
 
-	// 3. Fallback if no specific bound tunnels were chosen
-	if len(boundIDs) == 0 && len(boundGroupIDs) == 0 {
-		healthy = s.pool.GetHealthyTunnels(nil)
-	}
-
+	// Fallback: if no specific bound tunnels were chosen, or if the bound static/group IDs have no healthy tunnels currently,
+	// automatically fallback to any healthy tunnel in the whole pool so proxy connections never black-hole
 	if len(healthy) == 0 {
-		// Ultimate fallback: try any healthy tunnel in the whole pool
 		healthy = s.pool.GetHealthyTunnels(nil)
 		if len(healthy) == 0 {
 			return nil
