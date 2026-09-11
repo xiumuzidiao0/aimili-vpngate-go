@@ -99,8 +99,26 @@ func handlePlainHTTP(client net.Conn, req *http.Request, devName string, tun *tu
 		return fmt.Errorf("forward request failed: %w", err)
 	}
 
-	// Pipe upstream response to client
-	relay(client, upstream)
+	// Read upstream HTTP response
+	upResp, err := http.ReadResponse(bufio.NewReader(upstream), req)
+	if err != nil {
+		return fmt.Errorf("read upstream response failed: %w", err)
+	}
+	defer upResp.Body.Close()
+
+	// Forward response to client
+	upResp.Close = true
+	if err := upResp.Write(client); err != nil {
+		return fmt.Errorf("write client response failed: %w", err)
+	}
+
+	// Cleanly shut down writing to notify client and clean up
+	if bc, ok := client.(*bufferedConn); ok {
+		_ = bc.CloseWrite()
+	} else if tc, ok := client.(*net.TCPConn); ok {
+		_ = tc.CloseWrite()
+	}
+
 	return nil
 }
 
