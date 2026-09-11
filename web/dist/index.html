@@ -890,7 +890,7 @@
                     </button>
                     <h1 id="page-title" style="font-size: 19px; font-weight: 700; letter-spacing: -0.01em;">运行概览</h1>
                     <span id="conn-badge" class="badge disconnected"><span class="status-dot"></span> 检查中</span>
-                    <span id="app-version-badge" class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); font-family: monospace; font-size: 11px;">v2.4.0</span>
+                    <span id="app-version-badge" class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); font-family: monospace; font-size: 11px;">v2.5.0</span>
                 </div>
 
                 <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
@@ -1441,6 +1441,15 @@
                             </select>
                         </div>
                         <div>
+                            <label class="form-label">节点解锁能力要求</label>
+                            <select id="dg-unlock" class="input-field" style="width: 100%;">
+                                <option value="none" selected>🌐 不限解锁能力</option>
+                                <option value="ai">🤖 必须支持 AI 模型 (ChatGPT / Claude)</option>
+                                <option value="streaming">🎬 必须支持流媒体 (Netflix / Google)</option>
+                                <option value="full">⭐ 全解锁 (AI模型 + 主流流媒体)</option>
+                            </select>
+                        </div>
+                        <div id="dg-count-container">
                             <label class="form-label">维持并发在线出口数 [1-10]</label>
                             <input id="dg-count" class="input-field" style="width: 100%;" type="number" min="1" max="10" value="3">
                         </div>
@@ -2429,28 +2438,39 @@
                 if (g.ip_type === 'hosting') ipTypeText = '🏢 机房 IP';
                 if (g.ip_type === 'mobile') ipTypeText = '📱 移动网络';
 
+                let unlockText = '';
+                if (g.unlock_filter === 'ai') unlockText = '<span>解锁: <strong style="color:#a78bfa;">🤖 仅AI模型</strong></span>';
+                else if (g.unlock_filter === 'streaming') unlockText = '<span>解锁: <strong style="color:#f472b6;">🎬 仅流媒体</strong></span>';
+                else if (g.unlock_filter === 'full' || g.unlock_filter === 'all') unlockText = '<span>解锁: <strong style="color:#facc15;">⭐ 全解锁 (AI+流媒体)</strong></span>';
+
+                const isSys = g.is_system || g.id === 'system-primary';
+                const sysBadge = isSys ? `<span class="badge" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.35); font-size: 11px;">👑 系统主连网关 (tun0)</span>` : `<span class="badge" style="background: rgba(2, 132, 199, 0.15); color: #38bdf8; font-size: 11px;">Top ${g.target_count} 隧道</span>`;
+                const deleteBtn = isSys ? '' : `<button class="btn btn-danger" style="padding: 3px 8px; font-size: 11px;" onclick="deleteDynamicGroup('${g.id}')">删除</button>`;
+                const editLabel = isSys ? '配置主连策略' : '编辑';
+
                 const countryStr = g.country ? `${getCountryName(g.country)} (${g.country})` : '全部国家/地区';
                 const activeCount = (g.active_tunnel_ids || []).length;
                 const statusClass = activeCount >= g.target_count ? 'connected' : (activeCount > 0 ? 'connecting' : 'disconnected');
 
                 return `
-                    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div style="background: var(--bg-card); border: 1px solid ${isSys ? 'rgba(99, 102, 241, 0.35)' : 'var(--border)'}; border-radius: 8px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                         <div>
                             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
                                 <span class="badge ${statusClass}"><span class="status-dot"></span> ${g.status_text || '正常'}</span>
                                 <strong style="color: #fff; font-size: 13px;">${g.name}</strong>
-                                <span class="badge" style="background: rgba(2, 132, 199, 0.15); color: #38bdf8; font-size: 11px;">Top ${g.target_count} 隧道</span>
+                                ${sysBadge}
                             </div>
                             <div style="font-size: 11.5px; color: var(--text-muted); display: flex; gap: 12px; flex-wrap: wrap;">
                                 <span>目标: <strong style="color:#e2e8f0;">${countryStr}</strong></span>
                                 <span>类型: <strong style="color:#e2e8f0;">${ipTypeText}</strong></span>
+                                ${unlockText}
                                 <span>指标: <strong style="color:#34d399;">${metricText}</strong></span>
                                 <span>周期: <strong style="color:#e2e8f0;">${g.interval_minutes}分钟</strong></span>
                             </div>
                         </div>
                         <div style="display: flex; gap: 6px;">
-                            <button class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="editDynamicGroup('${g.id}')">编辑</button>
-                            <button class="btn btn-danger" style="padding: 3px 8px; font-size: 11px;" onclick="deleteDynamicGroup('${g.id}')">删除</button>
+                            <button class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;" onclick="editDynamicGroup('${g.id}')">${editLabel}</button>
+                            ${deleteBtn}
                         </div>
                     </div>
                 `;
@@ -2463,7 +2483,9 @@
             document.getElementById('dg-name').value = '';
             document.getElementById('dg-country').value = 'JP';
             document.getElementById('dg-iptype').value = 'residential';
+            document.getElementById('dg-unlock').value = 'none';
             document.getElementById('dg-sortby').value = 'latency';
+            document.getElementById('dg-count-container').style.display = 'block';
             document.getElementById('dg-count').value = 3;
             document.getElementById('dg-interval').value = 15;
             document.getElementById('dynamic-group-edit-card').style.display = 'block';
@@ -2474,12 +2496,20 @@
             const g = currentDynamicGroups.find(item => item.id === id);
             if (!g) return;
             editingGroupId = id;
-            document.getElementById('dynamic-group-edit-title').innerText = `编辑自适应组: ${g.name}`;
+            const isSys = g.is_system || g.id === 'system-primary';
+            if (isSys) {
+                document.getElementById('dynamic-group-edit-title').innerText = '配置系统主连接自适应策略 (tun0)';
+                document.getElementById('dg-count-container').style.display = 'none';
+            } else {
+                document.getElementById('dynamic-group-edit-title').innerText = `编辑自适应组: ${g.name}`;
+                document.getElementById('dg-count-container').style.display = 'block';
+            }
             document.getElementById('dg-name').value = g.name;
             document.getElementById('dg-country').value = g.country || '';
             document.getElementById('dg-iptype').value = g.ip_type || 'all';
+            document.getElementById('dg-unlock').value = g.unlock_filter || 'none';
             document.getElementById('dg-sortby').value = g.sort_by || 'latency';
-            document.getElementById('dg-count').value = g.target_count || 3;
+            document.getElementById('dg-count').value = g.target_count || (isSys ? 1 : 3);
             document.getElementById('dg-interval').value = g.interval_minutes || 15;
             document.getElementById('dynamic-group-edit-card').style.display = 'block';
             document.getElementById('dynamic-group-edit-card').scrollIntoView({ behavior: 'smooth' });
@@ -2492,6 +2522,7 @@
             if (!name) { alert('请输入自适应组名称'); return; }
             const country = document.getElementById('dg-country').value;
             const ipType = document.getElementById('dg-iptype').value;
+            const unlockFilter = document.getElementById('dg-unlock').value;
             const sortBy = document.getElementById('dg-sortby').value;
             const count = parseInt(document.getElementById('dg-count').value) || 3;
             const interval = parseInt(document.getElementById('dg-interval').value) || 15;
@@ -2500,10 +2531,12 @@
                 id: editingGroupId || '',
                 name: name,
                 enabled: true,
+                is_system: editingGroupId === 'system-primary',
                 country: country,
                 ip_type: ipType,
+                unlock_filter: unlockFilter,
                 sort_by: sortBy,
-                target_count: count,
+                target_count: editingGroupId === 'system-primary' ? 1 : count,
                 interval_minutes: interval
             };
 

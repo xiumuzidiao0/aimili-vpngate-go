@@ -48,6 +48,7 @@ func main() {
 	tunnelPool := tunnel.NewPool(cfg, nodePool)
 	vpnMgr := vpn.NewManager(cfg, nodePool, tunnelPool)
 	dynamicGroupMgr := tunnel.NewDynamicGroupManager(cfg, tunnelPool, nodePool)
+	dynamicGroupMgr.SetPrimaryConnector(vpnMgr)
 	portMgr := proxy.NewMultiPortManager(cfg, tunnelPool, dynamicGroupMgr)
 	notifier := notify.NewTelegramNotifier(cfg)
 	webServer := server.NewServer(cfg, nodePool, vpnMgr, tunnelPool, dynamicGroupMgr, portMgr, notifier)

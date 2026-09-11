@@ -357,6 +357,12 @@ func (np *NodePool) Status() (string, string, time.Time, int) {
 	return np.lastStatus, np.lastSource, np.lastUpdated, len(np.candidates)
 }
 
+func (np *NodePool) SetCandidatesForTest(candidates []*Node) {
+	np.mu.Lock()
+	defer np.mu.Unlock()
+	np.candidates = candidates
+}
+
 func (np *NodePool) FindPort(nodeID, ip string) int {
 	np.mu.RLock()
 	defer np.mu.RUnlock()

@@ -16,28 +16,39 @@ import (
 	"aimili-vpngate-go/pkg/stats"
 )
 
+const SystemPrimaryGroupID = "system-primary"
+
 type DynamicGroup struct {
-	ID              string    `json:"id"`               // e.g. "dg-1"
+	ID              string    `json:"id"`               // e.g. "dg-1" or "system-primary"
 	Name            string    `json:"name"`             // e.g. "日本Top3住宅隧道组"
 	Enabled         bool      `json:"enabled"`          // 是否启用自动自适应维护
+	IsSystem        bool      `json:"is_system"`        // 是否为系统主出口专用组
 	Country         string    `json:"country"`          // "JP", "US", or "" for 全部
 	IPType          string    `json:"ip_type"`          // "residential", "hosting", "all"
+	UnlockFilter    string    `json:"unlock_filter"`    // "none" (不限), "ai" (OpenAI/Claude), "streaming" (Netflix/Google), "all" (全解锁)
 	SortBy          string    `json:"sort_by"`          // "latency" (延迟优先), "speed" (带宽优先), "score" (评分优先)
-	TargetCount     int       `json:"target_count"`     // 维持并发隧道数 (例如 3)
+	TargetCount     int       `json:"target_count"`     // 维持并发隧道数 (主网关固定为 1, 其余组例如 3)
 	IntervalMinutes int       `json:"interval_minutes"` // 重新评估与动态轮换周期 (分钟, 例如 15)
 	ActiveTunnelIDs []string  `json:"active_tunnel_ids"`// 当前此组维护的隧道 ID 列表
 	LastEvaluatedAt time.Time `json:"last_evaluated_at"`// 上次重新评估并轮换的时间
 	StatusText      string    `json:"status_text"`      // 状态摘要
 }
 
+type PrimaryConnector interface {
+	Connect(target *nodes.Node) error
+	GetActiveNode() *nodes.Node
+	GetStatus() string
+}
+
 type DynamicGroupManager struct {
-	cfg       *config.Config
-	pool      *Pool
-	nodePool  *nodes.NodePool
-	filePath  string
-	mu        sync.RWMutex
-	groups    map[string]*DynamicGroup
-	evalMutex sync.Mutex
+	cfg              *config.Config
+	pool             *Pool
+	nodePool         *nodes.NodePool
+	filePath         string
+	mu               sync.RWMutex
+	groups           map[string]*DynamicGroup
+	evalMutex        sync.Mutex
+	primaryConnector PrimaryConnector
 }
 
 func NewDynamicGroupManager(cfg *config.Config, pool *Pool, np *nodes.NodePool) *DynamicGroupManager {
@@ -49,7 +60,34 @@ func NewDynamicGroupManager(cfg *config.Config, pool *Pool, np *nodes.NodePool) 
 		groups:   make(map[string]*DynamicGroup),
 	}
 	m.load()
+
+	// Ensure system primary group exists
+	m.mu.Lock()
+	if _, ok := m.groups[SystemPrimaryGroupID]; !ok {
+		m.groups[SystemPrimaryGroupID] = &DynamicGroup{
+			ID:              SystemPrimaryGroupID,
+			Name:            "系统主出口网关组 (tun0)",
+			Enabled:         true,
+			IsSystem:        true,
+			Country:         "",
+			IPType:          "all",
+			UnlockFilter:    "none",
+			SortBy:          "score",
+			TargetCount:     1,
+			IntervalMinutes: 30,
+			StatusText:      "维持系统主网关出口 (tun0)",
+		}
+		m.saveLocked()
+	}
+	m.mu.Unlock()
+
 	return m
+}
+
+func (m *DynamicGroupManager) SetPrimaryConnector(pc PrimaryConnector) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.primaryConnector = pc
 }
 
 func (m *DynamicGroupManager) load() {
@@ -101,6 +139,9 @@ func (m *DynamicGroupManager) ListGroups() []*DynamicGroup {
 		list = append(list, &cp)
 	}
 	sort.Slice(list, func(i, j int) bool {
+		if list[i].IsSystem != list[j].IsSystem {
+			return list[i].IsSystem // System primary group always first
+		}
 		return list[i].ID < list[j].ID
 	})
 	return list
@@ -121,15 +162,25 @@ func (m *DynamicGroupManager) SaveGroup(g *DynamicGroup) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if g.ID == "" {
-		g.ID = fmt.Sprintf("dg-%d", time.Now().UnixNano()%100000)
+	if g.ID == SystemPrimaryGroupID || g.IsSystem {
+		g.ID = SystemPrimaryGroupID
+		g.IsSystem = true
+		g.TargetCount = 1
+		if g.Name == "" {
+			g.Name = "系统主出口网关组 (tun0)"
+		}
+	} else {
+		if g.ID == "" {
+			g.ID = fmt.Sprintf("dg-%d", time.Now().UnixNano()%100000)
+		}
+		if g.TargetCount <= 0 {
+			g.TargetCount = 3
+		}
+		if g.TargetCount > 16 {
+			g.TargetCount = 16
+		}
 	}
-	if g.TargetCount <= 0 {
-		g.TargetCount = 3
-	}
-	if g.TargetCount > 16 {
-		g.TargetCount = 16
-	}
+
 	if g.IntervalMinutes <= 0 {
 		g.IntervalMinutes = 15
 	}
@@ -139,16 +190,24 @@ func (m *DynamicGroupManager) SaveGroup(g *DynamicGroup) error {
 	if g.IPType == "" {
 		g.IPType = "all"
 	}
+	if g.UnlockFilter == "" {
+		g.UnlockFilter = "none"
+	}
 
 	m.groups[g.ID] = g
 	m.saveLocked()
 
-	stats.LogInfo("DynamicGroup", "保存动态自适应组 [%s] (%s): 目标数=%d, 策略=%s, 周期=%d分钟",
-		g.ID, g.Name, g.TargetCount, g.SortBy, g.IntervalMinutes)
+	stats.LogInfo("DynamicGroup", "保存动态自适应组 [%s] (%s): 目标数=%d, 策略=%s, 解锁筛选=%s, 周期=%d分钟",
+		g.ID, g.Name, g.TargetCount, g.SortBy, g.UnlockFilter, g.IntervalMinutes)
 	return nil
 }
 
 func (m *DynamicGroupManager) DeleteGroup(id string) {
+	if id == SystemPrimaryGroupID {
+		stats.LogWarn("DynamicGroup", "系统主出口网关组受系统保护，禁止删除！")
+		return
+	}
+
 	m.mu.Lock()
 	g, ok := m.groups[id]
 	if ok {
@@ -224,6 +283,15 @@ func (m *DynamicGroupManager) EvaluateGroup(ctx context.Context, g *DynamicGroup
 				continue
 			}
 		}
+		if g.UnlockFilter != "" && g.UnlockFilter != "none" {
+			unlock := n.Unlock
+			if unlock == nil && m.pool.UnlockDetector() != nil {
+				unlock = m.pool.UnlockDetector().EvaluateNodeUnlock(n)
+			}
+			if !unlock.MatchFilter(g.UnlockFilter) {
+				continue
+			}
+		}
 		matched = append(matched, n)
 	}
 
@@ -280,6 +348,12 @@ func (m *DynamicGroupManager) EvaluateGroup(ctx context.Context, g *DynamicGroup
 			return a.Ping < b.Ping
 		}
 	})
+
+	// 4. Special handling for System Primary Gateway Group (tun0)
+	if g.IsSystem || g.ID == SystemPrimaryGroupID {
+		m.evaluatePrimarySystemGroup(ctx, g, matched)
+		return
+	}
 
 	// 4. Target count to maintain
 	targetN := g.TargetCount
@@ -467,5 +541,84 @@ func (m *DynamicGroupManager) evaluateAll(ctx context.Context) {
 		if needsEval {
 			m.EvaluateGroup(ctx, g)
 		}
+	}
+}
+
+func (m *DynamicGroupManager) evaluatePrimarySystemGroup(ctx context.Context, g *DynamicGroup, matched []*nodes.Node) {
+	if len(matched) == 0 {
+		m.mu.Lock()
+		g.StatusText = "无匹配主节点候选"
+		m.saveLocked()
+		m.mu.Unlock()
+		return
+	}
+
+	best := matched[0]
+
+	// Find current primary tunnel (devIndex 0)
+	var primaryTun *Tunnel
+	for _, t := range m.pool.ListTunnels() {
+		if t.DevIndex == 0 {
+			primaryTun = t
+			break
+		}
+	}
+
+	primaryHealthy := primaryTun != nil && primaryTun.IsHealthy()
+	var currentActiveNode *nodes.Node
+	if m.primaryConnector != nil {
+		currentActiveNode = m.primaryConnector.GetActiveNode()
+	} else if primaryTun != nil {
+		currentActiveNode = primaryTun.Node
+	}
+
+	// If primary is already healthy on this best node, keep it
+	if primaryHealthy && currentActiveNode != nil && (currentActiveNode.ID == best.ID || currentActiveNode.IP == best.IP) {
+		m.mu.Lock()
+		g.ActiveTunnelIDs = []string{primaryTun.ID}
+		g.LastEvaluatedAt = time.Now()
+		g.StatusText = fmt.Sprintf("主网关正常运行: %s (%s, tun0)", currentActiveNode.IP, currentActiveNode.CountryShort)
+		m.saveLocked()
+		m.mu.Unlock()
+		return
+	}
+
+	// If primary connection was established within last 60 seconds, don't interrupt it
+	if primaryTun != nil && !primaryTun.ConnectedAt.IsZero() && time.Since(primaryTun.ConnectedAt) < 60*time.Second {
+		m.mu.Lock()
+		g.ActiveTunnelIDs = []string{primaryTun.ID}
+		g.LastEvaluatedAt = time.Now()
+		g.StatusText = fmt.Sprintf("主网关刚建立: %s (%s, tun0)", primaryTun.Node.IP, primaryTun.Node.CountryShort)
+		m.saveLocked()
+		m.mu.Unlock()
+		return
+	}
+
+	// Trigger primary connection to the best node
+	if m.primaryConnector != nil {
+		stats.LogInfo("DynamicGroup", "[%s] 主出口自适应组触发自适应连接 -> 节点: %s (%s)...",
+			g.Name, best.ID, best.CountryShort)
+		err := m.primaryConnector.Connect(best)
+		m.mu.Lock()
+		g.LastEvaluatedAt = time.Now()
+		if err != nil {
+			g.StatusText = fmt.Sprintf("主网关连接失败: %v", err)
+		} else {
+			g.StatusText = fmt.Sprintf("主网关正在建立: %s (%s, tun0)", best.IP, best.CountryShort)
+		}
+		m.saveLocked()
+		m.mu.Unlock()
+	} else {
+		newTun, err := m.pool.StartPrimaryTunnel(best)
+		m.mu.Lock()
+		g.LastEvaluatedAt = time.Now()
+		if err == nil && newTun != nil {
+			g.ActiveTunnelIDs = []string{newTun.ID}
+			g.StatusText = fmt.Sprintf("主网关运行中: %s (%s, tun0)", best.IP, best.CountryShort)
+		} else {
+			g.StatusText = fmt.Sprintf("主网关连接失败: %v", err)
+		}
+		m.saveLocked()
+		m.mu.Unlock()
 	}
 }

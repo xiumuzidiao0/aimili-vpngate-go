@@ -324,3 +324,15 @@ func (m *Manager) StartAutoRotator(ctx context.Context) {
 		}
 	}()
 }
+
+func (m *Manager) GetActiveNode() *nodes.Node {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.activeNode
+}
+
+func (m *Manager) GetStatus() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return string(m.status)
+}

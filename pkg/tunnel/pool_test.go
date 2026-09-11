@@ -78,10 +78,10 @@ func TestDynamicGroupFilteringDeadTunnels(t *testing.T) {
 	}
 	_ = mgr.SaveGroup(g)
 
-	// Initially empty
+	// Should have 2 groups: system-primary (TargetCount 1) and dg-test (TargetCount 3)
 	groups := mgr.ListGroups()
-	if len(groups) != 1 || groups[0].TargetCount != 3 {
-		t.Fatalf("expected 1 group with targetCount 3")
+	if len(groups) != 2 || groups[0].ID != SystemPrimaryGroupID || groups[1].TargetCount != 3 {
+		t.Fatalf("expected 2 groups with system-primary first and dg-test targetCount 3, got %+v", groups)
 	}
 }
 

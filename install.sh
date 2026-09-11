@@ -20,7 +20,7 @@ BIN_PATH="${INSTALL_DIR}/aimilivpn"
 CONFIG_FILE="${INSTALL_DIR}/config.env"
 SERVICE_FILE="/etc/systemd/system/aimilivpn.service"
 GITHUB_REPO="https://github.com/xiumuzidiao0/aimili-vpngate-go.git"
-DEFAULT_VERSION="2.4.0"
+DEFAULT_VERSION="2.5.0"
 
 get_app_version() {
     if [ -f "${INSTALL_DIR}/VERSION" ]; then
@@ -103,8 +103,9 @@ download_release_binary() {
         "https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/latest/download/aimilivpn_linux_${GO_ARCH}"
         "https://ghproxy.net/https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/latest/download/aimilivpn_linux_${GO_ARCH}"
         "https://mirror.ghproxy.com/https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/latest/download/aimilivpn_linux_${GO_ARCH}"
-        "https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/download/v2.4.0/aimilivpn_linux_${GO_ARCH}"
-        "https://ghproxy.net/https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/download/v2.4.0/aimilivpn_linux_${GO_ARCH}"
+        "https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/download/v2.5.0/aimilivpn_linux_${GO_ARCH}"
+        "https://ghproxy.net/https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/download/v2.5.0/aimilivpn_linux_${GO_ARCH}"
+        "https://mirror.ghproxy.com/https://github.com/xiumuzidiao0/aimili-vpngate-go/releases/download/v2.5.0/aimilivpn_linux_${GO_ARCH}"
     )
 
     for u in "${urls[@]}"; do
