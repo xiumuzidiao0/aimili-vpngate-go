@@ -123,9 +123,39 @@ async function mockAPI(route) {
       lastOutboundPost = JSON.parse(route.request().postData() || "{}");
     } catch {}
     body = { ok: true };
-  } else if (path.endsWith("/api/proxy/ports")) body = status.port_rules;
-  else if (path.endsWith("/api/tunnel-groups")) body = [];
-  else if (path.endsWith("/api/blacklist")) body = [];
+  } else if (path.endsWith("/api/proxy/ports")) {
+    body = status.port_rules;
+  } else if (path.endsWith("/api/tunnel-groups")) {
+    body = [
+      {
+        id: "dg-1",
+        name: "日本Top3住宅组",
+        enabled: true,
+        country: "JP",
+        ip_type: "residential",
+        sort_by: "latency",
+        unlock_filter: "ai",
+        target_count: 3,
+        interval_minutes: 15,
+        active_tunnel_ids: ["t-1"],
+        status_text: "正常"
+      }
+    ];
+  } else if (path.endsWith("/api/settings")) {
+    body = {
+      ui_port: 8787,
+      ui_path: "aimili",
+      ui_username: "admin",
+      proxy_port: 7928,
+      auto_rotate_minutes: 15,
+      auto_rotate_ip_type: "residential",
+      discovery_countries: ["JP", "US"],
+      telegram_bot_token: "123456:ABC-DEF",
+      telegram_chat_id: "987654321",
+    };
+  } else if (path.endsWith("/api/blacklist")) {
+    body = [];
+  }
   await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
 }
 
@@ -164,11 +194,34 @@ try {
       const active = await page.locator(`#view-${view}`).evaluate((element) => element.classList.contains("active"));
       if (!active) failures.push(`${viewport}px: view ${view} did not activate`);
     }
+    // Test Settings tabs visibility
     await page.evaluate(() => document.querySelector('[data-view="settings"]').click());
-    await page.waitForTimeout(80);
+    await page.waitForTimeout(100);
+    const baseVisible = await page.locator("#tab-content-base").isVisible();
+    if (!baseVisible) failures.push(`${viewport}px: settings base tab is not visible`);
+
     await page.locator('[data-action="switchSettingsTab"][data-args*="rotate"]').click();
-    const rotateVisible = await page.locator("#tab-content-rotate").evaluate((element) => !element.classList.contains("hidden"));
-    if (!rotateVisible) failures.push(`${viewport}px: settings tab switching failed`);
+    await page.waitForTimeout(60);
+    const rotateVisible = await page.locator("#tab-content-rotate").isVisible();
+    if (!rotateVisible) failures.push(`${viewport}px: settings rotate tab is not visible`);
+
+    await page.locator('[data-action="switchSettingsTab"][data-args*="tg"]').click();
+    await page.waitForTimeout(60);
+    const tgVisible = await page.locator("#tab-content-tg").isVisible();
+    if (!tgVisible) failures.push(`${viewport}px: settings tg tab is not visible`);
+
+    // Test Matrix & Dynamic Groups visibility
+    await page.evaluate(() => document.querySelector('[data-view="matrix"]').click());
+    await page.waitForTimeout(100);
+    const portsVisible = await page.locator("#matrix-content-ports").isVisible();
+    if (!portsVisible) failures.push(`${viewport}px: matrix ports content is not visible`);
+
+    await page.locator('[data-action="switchMatrixTab"][data-args*="groups"]').click();
+    await page.waitForTimeout(60);
+    const groupsVisible = await page.locator("#matrix-content-groups").isVisible();
+    if (!groupsVisible) failures.push(`${viewport}px: matrix dynamic groups content is not visible`);
+    const groupCardVisible = await page.locator(".dynamic-group-card").first().isVisible();
+    if (!groupCardVisible) failures.push(`${viewport}px: dynamic group card is not visible in matrix tab`);
 
     // Test sing-box outbound select switching
     lastOutboundPost = null;

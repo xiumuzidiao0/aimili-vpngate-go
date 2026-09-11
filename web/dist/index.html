@@ -356,8 +356,7 @@
 
         <!-- View 5: 系统与安全设置 Settings -->
         <div id="view-settings" class="view-page">
-        <div id="settings-modal" class="modal-overlay">
-            <div class="modal-card">
+            <div id="settings-modal" class="card">
             <div class="card-header mb-3" >
                 <div class="card-title">
                     <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -405,7 +404,7 @@
                 </div>
 
                 <!-- Tab 2: Auto Rotate -->
-                <div id="tab-content-rotate" hidden class="hidden">
+                <div id="tab-content-rotate" class="hidden">
                     <div class="form-group">
                         <label class="form-label">定时自动轮换 IP 周期</label>
                         <select id="cfg-auto-rotate" class="input-field w-full" >
@@ -431,7 +430,7 @@
                 </div>
 
                 <!-- Tab 3: Telegram -->
-                <div id="tab-content-tg" hidden class="hidden">
+                <div id="tab-content-tg" class="hidden">
                     <div  class="settings-note">
                         配置后，网关在节点自动故障转移、自适应池全断线时自动推送告警；并支持在 TG 对话框使用 <code>/status</code>、<code>/tunnels</code>、<code>/rotate</code> 远程控制。
                     </div>
@@ -455,14 +454,12 @@
             </form>
         </div>
         </div>
-        </div>
         <!-- End View 5: Settings -->
 
         <!-- View 3: 多端口与分流矩阵 Matrix -->
         <div id="view-matrix" class="view-page">
         <!-- 2. 多端口与分流矩阵管理面板 (Tabbed) -->
-        <div id="port-matrix-modal" class="modal-overlay">
-            <div class="modal-card modal-wide" >
+        <div id="port-matrix-modal" class="card">
             <div class="card-header mb-14" >
                 <div class="card-title">
                     <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
@@ -581,7 +578,7 @@
             </div>
 
             <!-- Tab 2: Dynamic Pool Groups -->
-            <div id="matrix-content-groups" hidden class="hidden">
+            <div id="matrix-content-groups" class="hidden">
                 <div  class="section-toolbar">
                     <div  class="text-note text-muted">全自动按国家、住宅/机房指标维持 Top N 出口，定时自适应轮换</div>
                     <div  class="row gap-1">
@@ -673,7 +670,6 @@
             <div  class="form-actions">
                 <button type="button" class="btn btn-outline" data-action="switchView" data-args="[&quot;dashboard&quot;]">返回概览</button>
             </div>
-        </div>
         </div>
         </div>
         <!-- End View 3: Matrix -->

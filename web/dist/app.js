@@ -582,7 +582,11 @@
             document.querySelectorAll('#settings-modal .modal-tab-btn').forEach(b => b.classList.remove('active'));
             ['base', 'rotate', 'tg'].forEach(k => {
                 const el = document.getElementById('tab-content-' + k);
-                if (el) el.classList.toggle('hidden', k !== tabKey);
+                if (el) {
+                    const isHidden = (k !== tabKey);
+                    el.classList.toggle('hidden', isHidden);
+                    el.hidden = isHidden;
+                }
             });
             const activeBtn = document.getElementById('tab-btn-' + tabKey);
             if (activeBtn) activeBtn.classList.add('active');
@@ -720,10 +724,22 @@
 
         function switchMatrixTab(tabKey) {
             document.querySelectorAll('#port-matrix-modal .modal-tab-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById('matrix-content-ports').classList.toggle('hidden', tabKey !== 'ports');
-            document.getElementById('matrix-content-groups').classList.toggle('hidden', tabKey !== 'groups');
+            const portsEl = document.getElementById('matrix-content-ports');
+            const groupsEl = document.getElementById('matrix-content-groups');
+            if (portsEl) {
+                const hidePorts = (tabKey !== 'ports');
+                portsEl.classList.toggle('hidden', hidePorts);
+                portsEl.hidden = hidePorts;
+            }
+            if (groupsEl) {
+                const hideGroups = (tabKey !== 'groups');
+                groupsEl.classList.toggle('hidden', hideGroups);
+                groupsEl.hidden = hideGroups;
+            }
             const activeBtn = document.getElementById('matrix-tab-' + tabKey);
             if (activeBtn) activeBtn.classList.add('active');
+            if (tabKey === 'groups') renderDynamicGroups();
+            if (tabKey === 'ports') renderPortRules();
         }
 
         async function startNewTunnel(nodeId) {
@@ -2230,6 +2246,8 @@
             fetchStatus();
             fetchNodes();
             fetchSingBoxOverview();
+            fetchPortRules();
+            fetchDynamicGroups();
             setupSSE();
 
             const initialHash = (window.location.hash || '').replace(/^#/, '');
