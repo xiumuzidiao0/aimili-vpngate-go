@@ -1053,7 +1053,15 @@
                     </button>
                     <button id="btn-copy-sub" class="btn btn-outline" style="font-size: 12px; padding: 6px 10px;" onclick="copySingBoxSubURL()">
                         <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                        复制远程订阅
+                        复制通用订阅
+                    </button>
+                    <button id="btn-copy-clash" class="btn btn-outline" style="font-size: 12px; padding: 6px 10px; border-color: rgba(99, 102, 241, 0.4); color: #818cf8;" onclick="copyClashSubURL()" title="复制适配 Clash Meta / Mihomo 的 YAML 订阅地址">
+                        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7h10"/><path d="M7 12h10"/><path d="M7 17h6"/></svg>
+                        📋 复制 Clash 订阅
+                    </button>
+                    <button id="btn-download-clash" class="btn btn-outline" style="font-size: 12px; padding: 6px 10px;" onclick="downloadClashConfig()" title="直接下载 singbox-clash.yaml 配置文件">
+                        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        📥 下载 YAML
                     </button>
                     <button class="btn btn-outline" style="padding: 6px 8px;" title="刷新入站与链式状态" onclick="fetchSingBoxOverview(true)">
                         <svg viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
@@ -3502,6 +3510,35 @@
                     }
                 }
             }
+        }
+
+        function getClashSubURL() {
+            if (singBoxOverview && singBoxOverview.subscription && singBoxOverview.subscription.clash_sub_url) {
+                return singBoxOverview.subscription.clash_sub_url;
+            }
+            const origin = window.location.origin;
+            const prefix = window.__apiPrefix || '';
+            return `${origin}${prefix}/api/singbox/subscription/clash`;
+        }
+
+        function copyClashSubURL() {
+            if (!singBoxOverview || !singBoxOverview.installed) {
+                alert('sing-box 未安装，无法获取 Clash 订阅');
+                return;
+            }
+            const url = getClashSubURL();
+            copyText(url, 'Clash Meta / Mihomo 专属订阅链接');
+        }
+
+        function downloadClashConfig() {
+            const url = getClashSubURL();
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'singbox-clash.yaml';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            showToast('已触发下载 singbox-clash.yaml');
         }
 
         function copyNodeShareLink(url, proto) {

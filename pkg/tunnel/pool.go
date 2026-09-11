@@ -160,6 +160,9 @@ func (p *Pool) StartTunnel(node *nodes.Node) (*Tunnel, error) {
 		"connect-timeout 8",
 		"ping 5",
 		"ping-restart 12",
+		"sndbuf 524288",
+		"rcvbuf 524288",
+		"txqueuelen 1000",
 	)
 
 	if err := os.WriteFile(confPath, []byte(strings.Join(modified, "\n")), 0600); err != nil {
@@ -444,13 +447,24 @@ func (p *Pool) GetHealthyTunnels(targetIDs []string) []*Tunnel {
 		idFilter[id] = true
 	}
 
-	var res []*Tunnel
+	// 1. Prioritize available (not circuit-broken) tunnels
+	var available []*Tunnel
+	var healthy []*Tunnel
 	for _, t := range p.tunnels {
-		if (len(idFilter) == 0 || idFilter[t.ID]) && t.IsHealthy() {
-			res = append(res, t)
+		if len(idFilter) == 0 || idFilter[t.ID] {
+			if t.IsAvailable() {
+				available = append(available, t)
+			}
+			if t.IsHealthy() {
+				healthy = append(healthy, t)
+			}
 		}
 	}
-	return res
+
+	if len(available) > 0 {
+		return available
+	}
+	return healthy
 }
 
 func (p *Pool) CloseAll() {

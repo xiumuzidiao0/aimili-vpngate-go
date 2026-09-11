@@ -10,6 +10,7 @@ import (
 
 	"aimili-vpngate-go/pkg/config"
 	"aimili-vpngate-go/pkg/stats"
+	"aimili-vpngate-go/pkg/tunnel"
 )
 
 type PortRule struct {
@@ -98,6 +99,10 @@ func (l *PortListener) Start(ctx context.Context) error {
 			continue
 		}
 
+		if tc, ok := client.(*net.TCPConn); ok {
+			_ = tc.SetNoDelay(true)
+		}
+
 		select {
 		case l.sem <- struct{}{}:
 			stats.GetTrafficTracker().IncConn()
@@ -135,16 +140,18 @@ func (l *PortListener) dispatch(client net.Conn) {
 
 	// Select destination tunnel device for this connection
 	devName := ""
+	var selectedTun *tunnel.Tunnel
 	if l.scheduler != nil {
 		if tun := l.scheduler.SelectTunnel(l.rule.Port, l.rule.BoundTunnelIDs, l.rule.BoundGroupIDs, l.rule.Policy, l.rule.IntervalSeconds); tun != nil {
+			selectedTun = tun
 			devName = tun.DevName
 		}
 	}
 
 	if firstByte[0] == socks5Version {
-		_ = handleSocks5(bConn, auth, devName)
+		_ = handleSocks5(bConn, auth, devName, selectedTun)
 	} else {
-		_ = handleHTTP(bConn, br, auth, devName)
+		_ = handleHTTP(bConn, br, auth, devName, selectedTun)
 	}
 }
 

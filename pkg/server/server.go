@@ -101,6 +101,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/singbox/nodes/outbound", s.handleSingBoxSetOutbound)
 	mux.HandleFunc("DELETE /api/singbox/nodes", s.handleSingBoxDeleteNode)
 	mux.HandleFunc("GET /api/singbox/subscription", s.handleSingBoxGetSub)
+	mux.HandleFunc("GET /api/singbox/subscription/clash", s.handleSingBoxClashSub)
 	mux.HandleFunc("POST /api/singbox/subscription/sync", s.handleSingBoxSyncSub)
 	mux.HandleFunc("POST /api/singbox/subscription/init", s.handleSingBoxInitSub)
 
@@ -138,6 +139,10 @@ func (s *Server) Start(ctx context.Context) error {
 
 	adminURL := fmt.Sprintf("http://%s/%s", ln.Addr().String(), strings.Trim(s.cfg.UIPath, "/"))
 	stats.LogInfo("Server", "Web 控制台已启动，访问入口: %s (用户名: %s)", adminURL, s.cfg.UIUsername)
+
+	// Start sing-box self-healing watchdog
+	watchdog := NewSingBoxWatchdog(s, 30*time.Second)
+	watchdog.Start(ctx)
 
 	go func() {
 		<-ctx.Done()

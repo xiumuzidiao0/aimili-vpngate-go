@@ -112,12 +112,12 @@ func (g *Gateway) dispatch(client net.Conn) {
 
 	if firstByte[0] == socks5Version {
 		// SOCKS5 protocol
-		if err := handleSocks5(bConn, g.auth, ""); err != nil {
+		if err := handleSocks5(bConn, g.auth, "", nil); err != nil {
 			// Quiet on normal disconnect
 		}
 	} else {
 		// HTTP / HTTPS CONNECT protocol
-		if err := handleHTTP(bConn, br, g.auth, ""); err != nil {
+		if err := handleHTTP(bConn, br, g.auth, "", nil); err != nil {
 			// Quiet on normal disconnect
 		}
 	}

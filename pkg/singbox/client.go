@@ -85,6 +85,7 @@ type SubResponse struct {
 	OK           bool     `json:"ok"`
 	Enabled      bool     `json:"enabled"`
 	SubURL       string   `json:"sub_url,omitempty"`
+	ClashSubURL  string   `json:"clash_sub_url,omitempty"`
 	Port         int      `json:"port,omitempty"`
 	Token        string   `json:"token,omitempty"`
 	Filename     string   `json:"filename,omitempty"`
@@ -385,4 +386,22 @@ func (c *Client) InitSubscription(ctx context.Context, port int) (*SubResponse, 
 	}
 
 	return &resp, nil
+}
+
+func (c *Client) RestartService(ctx context.Context) error {
+	ctxTimeout, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	// 1. Try API restart first
+	if _, err := c.execAPI(ctxTimeout, "restart"); err == nil {
+		return nil
+	}
+
+	// 2. Fallback to systemctl restart
+	cmd := exec.CommandContext(ctxTimeout, "systemctl", "restart", "sing-box")
+	if err := cmd.Run(); err == nil {
+		return nil
+	}
+
+	return fmt.Errorf("failed to restart sing-box via both API and systemctl")
 }

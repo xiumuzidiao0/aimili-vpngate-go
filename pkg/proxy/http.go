@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"aimili-vpngate-go/pkg/tunnel"
 )
 
 const (
@@ -19,7 +21,7 @@ const (
 	connectionEstablishedResponse = "HTTP/1.1 200 Connection Established\r\n\r\n"
 )
 
-func handleHTTP(client net.Conn, br *bufio.Reader, auth *Authenticator, devName string) error {
+func handleHTTP(client net.Conn, br *bufio.Reader, auth *Authenticator, devName string, tun *tunnel.Tunnel) error {
 	req, err := http.ReadRequest(br)
 	if err != nil {
 		return fmt.Errorf("failed to read http request: %w", err)
@@ -31,13 +33,13 @@ func handleHTTP(client net.Conn, br *bufio.Reader, auth *Authenticator, devName 
 	}
 
 	if req.Method == http.MethodConnect {
-		return handleConnect(client, req, devName)
+		return handleConnect(client, req, devName, tun)
 	}
 
-	return handlePlainHTTP(client, req, devName)
+	return handlePlainHTTP(client, req, devName, tun)
 }
 
-func handleConnect(client net.Conn, req *http.Request, devName string) error {
+func handleConnect(client net.Conn, req *http.Request, devName string, tun *tunnel.Tunnel) error {
 	targetAddr := req.RequestURI
 	if !strings.Contains(targetAddr, ":") {
 		targetAddr = net.JoinHostPort(targetAddr, "443")
@@ -45,9 +47,15 @@ func handleConnect(client net.Conn, req *http.Request, devName string) error {
 
 	upstream, err := dialUpstream(targetAddr, devName, 10*time.Second)
 	if err != nil {
+		if tun != nil {
+			tun.RecordFailure()
+		}
 		resp := fmt.Sprintf("HTTP/1.1 502 Bad Gateway\r\nContent-Length: %d\r\n\r\nFailed to connect to %s\n", len(targetAddr)+23, targetAddr)
 		_, _ = client.Write([]byte(resp))
 		return fmt.Errorf("dial %s failed: %w", targetAddr, err)
+	}
+	if tun != nil {
+		tun.RecordSuccess()
 	}
 
 	if _, err := client.Write([]byte(connectionEstablishedResponse)); err != nil {
@@ -59,7 +67,7 @@ func handleConnect(client net.Conn, req *http.Request, devName string) error {
 	return nil
 }
 
-func handlePlainHTTP(client net.Conn, req *http.Request, devName string) error {
+func handlePlainHTTP(client net.Conn, req *http.Request, devName string, tun *tunnel.Tunnel) error {
 	host := req.URL.Host
 	if host == "" {
 		host = req.Host
@@ -70,11 +78,18 @@ func handlePlainHTTP(client net.Conn, req *http.Request, devName string) error {
 
 	upstream, err := dialUpstream(host, devName, 10*time.Second)
 	if err != nil {
+		if tun != nil {
+			tun.RecordFailure()
+		}
 		resp := fmt.Sprintf("HTTP/1.1 502 Bad Gateway\r\nContent-Length: %d\r\n\r\nFailed to connect to %s\n", len(host)+23, host)
 		_, _ = client.Write([]byte(resp))
 		return fmt.Errorf("dial %s failed: %w", host, err)
 	}
 	defer upstream.Close()
+
+	if tun != nil {
+		tun.RecordSuccess()
+	}
 
 	// Clean hop-by-hop, proxy, and privacy-leaking headers
 	cleanPrivacyHeaders(req)

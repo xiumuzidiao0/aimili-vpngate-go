@@ -212,6 +212,13 @@ func (s *Server) handleSingBoxOverview(w http.ResponseWriter, r *http.Request) {
 	if sub, err := s.singboxClient.GetSubscription(ctx); err == nil {
 		resp.Subscription = sub
 	}
+	if resp.Subscription == nil {
+		resp.Subscription = &singbox.SubResponse{
+			OK:      true,
+			Enabled: false,
+		}
+	}
+	resp.Subscription.ClashSubURL = s.buildClashSubURL(r)
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
@@ -420,7 +427,54 @@ func (s *Server) handleSingBoxDeleteNode(w http.ResponseWriter, r *http.Request)
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "msg": "节点删除成功", "target": target})
 }
 
+func (s *Server) buildClashSubURL(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+		scheme = "https"
+	}
+	host := r.Host
+	if host == "" {
+		host = net.JoinHostPort(s.cfg.UIHost, fmt.Sprintf("%d", s.cfg.UIPort))
+	}
+	secret := strings.Trim(s.cfg.UIPath, "/")
+	if secret != "" {
+		return fmt.Sprintf("%s://%s/%s/api/singbox/subscription/clash", scheme, host, secret)
+	}
+	return fmt.Sprintf("%s://%s/api/singbox/subscription/clash", scheme, host)
+}
+
+func (s *Server) handleSingBoxClashSub(w http.ResponseWriter, r *http.Request) {
+	if s.singboxClient == nil {
+		s.singboxClient = singbox.NewClient()
+	}
+
+	nodes, err := s.singboxClient.ListNodes(r.Context())
+	if err != nil {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(fmt.Sprintf("# 获取 sing-box 节点列表失败: %v\n", err)))
+		return
+	}
+
+	serverHost := extractHostFromRequest(r.Host)
+	if serverHost == "" || serverHost == "127.0.0.1" || serverHost == "localhost" {
+		serverHost = s.cfg.UIHost
+	}
+
+	yamlContent := GenerateClashYAML(nodes, serverHost)
+
+	w.Header().Set("Content-Type", "text/yaml; charset=utf-8")
+	w.Header().Set("Content-Disposition", "attachment; filename=\"singbox-clash.yaml\"")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(yamlContent))
+}
+
 func (s *Server) handleSingBoxGetSub(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("format") == "clash" || strings.Contains(r.Header.Get("User-Agent"), "Clash") || strings.Contains(r.Header.Get("User-Agent"), "clash") || strings.Contains(r.Header.Get("User-Agent"), "Mihomo") {
+		s.handleSingBoxClashSub(w, r)
+		return
+	}
+
 	if s.singboxClient == nil {
 		s.singboxClient = singbox.NewClient()
 	}
@@ -432,6 +486,14 @@ func (s *Server) handleSingBoxGetSub(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
+
+	if sub == nil {
+		sub = &singbox.SubResponse{
+			OK:      true,
+			Enabled: false,
+		}
+	}
+	sub.ClashSubURL = s.buildClashSubURL(r)
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(sub)

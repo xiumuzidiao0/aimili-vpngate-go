@@ -180,13 +180,22 @@ func (m *DynamicGroupManager) GetTunnelsForGroups(groupIDs []string) []*Tunnel {
 		}
 	}
 
-	var res []*Tunnel
+	var available []*Tunnel
+	var healthy []*Tunnel
 	for tid := range tunIDMap {
-		if t := m.pool.GetTunnel(tid); t != nil && t.IsHealthy() {
-			res = append(res, t)
+		if t := m.pool.GetTunnel(tid); t != nil {
+			if t.IsAvailable() {
+				available = append(available, t)
+			}
+			if t.IsHealthy() {
+				healthy = append(healthy, t)
+			}
 		}
 	}
-	return res
+	if len(available) > 0 {
+		return available
+	}
+	return healthy
 }
 
 // EvaluateGroup evaluates candidates, probes metrics, and dynamically rotates tunnels for a group

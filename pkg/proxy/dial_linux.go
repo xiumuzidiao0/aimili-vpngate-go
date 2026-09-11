@@ -90,5 +90,12 @@ func dialUpstream(targetAddr string, devName string, timeout time.Duration) (net
 		}
 	}
 
-	return d.Dial("tcp", targetAddr)
+	conn, err := d.Dial("tcp", targetAddr)
+	if err != nil {
+		return nil, err
+	}
+	if tc, ok := conn.(*net.TCPConn); ok {
+		_ = tc.SetNoDelay(true)
+	}
+	return conn, nil
 }

@@ -8,6 +8,8 @@ import (
 	"net"
 	"strconv"
 	"time"
+
+	"aimili-vpngate-go/pkg/tunnel"
 )
 
 const (
@@ -33,7 +35,7 @@ const (
 	repAtypNotSupport    = 0x08
 )
 
-func handleSocks5(client net.Conn, auth *Authenticator, devName string) error {
+func handleSocks5(client net.Conn, auth *Authenticator, devName string, tun *tunnel.Tunnel) error {
 	// 1. Negotiation
 	// Client sends: VER (1 byte) | NMETHODS (1 byte) | METHODS (1-255 bytes)
 	verBuf := make([]byte, 1)
@@ -172,8 +174,14 @@ func handleSocks5(client net.Conn, auth *Authenticator, devName string) error {
 	// 3. Connect to upstream via selected tunnel devName
 	upstream, err := dialUpstream(targetAddr, devName, 10*time.Second)
 	if err != nil {
+		if tun != nil {
+			tun.RecordFailure()
+		}
 		_, _ = client.Write([]byte{socks5Version, repGeneralFailure, 0x00, atypIPv4, 0, 0, 0, 0, 0, 0})
 		return fmt.Errorf("dial upstream %s failed: %w", targetAddr, err)
+	}
+	if tun != nil {
+		tun.RecordSuccess()
 	}
 
 	// 4. Send success reply

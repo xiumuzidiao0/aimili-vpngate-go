@@ -26,16 +26,20 @@ type Tunnel struct {
 	Status      TunnelStatus `json:"status"`       // connecting, connected, failed, stopped
 	Message     string       `json:"message"`      // latest status description
 	ConnectedAt time.Time    `json:"connected_at"` // handshake completed time
-	Uptime      int64         `json:"uptime"`       // seconds online
-	LatencyMs   int           `json:"latency_ms"`   // real-time probe latency
-	Unlock      *UnlockResult `json:"unlock,omitempty"` // AI and Streaming unlock probe status
+	Uptime        int64         `json:"uptime"`                  // seconds online
+	LatencyMs     int           `json:"latency_ms"`              // real-time probe latency
+	Unlock        *UnlockResult `json:"unlock,omitempty"`        // AI and Streaming unlock probe status
+	CircuitBroken bool          `json:"circuit_broken"`          // true if in cooldown due to consecutive failures
 
 	// Internal lifecycle management
-	mu         sync.RWMutex
-	cmd        *exec.Cmd
-	cancelFunc context.CancelFunc
-	confPath   string
-	authPath   string
+	mu                 sync.RWMutex
+	cmd                *exec.Cmd
+	cancelFunc         context.CancelFunc
+	confPath           string
+	authPath           string
+	consecutiveFails   int
+	lastFailureTime    time.Time
+	circuitBrokenUntil time.Time
 }
 
 func (t *Tunnel) GetStatus() TunnelStatus {
@@ -48,6 +52,45 @@ func (t *Tunnel) IsHealthy() bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.Status == StatusConnected
+}
+
+func (t *Tunnel) IsAvailable() bool {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if t.Status != StatusConnected {
+		return false
+	}
+	if !t.circuitBrokenUntil.IsZero() && time.Now().Before(t.circuitBrokenUntil) {
+		return false
+	}
+	return true
+}
+
+func (t *Tunnel) IsCircuitBroken() bool {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return !t.circuitBrokenUntil.IsZero() && time.Now().Before(t.circuitBrokenUntil)
+}
+
+func (t *Tunnel) RecordFailure() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.consecutiveFails++
+	t.lastFailureTime = time.Now()
+	if t.consecutiveFails >= 3 {
+		t.circuitBrokenUntil = time.Now().Add(45 * time.Second)
+	}
+}
+
+func (t *Tunnel) RecordSuccess() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.consecutiveFails > 0 || !t.circuitBrokenUntil.IsZero() {
+		t.consecutiveFails = 0
+		t.circuitBrokenUntil = time.Time{}
+	}
 }
 
 func (t *Tunnel) Snapshot() *Tunnel {
@@ -66,15 +109,16 @@ func (t *Tunnel) Snapshot() *Tunnel {
 	}
 
 	return &Tunnel{
-		ID:          t.ID,
-		DevName:     t.DevName,
-		DevIndex:    t.DevIndex,
-		Node:        t.Node,
-		Status:      t.Status,
-		Message:     t.Message,
-		ConnectedAt: t.ConnectedAt,
-		Uptime:      uptime,
-		LatencyMs:   t.LatencyMs,
-		Unlock:      unlockCopy,
+		ID:            t.ID,
+		DevName:       t.DevName,
+		DevIndex:      t.DevIndex,
+		Node:          t.Node,
+		Status:        t.Status,
+		Message:       t.Message,
+		ConnectedAt:   t.ConnectedAt,
+		Uptime:        uptime,
+		LatencyMs:     t.LatencyMs,
+		Unlock:        unlockCopy,
+		CircuitBroken: !t.circuitBrokenUntil.IsZero() && time.Now().Before(t.circuitBrokenUntil),
 	}
 }

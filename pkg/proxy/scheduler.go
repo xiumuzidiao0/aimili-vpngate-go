@@ -77,6 +77,17 @@ func (s *DefaultScheduler) SelectTunnel(port int, boundIDs []string, boundGroupI
 		}
 	}
 
+	// Filter by circuit breaker: prefer available (non-circuit-broken) tunnels
+	var available []*tunnel.Tunnel
+	for _, t := range healthy {
+		if t.IsAvailable() {
+			available = append(available, t)
+		}
+	}
+	if len(available) > 0 {
+		healthy = available
+	}
+
 	n := len(healthy)
 	if n == 1 {
 		return healthy[0]
