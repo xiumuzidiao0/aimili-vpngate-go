@@ -171,6 +171,39 @@ func GenerateClashYAML(nodes []singbox.Node, defaultServerHost string) string {
 			py.WriteString("    skip-cert-verify: true\n")
 			py.WriteString("    udp: true\n")
 
+		} else if strings.Contains(rawProto, "anytls") || strings.Contains(fullProto, "anytls") {
+			py.WriteString(fmt.Sprintf("  - name: \"%s\"\n", escapedName))
+			py.WriteString("    type: anytls\n")
+			py.WriteString(fmt.Sprintf("    server: %s\n", srv))
+			py.WriteString(fmt.Sprintf("    port: %d\n", port))
+			pwd := n.Password
+			if pwd == "" {
+				pwd = n.UUID
+			}
+			py.WriteString(fmt.Sprintf("    password: \"%s\"\n", escapeYAMLString(pwd)))
+			sni := n.SNI
+			if sni == "" {
+				sni = n.Host
+			}
+			if sni != "" {
+				py.WriteString(fmt.Sprintf("    sni: %s\n", sni))
+			}
+			py.WriteString("    skip-cert-verify: true\n")
+			py.WriteString("    udp: true\n")
+
+		} else if strings.Contains(rawProto, "socks") || strings.Contains(fullProto, "socks") {
+			py.WriteString(fmt.Sprintf("  - name: \"%s\"\n", escapedName))
+			py.WriteString("    type: socks5\n")
+			py.WriteString(fmt.Sprintf("    server: %s\n", srv))
+			py.WriteString(fmt.Sprintf("    port: %d\n", port))
+			if n.Username != "" {
+				py.WriteString(fmt.Sprintf("    username: \"%s\"\n", escapeYAMLString(n.Username)))
+			}
+			if n.Password != "" {
+				py.WriteString(fmt.Sprintf("    password: \"%s\"\n", escapeYAMLString(n.Password)))
+			}
+			py.WriteString("    udp: true\n")
+
 		} else if strings.Contains(rawProto, "vmess") || strings.Contains(fullProto, "vmess") {
 			py.WriteString(fmt.Sprintf("  - name: \"%s\"\n", escapedName))
 			py.WriteString("    type: vmess\n")
