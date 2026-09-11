@@ -53,6 +53,11 @@
             height: 100vh;
             z-index: 100;
             flex-shrink: 0;
+            transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+        }
+        .sidebar.collapsed {
+            width: 66px;
         }
         .sidebar-brand {
             padding: 20px 18px 18px 18px;
@@ -60,6 +65,15 @@
             align-items: center;
             gap: 12px;
             border-bottom: 1px solid var(--border);
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        .sidebar.collapsed .sidebar-brand {
+            padding: 20px 12px 18px 12px;
+            justify-content: center;
+        }
+        .sidebar.collapsed .brand-text {
+            display: none !important;
         }
         .brand-title {
             font-size: 16px;
@@ -91,6 +105,7 @@
             gap: 4px;
             flex: 1;
             overflow-y: auto;
+            overflow-x: hidden;
         }
         .nav-item {
             display: flex;
@@ -105,6 +120,15 @@
             transition: all 0.15s ease;
             user-select: none;
             position: relative;
+            white-space: nowrap;
+        }
+        .sidebar.collapsed .nav-item {
+            justify-content: center;
+            padding: 11px 0;
+            gap: 0;
+        }
+        .sidebar.collapsed .nav-item span {
+            display: none !important;
         }
         .nav-item:hover {
             color: #fff;
@@ -124,6 +148,10 @@
             stroke-width: 2;
             flex-shrink: 0;
         }
+        .sidebar.collapsed .nav-item svg {
+            width: 19px;
+            height: 19px;
+        }
         .nav-badge {
             margin-left: auto;
             background: rgba(255, 255, 255, 0.12);
@@ -137,11 +165,21 @@
         .nav-item.active .nav-badge {
             background: rgba(255, 255, 255, 0.25);
         }
+        .sidebar.collapsed .nav-badge {
+            display: none !important;
+        }
         .sidebar-footer {
-            padding: 14px 16px;
+            padding: 12px 14px;
             border-top: 1px solid var(--border);
             font-size: 11px;
             background: rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            white-space: nowrap;
+        }
+        .sidebar.collapsed .sidebar-footer {
+            padding: 12px 6px;
         }
         .sidebar-stat-mini {
             display: flex;
@@ -149,10 +187,81 @@
             align-items: center;
             color: var(--text-muted);
         }
+        .sidebar.collapsed .sidebar-stat-mini {
+            display: none !important;
+        }
         .sidebar-stat-mini strong {
             color: #60a5fa;
             font-family: ui-monospace, monospace;
             font-weight: 600;
+        }
+        .sidebar-collapse-btn {
+            width: 100%;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            border-radius: 6px;
+            padding: 6px 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+        .sidebar-collapse-btn:hover {
+            color: #fff;
+            border-color: #3b82f6;
+            background: var(--bg-hover);
+        }
+        .sidebar-collapse-btn svg {
+            width: 15px;
+            height: 15px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            flex-shrink: 0;
+            transition: transform 0.22s ease;
+        }
+        .sidebar.collapsed .sidebar-collapse-btn {
+            justify-content: center;
+            padding: 7px 0;
+        }
+        .sidebar.collapsed .sidebar-collapse-btn span {
+            display: none !important;
+        }
+        .sidebar.collapsed .sidebar-collapse-btn svg {
+            transform: rotate(180deg);
+        }
+
+        /* Header sidebar toggle button */
+        .btn-sidebar-toggle {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            flex-shrink: 0;
+        }
+        .btn-sidebar-toggle:hover {
+            color: #fff;
+            border-color: var(--primary);
+            background: var(--bg-hover);
+        }
+        .btn-sidebar-toggle svg {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
         }
 
         /* Main Content Container */
@@ -718,42 +827,42 @@
 <body>
     <div class="app-layout">
         <!-- Desktop Left Sidebar -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="app-sidebar">
             <div class="sidebar-brand">
                 <div class="logo-icon">
                     <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polygon points="12 8 9 13 13 13 11 17 15 12 11 12 12 8"/></svg>
                 </div>
-                <div>
+                <div class="brand-text">
                     <div class="brand-title">AimiliVPN</div>
                     <div class="brand-sub">Go 性能网关 <span id="sidebar-version-badge" class="badge-ver">v2.4.0</span></div>
                 </div>
             </div>
 
             <nav class="nav-list">
-                <div class="nav-item active" id="nav-dashboard" onclick="switchView('dashboard')">
+                <div class="nav-item active" id="nav-dashboard" onclick="switchView('dashboard')" title="运行概览">
                     <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
                     <span>运行概览</span>
                 </div>
 
-                <div class="nav-item" id="nav-singbox" onclick="switchView('singbox')">
+                <div class="nav-item" id="nav-singbox" onclick="switchView('singbox')" title="边缘抗封锁入站">
                     <svg viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
                     <span>边缘入站</span>
                     <span id="nav-sb-badge" class="nav-badge" style="display:none;">0</span>
                 </div>
 
-                <div class="nav-item" id="nav-matrix" onclick="switchView('matrix')">
+                <div class="nav-item" id="nav-matrix" onclick="switchView('matrix')" title="多端口代理与分流矩阵">
                     <svg viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
                     <span>多端口分流</span>
                     <span id="nav-port-badge" class="nav-badge">1</span>
                 </div>
 
-                <div class="nav-item" id="nav-nodes" onclick="switchView('nodes')">
+                <div class="nav-item" id="nav-nodes" onclick="switchView('nodes')" title="优质 VPN 节点列表">
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                     <span>节点广场</span>
                     <span id="nav-node-badge" class="nav-badge">0</span>
                 </div>
 
-                <div class="nav-item" id="nav-settings" onclick="switchView('settings')">
+                <div class="nav-item" id="nav-settings" onclick="switchView('settings')" title="系统与安全参数设置">
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                     <span>系统设置</span>
                 </div>
@@ -764,6 +873,10 @@
                     <span>本地出口</span>
                     <strong id="sidebar-proxy-port">7928</strong>
                 </div>
+                <button id="sidebar-collapse-btn" class="sidebar-collapse-btn" onclick="toggleSidebar()" title="收起侧边栏">
+                    <svg viewBox="0 0 24 24"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+                    <span class="collapse-text">收起侧栏</span>
+                </button>
             </div>
         </aside>
 
@@ -771,7 +884,10 @@
         <main class="main-content">
             <!-- Top Header Bar -->
             <header>
-                <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <button id="btn-toggle-sidebar" class="btn-sidebar-toggle" onclick="toggleSidebar()" title="收起/展开侧栏">
+                        <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                    </button>
                     <h1 id="page-title" style="font-size: 19px; font-weight: 700; letter-spacing: -0.01em;">运行概览</h1>
                     <span id="conn-badge" class="badge disconnected"><span class="status-dot"></span> 检查中</span>
                     <span id="app-version-badge" class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); font-family: monospace; font-size: 11px;">v2.4.0</span>
@@ -2795,6 +2911,39 @@
         }
 
         // ==========================================
+        //  侧边栏展开/收起切换引擎 (Sidebar Collapse)
+        // ==========================================
+        function toggleSidebar() {
+            const sb = document.getElementById('app-sidebar');
+            if (!sb) return;
+            const isCollapsed = sb.classList.toggle('collapsed');
+            try {
+                localStorage.setItem('aimili_sidebar_collapsed', isCollapsed ? '1' : '0');
+            } catch(e){}
+            updateSidebarUI(isCollapsed);
+        }
+
+        function updateSidebarUI(isCollapsed) {
+            const btn = document.getElementById('sidebar-collapse-btn');
+            const hBtn = document.getElementById('btn-toggle-sidebar');
+            const tooltip = isCollapsed ? '展开侧边栏' : '收起侧边栏';
+            if (btn) btn.setAttribute('title', tooltip);
+            if (hBtn) hBtn.setAttribute('title', tooltip);
+        }
+
+        function initSidebarState() {
+            try {
+                if (localStorage.getItem('aimili_sidebar_collapsed') === '1') {
+                    const sb = document.getElementById('app-sidebar');
+                    if (sb) {
+                        sb.classList.add('collapsed');
+                        updateSidebarUI(true);
+                    }
+                }
+            } catch(e){}
+        }
+
+        // ==========================================
         //  sing-box 边缘抗封锁入站 & 链式代理交互引擎
         // ==========================================
         let singBoxOverview = null;
@@ -3191,6 +3340,7 @@
         }
 
         window.onload = () => {
+            initSidebarState();
             fetchUnlockCache();
             fetchStatus();
             fetchNodes();
