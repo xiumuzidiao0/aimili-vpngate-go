@@ -1009,11 +1009,36 @@ check_root
 detect_os
 detect_arch
 
-# 如果直接带参数 menu，或已安装且未指定任何参数，则进入交互式菜单
-if [ "$1" = "menu" ]; then
-    main_menu
-    exit 0
-fi
+# 命令行快捷操作分发
+case "$1" in
+    update|upgrade|9)
+        menu_update
+        exit 0
+        ;;
+    start)
+        systemctl start aimilivpn
+        echo -e "${GREEN}AimiliVPN 服务已启动${PLAIN}"
+        exit 0
+        ;;
+    stop)
+        systemctl stop aimilivpn
+        echo -e "${YELLOW}AimiliVPN 服务已停止${PLAIN}"
+        exit 0
+        ;;
+    restart)
+        systemctl restart aimilivpn
+        echo -e "${GREEN}AimiliVPN 服务已重启${PLAIN}"
+        exit 0
+        ;;
+    status)
+        menu_status
+        exit 0
+        ;;
+    menu)
+        main_menu
+        exit 0
+        ;;
+esac
 
 if [ -f "${BIN_PATH}" ] && [ -f "${SERVICE_FILE}" ] && [ -z "$1" ]; then
     main_menu
