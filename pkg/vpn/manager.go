@@ -266,11 +266,11 @@ func (m *Manager) StartHealthChecker(ctx context.Context) {
 					continue
 				}
 
-				if !CheckExternalConnectivity(5 * time.Second) {
-					stats.LogWarn("Health", "心跳检测未通过：外部网络连通性中断，触发重试...")
-					time.Sleep(2 * time.Second)
-					if !CheckExternalConnectivity(5 * time.Second) {
-						stats.LogError("Health", "外部网络持续不通，判定当前 VPN 节点失效")
+				if !CheckExternalConnectivity(6 * time.Second) {
+					stats.LogWarn("Health", "心跳检测未通过：主连接外部网络连通性中断，触发重试...")
+					time.Sleep(3 * time.Second)
+					if !CheckExternalConnectivity(6 * time.Second) {
+						stats.LogError("Health", "主连接外部网络持续不通，判定当前 VPN 节点失效，触发故障自动转移")
 						go m.TriggerAutoFailover()
 					}
 				}
