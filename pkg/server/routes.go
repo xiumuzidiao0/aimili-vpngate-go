@@ -20,6 +20,7 @@ type StatusResponse struct {
 	Traffic        stats.TrafficSnapshot  `json:"traffic"`
 	ProxyAddr      string                 `json:"proxy_addr"`
 	NodeCount      int                    `json:"node_count"`
+	TotalNodeCount int                    `json:"total_node_count"`
 	NodeSource     string                 `json:"node_source"`
 	BlacklistCount int                    `json:"blacklist_count"`
 	AdminPath      string                 `json:"admin_path"`
@@ -32,7 +33,7 @@ type StatusResponse struct {
 func (s *Server) buildStatusResponse() StatusResponse {
 	vpnState := s.vpn.Snapshot()
 	traffic := stats.GetTrafficTracker().Snapshot()
-	_, source, _, count := s.pool.Status()
+	_, source, _, count, totalCount := s.pool.Status()
 	blCount := s.pool.Blacklist().Count()
 
 	proxyHost := s.cfg.ProxyHost
@@ -58,6 +59,7 @@ func (s *Server) buildStatusResponse() StatusResponse {
 		Traffic:        traffic,
 		ProxyAddr:      fmt.Sprintf("%s:%d", proxyHost, s.cfg.ProxyPort),
 		NodeCount:      count,
+		TotalNodeCount: totalCount,
 		NodeSource:     source,
 		BlacklistCount: blCount,
 		AdminPath:      s.cfg.UIPath,

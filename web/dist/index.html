@@ -936,7 +936,7 @@
             </div>
             <div class="stat-card" style="cursor: pointer; transition: all 0.2s;" onclick="openBlacklistModal()" title="点击查看与管理故障隔离/已屏蔽的节点">
                 <div class="stat-header">
-                    <span class="stat-title">候选节点 / 屏蔽库 <span style="color: #60a5fa; font-size: 11px; margin-left: 4px;">管理 ↗</span></span>
+                    <span class="stat-title">增量节点库 / 屏蔽库 <span style="color: #60a5fa; font-size: 11px; margin-left: 4px;">管理 ↗</span></span>
                     <svg class="stat-icon" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
                 </div>
                 <div id="stat-nodes-count" class="stat-val">0 / 0</div>
@@ -1881,7 +1881,8 @@
                     document.getElementById('vpn-uptime').innerText = '运行时间: -';
                 }
 
-                document.getElementById('stat-nodes-count').innerText = `${data.node_count || 0} / ${data.blacklist_count || 0}`;
+                const totalStr = data.total_node_count && data.total_node_count > data.node_count ? ` (历史全库: ${data.total_node_count})` : '';
+                document.getElementById('stat-nodes-count').innerText = `${data.node_count || 0}${totalStr} / 屏蔽 ${data.blacklist_count || 0}`;
                 document.getElementById('stat-node-source').innerText = `数据源: ${data.node_source || '未知'}`;
 
                 // Render active tunnels strip sorted stably by virtual interface index (tun0, tun1, tun2...)

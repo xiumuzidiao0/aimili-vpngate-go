@@ -2,8 +2,11 @@ package nodes
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -14,17 +17,19 @@ import (
 )
 
 type NodePool struct {
-	cfg       *config.Config
-	fetcher   *Fetcher
-	snapshot  *SnapshotManager
+	cfg        *config.Config
+	fetcher    *Fetcher
+	snapshot   *SnapshotManager
 	blacklist  *BlacklistManager
 	enricher   *IPEnricher
 	favorites  *FavoritesManager
 	reputation *ReputationManager
+	storePath  string
 
 	mu          sync.RWMutex
-	candidates  []*Node
-	allRawNodes []*Node
+	nodeStore   map[string]*Node // 全量持久化增量节点库 (主键: node.ID)
+	candidates  []*Node          // 当前有效、过滤并已排序的优质候选节点列表
+	allRawNodes []*Node          // 当前库中全部已知节点清单
 	lastUpdated time.Time
 	lastSource  string
 	lastStatus  string
@@ -38,7 +43,7 @@ func NewNodePool(cfg *config.Config) *NodePool {
 	favorites := NewFavoritesManager(cfg.DataDir)
 	reputation := NewReputationManager(cfg.DataDir)
 
-	return &NodePool{
+	np := &NodePool{
 		cfg:        cfg,
 		fetcher:    fetcher,
 		snapshot:   sm,
@@ -46,8 +51,191 @@ func NewNodePool(cfg *config.Config) *NodePool {
 		enricher:   enricher,
 		favorites:  favorites,
 		reputation: reputation,
+		storePath:  filepath.Join(cfg.DataDir, "nodes_store.json"),
+		nodeStore:  make(map[string]*Node),
 		lastStatus: "初始化中",
 	}
+
+	np.loadStore()
+	return np
+}
+
+func (np *NodePool) loadStore() {
+	np.mu.Lock()
+	defer np.mu.Unlock()
+
+	data, err := os.ReadFile(np.storePath)
+	if err != nil {
+		return
+	}
+
+	var list []*Node
+	if err := json.Unmarshal(data, &list); err != nil {
+		return
+	}
+
+	now := time.Now()
+	for _, n := range list {
+		if n != nil && n.ID != "" {
+			if n.FirstSeen.IsZero() {
+				n.FirstSeen = now
+			}
+			if n.LastSeen.IsZero() {
+				n.LastSeen = now
+			}
+			np.nodeStore[n.ID] = n
+		}
+	}
+
+	np.rebuildCandidatesLocked()
+	if len(np.candidates) > 0 {
+		np.lastStatus = fmt.Sprintf("已恢复历史节点库 (可用节点: %d/%d)", len(np.candidates), len(np.nodeStore))
+		np.lastUpdated = now
+		np.lastSource = "本地持久化节点库"
+	}
+}
+
+func (np *NodePool) saveStoreLocked() {
+	var list []*Node
+	for _, n := range np.nodeStore {
+		list = append(list, n)
+	}
+
+	data, err := json.MarshalIndent(list, "", "  ")
+	if err != nil {
+		return
+	}
+
+	tmp := np.storePath + ".tmp"
+	if err := os.WriteFile(tmp, data, 0644); err == nil {
+		_ = os.Rename(tmp, np.storePath)
+	}
+}
+
+// evictStaleNodesLocked cleans up nodes that have been offline or unseen for an extended period.
+// Favored nodes are permanently protected from automated eviction.
+func (np *NodePool) evictStaleNodesLocked(now time.Time) int {
+	evicted := 0
+	for id, n := range np.nodeStore {
+		// 1. Never evict user favorites
+		if np.favorites.IsFavorite(n.ID) {
+			continue
+		}
+
+		// 2. Condition A: Unseen in upstream feed for > 24h AND TCP probe unreachable
+		staleByTime := !n.LastSeen.IsZero() && now.Sub(n.LastSeen) > 24*time.Hour && n.LatencyMs <= 0
+
+		// 3. Condition B: Failed TCP probe >= 5 consecutive times AND unseen in upstream for > 6h
+		staleByFails := n.FailCount >= 5 && !n.LastSeen.IsZero() && now.Sub(n.LastSeen) > 6*time.Hour
+
+		if staleByTime || staleByFails {
+			delete(np.nodeStore, id)
+			evicted++
+		}
+	}
+	return evicted
+}
+
+// rebuildCandidatesLocked filters and sorts the candidates from the internal nodeStore.
+func (np *NodePool) rebuildCandidatesLocked() {
+	var all []*Node
+	var filtered []*Node
+
+	allowedCountries := make(map[string]bool)
+	for _, c := range np.cfg.DiscoveryCountries {
+		allowedCountries[strings.ToUpper(strings.TrimSpace(c))] = true
+	}
+
+	for _, n := range np.nodeStore {
+		all = append(all, n)
+		if np.blacklist.IsBlacklisted(n.ID) {
+			continue
+		}
+		if len(allowedCountries) > 0 && !allowedCountries[n.CountryShort] {
+			continue
+		}
+		filtered = append(filtered, n)
+	}
+
+	// Stable multi-tier sorting:
+	// Tier 0: Reachable nodes (LatencyMs > 0)
+	// Tier 1: Un-probed nodes (LatencyMs == 0)
+	// Tier 2: Probe-failed nodes (LatencyMs < 0)
+	// Within tier: sort by Score desc, Ping asc
+	sort.Slice(filtered, func(i, j int) bool {
+		a := filtered[i]
+		b := filtered[j]
+
+		tier := func(node *Node) int {
+			if node.LatencyMs > 0 {
+				return 0
+			}
+			if node.LatencyMs == 0 {
+				return 1
+			}
+			return 2
+		}
+
+		tierA := tier(a)
+		tierB := tier(b)
+		if tierA != tierB {
+			return tierA < tierB
+		}
+
+		if a.Score != b.Score {
+			return a.Score > b.Score
+		}
+		return a.Ping < b.Ping
+	})
+
+	np.candidates = filtered
+	np.allRawNodes = all
+}
+
+// MergeFreshNodesLocked merges freshly fetched nodes into the incremental store without wiping historical valid nodes.
+func (np *NodePool) MergeFreshNodesLocked(fresh []*Node, source string) (int, int, int) {
+	now := time.Now()
+	newCount := 0
+	updatedCount := 0
+
+	for _, n := range fresh {
+		if existing, exists := np.nodeStore[n.ID]; exists {
+			// Update real-time network metrics from official source
+			existing.Score = n.Score
+			existing.Ping = n.Ping
+			existing.Speed = n.Speed
+			existing.NumVpnSessions = n.NumVpnSessions
+			existing.TotalUsers = n.TotalUsers
+			existing.TotalTraffic = n.TotalTraffic
+			existing.Operator = n.Operator
+			existing.Message = n.Message
+			existing.LastSeen = now
+			existing.FailCount = 0 // Seen alive in official feed
+			if n.ConfigData != "" {
+				existing.ConfigData = n.ConfigData
+			}
+			updatedCount++
+		} else {
+			// Brand new node
+			n.FirstSeen = now
+			n.LastSeen = now
+			n.FailCount = 0
+			np.nodeStore[n.ID] = n
+			newCount++
+		}
+	}
+
+	// Perform stale node eviction
+	evictedCount := np.evictStaleNodesLocked(now)
+
+	np.rebuildCandidatesLocked()
+	np.saveStoreLocked()
+
+	np.lastUpdated = now
+	np.lastSource = source
+	np.lastStatus = fmt.Sprintf("就绪 (可用候选 %d, 历史总库 %d)", len(np.candidates), len(np.nodeStore))
+
+	return newCount, updatedCount, evictedCount
 }
 
 func (np *NodePool) Refresh(ctx context.Context) error {
@@ -71,49 +259,24 @@ func (np *NodePool) Refresh(ctx context.Context) error {
 		return err
 	}
 
-	// Cache successful snapshot
+	// Cache raw snapshot CSV
 	_ = np.snapshot.Save(result.Data, result.Source, len(nodes))
 
-	// Filter by discovery countries if configured
-	var filtered []*Node
-	allowedCountries := make(map[string]bool)
-	for _, c := range np.cfg.DiscoveryCountries {
-		allowedCountries[c] = true
-	}
-
-	for _, n := range nodes {
-		if np.blacklist.IsBlacklisted(n.ID) {
-			continue
-		}
-		if len(allowedCountries) > 0 && !allowedCountries[n.CountryShort] {
-			continue
-		}
-		filtered = append(filtered, n)
-	}
-
-	// Default sort by Score desc, Ping asc
-	sort.Slice(filtered, func(i, j int) bool {
-		if filtered[i].Score != filtered[j].Score {
-			return filtered[i].Score > filtered[j].Score
-		}
-		return filtered[i].Ping < filtered[j].Ping
-	})
-
+	// Perform incremental merge and stale eviction
 	np.mu.Lock()
-	np.candidates = filtered
-	np.allRawNodes = nodes
-	np.lastUpdated = time.Now()
-	np.lastSource = result.Source
-	np.lastStatus = fmt.Sprintf("就绪 (可用节点 %d/%d)", len(filtered), len(nodes))
+	newCount, updatedCount, evictedCount := np.MergeFreshNodesLocked(nodes, result.Source)
+	currentFiltered := make([]*Node, len(np.candidates))
+	copy(currentFiltered, np.candidates)
 	np.mu.Unlock()
 
-	stats.LogInfo("Nodes", "节点池刷新完成，当前优质候选节点: %d 个 (来自: %s)", len(filtered), result.Source)
+	stats.LogInfo("Nodes", "节点池增量刷新完成 (新增: %d, 更新: %d, 淘汰失效: %d)，当前全量库: %d 个，优质候选: %d 个 (来自: %s)",
+		newCount, updatedCount, evictedCount, len(np.allRawNodes), len(currentFiltered), result.Source)
 
-	// 后台并发测试全部候选节点的 TCP 连通性与真实延迟
-	go np.ProbeNodes(context.Background(), filtered)
+	// 后台并发测试候选节点的 TCP 连通性与真实延迟
+	go np.ProbeNodes(context.Background(), currentFiltered)
 
 	// Async IP type classification (residential vs hosting) in background
-	go np.enricher.EnrichNodes(context.Background(), filtered)
+	go np.enricher.EnrichNodes(context.Background(), currentFiltered)
 
 	return nil
 }
@@ -152,16 +315,25 @@ func (np *NodePool) ProbeNodes(ctx context.Context, nodeList []*Node) {
 				np.mu.Lock()
 				target.LatencyMs = latency
 				target.LastChecked = time.Now()
+				target.FailCount = 0
 				np.mu.Unlock()
 			} else {
 				np.mu.Lock()
 				target.LatencyMs = -1
 				target.LastChecked = time.Now()
+				target.FailCount++
 				np.mu.Unlock()
 			}
 		}(n)
 	}
 	wg.Wait()
+
+	// Re-sort candidates and persist updated probe latencies
+	np.mu.Lock()
+	np.rebuildCandidatesLocked()
+	np.saveStoreLocked()
+	np.mu.Unlock()
+
 	stats.LogInfo("Probe", "全量节点测速完成！")
 }
 
@@ -216,6 +388,17 @@ func (np *NodePool) Reputation() *ReputationManager {
 func (np *NodePool) GetNodeByID(id string) *Node {
 	np.mu.RLock()
 	defer np.mu.RUnlock()
+
+	if n, ok := np.nodeStore[id]; ok {
+		cp := *n
+		cp.IsFavorite = np.favorites.IsFavorite(n.ID)
+		if np.reputation != nil {
+			cp.ReputationScore = np.reputation.GetScore(n.IP)
+		} else {
+			cp.ReputationScore = 60
+		}
+		return &cp
+	}
 
 	for _, n := range np.candidates {
 		if n.ID == id || n.IP == id {
@@ -350,29 +533,31 @@ func (np *NodePool) Blacklist() *BlacklistManager {
 	return np.blacklist
 }
 
-func (np *NodePool) Status() (string, string, time.Time, int) {
+func (np *NodePool) Status() (string, string, time.Time, int, int) {
 	np.mu.RLock()
 	defer np.mu.RUnlock()
 
-	return np.lastStatus, np.lastSource, np.lastUpdated, len(np.candidates)
+	return np.lastStatus, np.lastSource, np.lastUpdated, len(np.candidates), len(np.nodeStore)
 }
 
 func (np *NodePool) SetCandidatesForTest(candidates []*Node) {
 	np.mu.Lock()
 	defer np.mu.Unlock()
 	np.candidates = candidates
+	np.allRawNodes = candidates
+	for _, c := range candidates {
+		np.nodeStore[c.ID] = c
+	}
 }
 
 func (np *NodePool) FindPort(nodeID, ip string) int {
 	np.mu.RLock()
 	defer np.mu.RUnlock()
-	for _, n := range np.allRawNodes {
-		if n.ID == nodeID || n.IP == ip {
-			return n.Port
-		}
+	if n, ok := np.nodeStore[nodeID]; ok && n.Port > 0 {
+		return n.Port
 	}
-	for _, n := range np.candidates {
-		if n.ID == nodeID || n.IP == ip {
+	for _, n := range np.nodeStore {
+		if n.IP == ip && n.Port > 0 {
 			return n.Port
 		}
 	}
@@ -388,26 +573,13 @@ func (np *NodePool) ReviveBlacklistedNodes(ctx context.Context) int {
 
 	stats.LogInfo("Blacklist", "🎉 探活复活检测完成：成功复活 %d 个已屏蔽节点并重新释放！", len(revived))
 
-	revivedIDMap := make(map[string]bool)
-	for _, r := range revived {
-		revivedIDMap[r.ID] = true
-	}
-
 	np.mu.Lock()
+	np.rebuildCandidatesLocked()
+	np.saveStoreLocked()
 	var restoredNodes []*Node
-	for _, n := range np.allRawNodes {
-		if revivedIDMap[n.ID] {
-			alreadyIn := false
-			for _, c := range np.candidates {
-				if c.ID == n.ID {
-					alreadyIn = true
-					break
-				}
-			}
-			if !alreadyIn {
-				np.candidates = append(np.candidates, n)
-				restoredNodes = append(restoredNodes, n)
-			}
+	for _, r := range revived {
+		if n, ok := np.nodeStore[r.ID]; ok {
+			restoredNodes = append(restoredNodes, n)
 		}
 	}
 	np.mu.Unlock()
