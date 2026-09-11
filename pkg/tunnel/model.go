@@ -98,6 +98,17 @@ func (t *Tunnel) RecordSuccess() {
 	}
 }
 
+func (t *Tunnel) TripCircuitBreaker(duration time.Duration) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.consecutiveFails = 3
+	t.lastFailureTime = time.Now()
+	if duration <= 0 {
+		duration = 45 * time.Second
+	}
+	t.circuitBrokenUntil = time.Now().Add(duration)
+}
+
 func (t *Tunnel) Snapshot() *Tunnel {
 	t.mu.RLock()
 	defer t.mu.RUnlock()

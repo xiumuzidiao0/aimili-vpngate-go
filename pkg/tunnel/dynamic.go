@@ -518,7 +518,7 @@ func (m *DynamicGroupManager) StartEvaluationLoop(ctx context.Context) {
 		time.Sleep(3 * time.Second)
 		m.evaluateAll(ctx)
 
-		ticker := time.NewTicker(30 * time.Second)
+		ticker := time.NewTicker(15 * time.Second)
 		defer ticker.Stop()
 
 		for {
@@ -556,19 +556,26 @@ func (m *DynamicGroupManager) evaluateAll(ctx context.Context) {
 			interval = 15 * time.Minute
 		}
 
-		// Trigger evaluation if interval expired OR if any active tunnel is down
+		// Trigger evaluation if interval expired OR if any active tunnel is down/unreachable
 		needsEval := false
 		if g.LastEvaluatedAt.IsZero() || now.Sub(g.LastEvaluatedAt) >= interval {
 			needsEval = true
 		} else {
-			// Check if any tunnel dropped
-			healthyCount := 0
+			validCount := 0
 			for _, tid := range g.ActiveTunnelIDs {
-				if t := m.pool.GetTunnel(tid); t != nil && t.IsHealthy() {
-					healthyCount++
+				t := m.pool.GetTunnel(tid)
+				if t == nil || !t.IsHealthy() || !t.IsAvailable() {
+					continue
 				}
+				// Active egress verification: ensure traffic actually flows out to internet
+				if !CheckTunnelConnectivity(t.DevName, 2*time.Second) {
+					stats.LogWarn("DynamicGroup", "[%s] 出口隧道 %s (%s) 探测公网不通，标记失效并触发换线", g.Name, t.ID, t.DevName)
+					t.TripCircuitBreaker(60 * time.Second)
+					continue
+				}
+				validCount++
 			}
-			if healthyCount < g.TargetCount {
+			if validCount < g.TargetCount {
 				needsEval = true
 			}
 		}
