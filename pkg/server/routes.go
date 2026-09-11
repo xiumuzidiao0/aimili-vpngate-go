@@ -242,6 +242,17 @@ func (s *Server) handleBlacklistAdd(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handleBlacklistResurrect(w http.ResponseWriter, r *http.Request) {
+	revivedCount := s.pool.ReviveBlacklistedNodes(r.Context())
+	remainingCount := s.pool.Blacklist().Count()
+	s.writeJSON(w, http.StatusOK, map[string]any{
+		"ok":              true,
+		"revived_count":   revivedCount,
+		"remaining_count": remainingCount,
+		"message":         fmt.Sprintf("探活复活检测完成：成功复活并释放 %d 个节点，当前剩余屏蔽节点 %d 个", revivedCount, remainingCount),
+	})
+}
+
 func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 	recent := stats.GetRingLog().Recent(100)
 	s.writeJSON(w, http.StatusOK, recent)

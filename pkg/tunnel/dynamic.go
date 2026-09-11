@@ -344,13 +344,15 @@ func (m *DynamicGroupManager) EvaluateGroup(ctx context.Context, g *DynamicGroup
 			newTun, err := m.pool.StartTunnel(n)
 			if err != nil || newTun == nil {
 				stats.LogWarn("DynamicGroup", "[%s] 启动候选节点 %s 失败: %v，尝试下一个候选", g.Name, n.ID, err)
-				m.nodePool.Blacklist().Mark(n, fmt.Sprintf("启动失败: %v", err), 600*time.Second)
+				if err != nil && !strings.Contains(err.Error(), "并发隧道已达上限") {
+					m.nodePool.Blacklist().Mark(n, fmt.Sprintf("启动失败: %v", err), 600*time.Second)
+				}
 				continue
 			}
 
-			// Wait briefly (up to 8s) for handshake completion or early exit
+			// Wait for handshake completion or early exit (up to 14s)
 			connected := false
-			for w := 0; w < 16; w++ {
+			for w := 0; w < 28; w++ {
 				time.Sleep(500 * time.Millisecond)
 				st := newTun.GetStatus()
 				if st == StatusConnected {
@@ -368,9 +370,12 @@ func (m *DynamicGroupManager) EvaluateGroup(ctx context.Context, g *DynamicGroup
 				usedNodeIDs[n.IP] = true
 				needed--
 			} else {
-				stats.LogWarn("DynamicGroup", "[%s] 候选节点 %s 握手超时或失败，已自动释放并递补下一个候选...", g.Name, n.ID)
+				st := newTun.GetStatus()
+				stats.LogWarn("DynamicGroup", "[%s] 候选节点 %s 握手超时或失败 (状态: %s)，释放该隧道并递补下一个候选...", g.Name, n.ID, st)
 				_ = m.pool.StopTunnel(newTun.ID)
-				m.nodePool.Blacklist().Mark(n, "动态组探测握手未通过", 900*time.Second)
+				if st == StatusFailed {
+					m.nodePool.Blacklist().Mark(n, "动态组探测握手未通过", 900*time.Second)
+				}
 			}
 		}
 	}

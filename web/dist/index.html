@@ -1627,11 +1627,12 @@
 
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
                 <div style="font-size: 12.5px; color: var(--text-muted);">
-                    展示当前处于故障隔离期的节点。隔离期过后自动解封，亦可手动解封或清空。
+                    展示当前因握手无法连通被隔离的节点。系统每 3 小时自动探活复活，亦可随时手动探活或清空。
                 </div>
-                <div style="display: flex; gap: 8px;">
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button id="btn-resurrect-bl" class="btn" style="padding: 5px 12px; font-size: 12px; background: #0284c7;" onclick="resurrectBlacklist()">🔄 立即探活复活节点</button>
                     <button class="btn btn-danger" style="padding: 5px 12px; font-size: 12px;" onclick="clearAllBlacklist()">🗑️ 清空全部屏蔽</button>
-                    <button class="btn btn-outline" style="padding: 5px 12px; font-size: 12px;" onclick="fetchBlacklist(true)">🔄 刷新</button>
+                    <button class="btn btn-outline" style="padding: 5px 12px; font-size: 12px;" onclick="fetchBlacklist(true)">刷新</button>
                 </div>
             </div>
 
@@ -2700,6 +2701,38 @@
                 fetchNodes();
             } catch (err) {
                 alert('请求失败: ' + err);
+            }
+        }
+
+        async function resurrectBlacklist() {
+            const btn = document.getElementById('btn-resurrect-bl');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerText = '⏳ 正在探活复活...';
+            }
+            try {
+                const res = await fetch('/api/blacklist/resurrect', { method: 'POST' });
+                const ret = await res.json();
+                if (!res.ok) {
+                    alert('探活检测失败: ' + (ret.error || '未知错误'));
+                    return;
+                }
+                const revivedCount = ret.revived_count || 0;
+                if (revivedCount > 0) {
+                    showToast(`🎉 探活成功！已复活并释放 ${revivedCount} 个节点`);
+                } else {
+                    showToast('探活完成：当前被屏蔽节点均未响应，暂无复活');
+                }
+                await fetchBlacklist();
+                fetchStatus();
+                fetchNodes();
+            } catch (err) {
+                alert('请求失败: ' + err);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerText = '🔄 立即探活复活节点';
+                }
             }
         }
 

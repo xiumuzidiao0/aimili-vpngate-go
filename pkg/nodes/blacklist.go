@@ -1,9 +1,13 @@
 package nodes
 
 import (
+	"context"
 	"encoding/json"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -11,6 +15,8 @@ import (
 type BlacklistEntry struct {
 	ID        string    `json:"id"`
 	IP        string    `json:"ip"`
+	Port      int       `json:"port,omitempty"`
+	Protocol  string    `json:"protocol,omitempty"`
 	Country   string    `json:"country"`
 	Reason    string    `json:"reason"`
 	MarkedAt  time.Time `json:"marked_at"`
@@ -80,6 +86,9 @@ func (bm *BlacklistManager) IsBlacklisted(nodeID string) bool {
 }
 
 func (bm *BlacklistManager) Mark(node *Node, reason string, baseDuration time.Duration) {
+	if node == nil {
+		return
+	}
 	bm.mu.Lock()
 	defer bm.mu.Unlock()
 
@@ -89,19 +98,25 @@ func (bm *BlacklistManager) Mark(node *Node, reason string, baseDuration time.Du
 		failCount = existing.FailCount + 1
 	}
 
-	// Exponential backoff: baseDuration * 1, 2, 4... max 24h
+	if baseDuration <= 0 {
+		baseDuration = 15 * time.Minute
+	}
+
+	// Mild backoff: 15m -> 30m -> 1h -> max 6h (avoid locking recoverable nodes excessively)
 	multiplier := 1 << (failCount - 1)
-	if multiplier > 48 {
-		multiplier = 48
+	if multiplier > 24 {
+		multiplier = 24
 	}
 	duration := baseDuration * time.Duration(multiplier)
-	if duration > 24*time.Hour {
-		duration = 24 * time.Hour
+	if duration > 6*time.Hour {
+		duration = 6 * time.Hour
 	}
 
 	bm.entries[node.ID] = &BlacklistEntry{
 		ID:        node.ID,
 		IP:        node.IP,
+		Port:      node.Port,
+		Protocol:  node.Proto,
 		Country:   node.CountryShort,
 		Reason:    reason,
 		MarkedAt:  now,
@@ -139,9 +154,20 @@ func (bm *BlacklistManager) MarkManual(id, ip, country, reason string, duration 
 	if reason == "" {
 		reason = "用户手动屏蔽"
 	}
+
+	cleanIP := ip
+	port := 0
+	if strings.Contains(ip, ":") {
+		if h, pStr, err := net.SplitHostPort(ip); err == nil {
+			cleanIP = h
+			port, _ = strconv.Atoi(pStr)
+		}
+	}
+
 	bm.entries[id] = &BlacklistEntry{
 		ID:        id,
-		IP:        ip,
+		IP:        cleanIP,
+		Port:      port,
 		Country:   country,
 		Reason:    reason,
 		MarkedAt:  now,
@@ -149,6 +175,72 @@ func (bm *BlacklistManager) MarkManual(id, ip, country, reason string, duration 
 		FailCount: 1,
 	}
 	bm.saveLocked()
+}
+
+// ProbeAndRevive tests blacklisted nodes and auto-revives those that respond to TCP dial
+func (bm *BlacklistManager) ProbeAndRevive(ctx context.Context, fallbackPortFinder func(nodeID, ip string) int) ([]*BlacklistEntry, error) {
+	bm.mu.RLock()
+	now := time.Now()
+	var candidates []*BlacklistEntry
+	for _, entry := range bm.entries {
+		if entry != nil && entry.Until.After(now) {
+			cp := *entry
+			candidates = append(candidates, &cp)
+		}
+	}
+	bm.mu.RUnlock()
+
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	var revived []*BlacklistEntry
+	var revMu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 16)
+
+	for _, item := range candidates {
+		wg.Add(1)
+		go func(entry *BlacklistEntry) {
+			defer wg.Done()
+			select {
+			case <-ctx.Done():
+				return
+			case sem <- struct{}{}:
+			}
+			defer func() { <-sem }()
+
+			port := entry.Port
+			if port <= 0 && fallbackPortFinder != nil {
+				port = fallbackPortFinder(entry.ID, entry.IP)
+			}
+			if port <= 0 {
+				port = 443
+			}
+
+			addr := net.JoinHostPort(entry.IP, strconv.Itoa(port))
+			conn, err := net.DialTimeout("tcp", addr, 3500*time.Millisecond)
+			if err == nil {
+				_ = conn.Close()
+				revMu.Lock()
+				revived = append(revived, entry)
+				revMu.Unlock()
+			}
+		}(item)
+	}
+
+	wg.Wait()
+
+	if len(revived) > 0 {
+		bm.mu.Lock()
+		for _, r := range revived {
+			delete(bm.entries, r.ID)
+		}
+		bm.saveLocked()
+		bm.mu.Unlock()
+	}
+
+	return revived, nil
 }
 
 func (bm *BlacklistManager) Count() int {

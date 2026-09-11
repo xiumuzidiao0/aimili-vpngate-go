@@ -65,6 +65,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/blacklist/remove", s.handleBlacklistRemove)
 	mux.HandleFunc("POST /api/blacklist/clear", s.handleBlacklistClear)
 	mux.HandleFunc("POST /api/blacklist/add", s.handleBlacklistAdd)
+	mux.HandleFunc("POST /api/blacklist/resurrect", s.handleBlacklistResurrect)
 	mux.HandleFunc("GET /api/logs", s.handleLogs)
 	mux.HandleFunc("GET /api/settings", s.handleGetSettings)
 	mux.HandleFunc("POST /api/settings", s.handleUpdateSettings)
@@ -143,6 +144,9 @@ func (s *Server) Start(ctx context.Context) error {
 	// Start sing-box self-healing watchdog
 	watchdog := NewSingBoxWatchdog(s, 30*time.Second)
 	watchdog.Start(ctx)
+
+	// Start 3-hour blacklisted nodes probe & resurrection loop
+	s.pool.StartRevivalLoop(ctx)
 
 	go func() {
 		<-ctx.Done()

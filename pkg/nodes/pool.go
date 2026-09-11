@@ -24,6 +24,7 @@ type NodePool struct {
 
 	mu          sync.RWMutex
 	candidates  []*Node
+	allRawNodes []*Node
 	lastUpdated time.Time
 	lastSource  string
 	lastStatus  string
@@ -100,6 +101,7 @@ func (np *NodePool) Refresh(ctx context.Context) error {
 
 	np.mu.Lock()
 	np.candidates = filtered
+	np.allRawNodes = nodes
 	np.lastUpdated = time.Now()
 	np.lastSource = result.Source
 	np.lastStatus = fmt.Sprintf("就绪 (可用节点 %d/%d)", len(filtered), len(nodes))
@@ -353,4 +355,79 @@ func (np *NodePool) Status() (string, string, time.Time, int) {
 	defer np.mu.RUnlock()
 
 	return np.lastStatus, np.lastSource, np.lastUpdated, len(np.candidates)
+}
+
+func (np *NodePool) FindPort(nodeID, ip string) int {
+	np.mu.RLock()
+	defer np.mu.RUnlock()
+	for _, n := range np.allRawNodes {
+		if n.ID == nodeID || n.IP == ip {
+			return n.Port
+		}
+	}
+	for _, n := range np.candidates {
+		if n.ID == nodeID || n.IP == ip {
+			return n.Port
+		}
+	}
+	return 0
+}
+
+// ReviveBlacklistedNodes probes all currently blacklisted nodes and restores those that are alive.
+func (np *NodePool) ReviveBlacklistedNodes(ctx context.Context) int {
+	revived, err := np.blacklist.ProbeAndRevive(ctx, np.FindPort)
+	if err != nil || len(revived) == 0 {
+		return 0
+	}
+
+	stats.LogInfo("Blacklist", "🎉 探活复活检测完成：成功复活 %d 个已屏蔽节点并重新释放！", len(revived))
+
+	revivedIDMap := make(map[string]bool)
+	for _, r := range revived {
+		revivedIDMap[r.ID] = true
+	}
+
+	np.mu.Lock()
+	var restoredNodes []*Node
+	for _, n := range np.allRawNodes {
+		if revivedIDMap[n.ID] {
+			alreadyIn := false
+			for _, c := range np.candidates {
+				if c.ID == n.ID {
+					alreadyIn = true
+					break
+				}
+			}
+			if !alreadyIn {
+				np.candidates = append(np.candidates, n)
+				restoredNodes = append(restoredNodes, n)
+			}
+		}
+	}
+	np.mu.Unlock()
+
+	if len(restoredNodes) > 0 {
+		go np.ProbeNodes(context.Background(), restoredNodes)
+		go np.enricher.EnrichNodes(context.Background(), restoredNodes)
+	}
+
+	return len(revived)
+}
+
+// StartRevivalLoop starts periodic background probe testing for blacklisted nodes every 3 hours.
+func (np *NodePool) StartRevivalLoop(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(3 * time.Hour)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				stats.LogInfo("Blacklist", "正在执行每 3 小时定期屏蔽库探活与节点复活检测...")
+				np.ReviveBlacklistedNodes(ctx)
+			}
+		}
+	}()
 }

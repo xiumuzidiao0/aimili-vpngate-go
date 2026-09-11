@@ -200,8 +200,11 @@ func (p *Pool) StartTunnel(node *nodes.Node) (*Tunnel, error) {
 	go func() {
 		defer func() {
 			t.mu.Lock()
-			wasConnected := t.Status == StatusConnected
+			statusBefore := t.Status
+			wasConnected := statusBefore == StatusConnected
+			wasStopped := statusBefore == StatusStopped
 			connectedAt := t.ConnectedAt
+			message := t.Message
 			if t.Status == StatusConnecting || t.Status == StatusConnected {
 				t.Status = StatusFailed
 				t.Message = "进程退出"
@@ -213,7 +216,7 @@ func (p *Pool) StartTunnel(node *nodes.Node) (*Tunnel, error) {
 			t.mu.Unlock()
 
 			if p.nodePool != nil && node != nil {
-				if wasConnected && !connectedAt.IsZero() {
+				if wasConnected || !connectedAt.IsZero() {
 					uptimeSec := int64(time.Since(connectedAt).Seconds())
 					if p.nodePool.Reputation() != nil {
 						p.nodePool.Reputation().RecordUptime(node.IP, node.ID, uptimeSec)
@@ -221,12 +224,18 @@ func (p *Pool) StartTunnel(node *nodes.Node) (*Tunnel, error) {
 							p.nodePool.Reputation().RecordFail(node.IP, node.ID, true)
 						}
 					}
-				} else {
+				} else if !wasStopped {
 					if p.nodePool.Reputation() != nil {
 						p.nodePool.Reputation().RecordFail(node.IP, node.ID, false)
 					}
+					reason := "握手未完成或连接被重置"
+					if strings.Contains(message, "AUTH_FAILED") {
+						reason = "身份认证失败被拒绝"
+					} else if strings.Contains(message, "TLS Error") || strings.Contains(message, "Connection reset") {
+						reason = "连接被对端重置或TLS协商失败"
+					}
 					if p.nodePool.Blacklist() != nil {
-						p.nodePool.Blacklist().Mark(node, "握手连接失败或认证拒绝", 900*time.Second)
+						p.nodePool.Blacklist().Mark(node, reason, 900*time.Second)
 					}
 				}
 			}
