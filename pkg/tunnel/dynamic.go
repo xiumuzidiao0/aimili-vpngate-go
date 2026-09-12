@@ -186,7 +186,11 @@ func (m *DynamicGroupManager) SaveGroup(g *DynamicGroup) error {
 	}
 
 	if g.IntervalMinutes <= 0 {
-		g.IntervalMinutes = 15
+		if g.IsSystem || g.ID == SystemPrimaryGroupID {
+			g.IntervalMinutes = 0
+		} else {
+			g.IntervalMinutes = 15
+		}
 	}
 	if g.SortBy == "" {
 		g.SortBy = "latency"
@@ -200,6 +204,24 @@ func (m *DynamicGroupManager) SaveGroup(g *DynamicGroup) error {
 
 	m.groups[g.ID] = g
 	m.saveLocked()
+
+	// Sync system primary group settings back to global config and config.env for CLI consistency
+	if (g.IsSystem || g.ID == SystemPrimaryGroupID) && m.cfg != nil {
+		var countries []string
+		if strings.TrimSpace(g.Country) != "" {
+			for _, c := range strings.Split(g.Country, ",") {
+				c = strings.ToUpper(strings.TrimSpace(c))
+				if len(c) == 2 {
+					countries = append(countries, c)
+				}
+			}
+		}
+		_ = m.cfg.UpdateSettings(config.SettingsDTO{
+			AutoRotateMinutes:  g.IntervalMinutes,
+			AutoRotateIPType:   g.IPType,
+			DiscoveryCountries: countries,
+		})
+	}
 
 	stats.LogInfo("DynamicGroup", "保存动态自适应组 [%s] (%s): 目标数=%d, 策略=%s, 解锁筛选=%s, 周期=%d分钟",
 		g.ID, g.Name, g.TargetCount, g.SortBy, g.UnlockFilter, g.IntervalMinutes)
@@ -561,10 +583,33 @@ func (m *DynamicGroupManager) evaluateAll(ctx context.Context) {
 			continue
 		}
 
-		interval := time.Duration(g.IntervalMinutes) * time.Minute
-		if interval <= 0 {
-			interval = 15 * time.Minute
+		// If interval is 0 or less, periodic rotation is disabled.
+		// Only evaluate if tun0 or group tunnels are down/unreachable or not yet established.
+		if g.IntervalMinutes <= 0 {
+			needsEval := false
+			if g.IsSystem || gid == SystemPrimaryGroupID {
+				hasPrimary := false
+				for _, t := range m.pool.ListTunnels() {
+					if t.DevIndex == 0 && t.IsHealthy() && t.IsAvailable() {
+						hasPrimary = true
+						break
+					}
+				}
+				if !hasPrimary {
+					needsEval = true
+				}
+			} else {
+				if len(g.ActiveTunnelIDs) < g.TargetCount {
+					needsEval = true
+				}
+			}
+			if needsEval {
+				m.EvaluateGroup(ctx, g)
+			}
+			continue
 		}
+
+		interval := time.Duration(g.IntervalMinutes) * time.Minute
 
 		// Trigger evaluation if interval expired OR if any active tunnel is down/unreachable
 		needsEval := false
@@ -642,6 +687,17 @@ func (m *DynamicGroupManager) evaluatePrimarySystemGroup(ctx context.Context, g 
 		currentActiveNode = m.primaryConnector.GetActiveNode()
 	} else if primaryTun != nil {
 		currentActiveNode = primaryTun.Node
+	}
+
+	// If periodic rotation is disabled (IntervalMinutes <= 0), keep the healthy primary connection without rotating
+	if g.IntervalMinutes <= 0 && primaryHealthy && currentActiveNode != nil {
+		m.mu.Lock()
+		g.ActiveTunnelIDs = []string{primaryTun.ID}
+		g.LastEvaluatedAt = time.Now()
+		g.StatusText = fmt.Sprintf("主网关固定连接: %s (%s, tun0)", currentActiveNode.IP, currentActiveNode.CountryShort)
+		m.saveLocked()
+		m.mu.Unlock()
+		return
 	}
 
 	// If primary is already healthy on this best node, keep it

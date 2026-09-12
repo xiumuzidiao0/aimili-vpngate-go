@@ -592,6 +592,60 @@
             if (activeBtn) activeBtn.classList.add('active');
         }
 
+        function updateSystemPrimaryRotateBanner() {
+            const sysGroup = (currentDynamicGroups || []).find(g => g.is_system || g.id === 'system-primary');
+            const intervalEl = document.getElementById('sys-meta-interval');
+            const ipTypeEl = document.getElementById('sys-meta-iptype');
+            const countryEl = document.getElementById('sys-meta-country');
+            const sortEl = document.getElementById('sys-meta-sort');
+            const unlockEl = document.getElementById('sys-meta-unlock');
+            const badgeEl = document.getElementById('sys-rotate-status-badge');
+
+            if (!sysGroup) return;
+
+            if (intervalEl) {
+                intervalEl.innerText = sysGroup.interval_minutes > 0 ? `${sysGroup.interval_minutes} 分钟` : '已关闭 (保持固定连接)';
+            }
+            if (ipTypeEl) {
+                let ipText = '全部网络类型';
+                if (sysGroup.ip_type === 'residential') ipText = '住宅宽带 IP (家宽)';
+                else if (sysGroup.ip_type === 'hosting') ipText = '机房 IP';
+                else if (sysGroup.ip_type === 'mobile') ipText = '移动网络';
+                ipTypeEl.innerText = ipText;
+            }
+            if (countryEl) {
+                countryEl.innerText = sysGroup.country ? `${getCountryName(sysGroup.country)} (${sysGroup.country})` : '全部国家/地区';
+            }
+            if (sortEl) {
+                let sortText = '最低延迟优先';
+                if (sysGroup.sort_by === 'speed') sortText = '最大带宽优先';
+                else if (sysGroup.sort_by === 'score') sortText = '综合评分最高优先';
+                sortEl.innerText = sortText;
+            }
+            if (unlockEl) {
+                let unlockText = '不限';
+                if (sysGroup.unlock_filter === 'ai') unlockText = '必须解锁 AI (ChatGPT / Claude)';
+                else if (sysGroup.unlock_filter === 'streaming') unlockText = '必须解锁流媒体 (Netflix / Google)';
+                else if (sysGroup.unlock_filter === 'full' || sysGroup.unlock_filter === 'all') unlockText = '全解锁 (AI + 流媒体)';
+                unlockEl.innerText = unlockText;
+            }
+            if (badgeEl) {
+                if (sysGroup.enabled && sysGroup.interval_minutes > 0) {
+                    badgeEl.className = 'badge connected';
+                    badgeEl.innerHTML = '<span class="status-dot"></span> 托管运行中';
+                } else {
+                    badgeEl.className = 'badge disconnected';
+                    badgeEl.innerHTML = '<span class="status-dot"></span> 已停止定时轮换';
+                }
+            }
+        }
+
+        function openSystemPrimaryConfig() {
+            switchView('matrix');
+            switchMatrixTab('groups');
+            editDynamicGroup('system-primary');
+        }
+
         async function loadSettingsForm() {
             try {
                 const res = await fetch('/api/settings');
@@ -602,11 +656,9 @@
                 document.getElementById('cfg-username').value = data.ui_username || 'admin';
                 document.getElementById('cfg-password').value = '';
                 document.getElementById('cfg-proxy-port').value = data.proxy_port || 7928;
-                document.getElementById('cfg-auto-rotate').value = data.auto_rotate_minutes || 0;
-                document.getElementById('cfg-rotate-iptype').value = data.auto_rotate_ip_type || 'all';
-                document.getElementById('cfg-discovery-countries').value = (data.discovery_countries || []).join(',');
                 document.getElementById('cfg-tg-token').value = data.telegram_bot_token || '';
                 document.getElementById('cfg-tg-chatid').value = data.telegram_chat_id || '';
+                updateSystemPrimaryRotateBanner();
                 switchSettingsTab('base');
             } catch (err) {
                 console.warn('获取系统配置失败:', err);
@@ -646,10 +698,6 @@
                 return;
             }
 
-            const autoRotate = parseInt(document.getElementById('cfg-auto-rotate').value) || 0;
-            const rotateIPType = document.getElementById('cfg-rotate-iptype').value;
-            const countriesRaw = document.getElementById('cfg-discovery-countries').value.trim();
-            const countries = countriesRaw ? countriesRaw.split(',').map(c => c.trim().toUpperCase()).filter(Boolean) : [];
             const tgToken = document.getElementById('cfg-tg-token').value.trim();
             const tgChatID = document.getElementById('cfg-tg-chatid').value.trim();
 
@@ -658,9 +706,6 @@
                 ui_path: webPath,
                 ui_username: user,
                 proxy_port: proxyPort,
-                auto_rotate_minutes: autoRotate,
-                auto_rotate_ip_type: rotateIPType,
-                discovery_countries: countries,
                 telegram_bot_token: tgToken,
                 telegram_chat_id: tgChatID
             };
@@ -933,6 +978,7 @@
                 hideDynamicGroupForm();
                 appendLog({ level: 'INFO', module: 'Action', message: `动态自适应组 [${name}] 已成功保存并启动评估！` });
                 await fetchDynamicGroups();
+                updateSystemPrimaryRotateBanner();
                 fetchStatus();
             } catch(err) {
                 alert('请求异常: ' + err);
@@ -2188,6 +2234,7 @@
             toggleSort,
             closeSettingsModal,
             switchSettingsTab,
+            openSystemPrimaryConfig,
             randomPath,
             randomPassword,
             testTelegramAlert,

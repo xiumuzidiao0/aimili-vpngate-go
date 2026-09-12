@@ -128,6 +128,20 @@ async function mockAPI(route) {
   } else if (path.endsWith("/api/tunnel-groups")) {
     body = [
       {
+        id: "system-primary",
+        name: "系统主出口网关组 (tun0)",
+        enabled: true,
+        is_system: true,
+        country: "",
+        ip_type: "all",
+        sort_by: "score",
+        unlock_filter: "ai",
+        target_count: 1,
+        interval_minutes: 30,
+        active_tunnel_ids: ["tun-1"],
+        status_text: "主网关正常运行"
+      },
+      {
         id: "dg-1",
         name: "日本Top3住宅组",
         enabled: true,
@@ -205,6 +219,17 @@ try {
     const rotateVisible = await page.locator("#tab-content-rotate").isVisible();
     if (!rotateVisible) failures.push(`${viewport}px: settings rotate tab is not visible`);
 
+    // Test direct jump from rotate tab to system primary group drawer
+    await page.locator('[data-action="openSystemPrimaryConfig"]').click();
+    await page.waitForTimeout(200);
+    const sysDrawerOpen = await page.locator("#dynamic-group-edit-card").evaluate(el => el.classList.contains("open"));
+    if (!sysDrawerOpen) failures.push(`${viewport}px: openSystemPrimaryConfig did not open drawer`);
+    await page.locator("#dynamic-group-edit-card [data-drawer-close]").click();
+    await page.waitForTimeout(200);
+
+    // Go back to settings to test tg tab
+    await page.evaluate(() => document.querySelector('[data-view="settings"]').click());
+    await page.waitForTimeout(80);
     await page.locator('[data-action="switchSettingsTab"][data-args*="tg"]').click();
     await page.waitForTimeout(60);
     const tgVisible = await page.locator("#tab-content-tg").isVisible();
@@ -213,6 +238,8 @@ try {
     // Test Matrix & Dynamic Groups visibility
     await page.evaluate(() => document.querySelector('[data-view="matrix"]').click());
     await page.waitForTimeout(100);
+    await page.locator('[data-action="switchMatrixTab"][data-args*="ports"]').click();
+    await page.waitForTimeout(60);
     const portsVisible = await page.locator("#matrix-content-ports").isVisible();
     if (!portsVisible) failures.push(`${viewport}px: matrix ports content is not visible`);
 

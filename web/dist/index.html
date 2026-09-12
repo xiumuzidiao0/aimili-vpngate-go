@@ -403,29 +403,34 @@
                     </div>
                 </div>
 
-                <!-- Tab 2: Auto Rotate -->
+                <!-- Tab 2: Auto Rotate (Unified into Dynamic Group system-primary) -->
                 <div id="tab-content-rotate" class="hidden">
-                    <div class="form-group">
-                        <label class="form-label">定时自动轮换 IP 周期</label>
-                        <select id="cfg-auto-rotate" class="input-field w-full" >
-                            <option value="0">关闭定时轮换 (保持固定连接)</option>
-                            <option value="15">每 15 分钟自动平滑切换最优节点</option>
-                            <option value="30">每 30 分钟自动平滑切换最优节点</option>
-                            <option value="60">每 1 小时自动平滑切换最优节点</option>
-                            <option value="120">每 2 小时自动平滑切换最优节点</option>
-                        </select>
+                    <div class="settings-note mb-4">
+                        💡 <strong>架构升级提示</strong>：系统节点的自动定时轮换与平滑故障转移已全面收敛至<strong>自适应隧道组</strong>统一托管。由系统内置的 <strong>主出口网关组 (tun0)</strong> 负责监测出网健康度、按 AI / 流媒体解锁能力择优，并定期平滑轮换。
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">轮换偏好网络类型</label>
-                        <select id="cfg-rotate-iptype" class="input-field w-full" >
-                            <option value="all">不限类型 (优先延迟最低)</option>
-                            <option value="residential">优先住宅宽带 IP (家宽)</option>
-                            <option value="hosting">优先机房/数据中心 IP</option>
-                        </select>
+
+                    <div class="card mb-4" style="background: var(--bg-card-sub); border: 1px solid var(--border); padding: 16px;">
+                        <div class="row items-center justify-between wrap gap-2 mb-3">
+                            <div class="row items-center gap-2">
+                                <span class="badge badge-system">系统主出口网关组 (tun0)</span>
+                                <span id="sys-rotate-status-badge" class="badge connected"><span class="status-dot"></span> 托管运行中</span>
+                            </div>
+                            <button type="button" class="btn btn-sm" data-action="openSystemPrimaryConfig">
+                                ⚡ 前往配置主连策略 ↗
+                            </button>
+                        </div>
+
+                        <div class="dynamic-group-meta" id="sys-rotate-meta">
+                            <span>轮换周期: <strong id="sys-meta-interval" class="text-strong">30分钟</strong></span>
+                            <span>网络类型: <strong id="sys-meta-iptype" class="text-strong">全部网络类型</strong></span>
+                            <span>首选地区: <strong id="sys-meta-country" class="text-strong">全部国家/地区</strong></span>
+                            <span>择优指标: <strong id="sys-meta-sort" class="dynamic-metric">最低延迟优先</strong></span>
+                            <span>解锁要求: <strong id="sys-meta-unlock" class="text-strong">不限</strong></span>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">节点发现与首选国家代码 (例如: JP,US,KR，留空不限)</label>
-                        <input id="cfg-discovery-countries" class="input-field w-full"  type="text" placeholder="例如: JP,US,KR">
+
+                    <div class="text-note text-muted">
+                        如需关闭定时自动轮换（保持固定节点长期连接），点击上方「前往配置主连策略」将轮换状态调整为保持固定连接即可。
                     </div>
                 </div>
 
@@ -932,6 +937,7 @@
             <div>
                 <label class="form-label">自动重评与轮换周期</label>
                 <select id="dg-interval" class="input-field w-full" >
+                    <option value="0">关闭定时轮换 (保持固定连接)</option>
                     <option value="5">每 5 分钟重评轮换</option>
                     <option value="10">每 10 分钟重评轮换</option>
                     <option value="15" selected>每 15 分钟重评轮换</option>
